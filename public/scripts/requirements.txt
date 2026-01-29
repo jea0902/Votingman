@@ -1,0 +1,21 @@
+# FMP 데이터 수집 스크립트 의존성
+# 설치: pip install -r requirements.txt
+
+# HTTP 요청
+requests>=2.31.0
+
+# 데이터 처리
+pandas>=2.0.0
+
+# 환경 변수 로드
+python-dotenv>=1.0.0
+
+# Supabase 클라이언트
+supabase>=2.0.0
+
+# 진행바 표시
+tqdm>=4.66.0
+
+# Wikipedia HTML 파싱 (pandas.read_html 의존성)
+lxml>=4.9.0
+html5lib>=1.1
