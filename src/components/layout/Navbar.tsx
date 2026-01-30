@@ -11,18 +11,12 @@
  */
 
 import Link from "next/link";
-import { useState, useCallback } from "react";
-import { Menu, X, LogIn, UserPlus } from "lucide-react";
+import { useState, useCallback, useEffect } from "react";
+import { Menu, X, LogIn, UserPlus, LogOut, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
+import { createClient } from "@/lib/supabase/client";
 
 const NAV_LINKS = [ // 네비게이션 링크
   { href: "/", label: "홈" },
@@ -31,15 +25,136 @@ const NAV_LINKS = [ // 네비게이션 링크
   { href: "/buffet-pick", label: "버핏원픽" },
   { href: "/simulation", label: "모의 선물 투자" },
   { href: "/community", label: "커뮤니티" },
-  { href: "/suggestions", label: "건의/설문" },
 ] as const;
 
 export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [loginOpen, setLoginOpen] = useState(false);
-  const [signupOpen, setSignupOpen] = useState(false);
+  const [user, setUser] = useState<{ id: string; email: string; nickname: string } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [sessionId, setSessionId] = useState<string>('');
+  const [hasSession, setHasSession] = useState(false);
 
   const closeMobile = useCallback(() => setMobileOpen(false), []);
+
+  // 사용자 세션 확인
+  useEffect(() => {
+    const supabase = createClient();
+    let mounted = true;
+
+    // 타임아웃 설정 (3초 후 강제 로딩 해제)
+    const timeout = setTimeout(() => {
+      console.log('[Navbar] ⚠️ Loading timeout - forcing isLoading to false');
+      if (mounted) setIsLoading(false);
+    }, 3000);
+
+    // 초기 세션 확인
+    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
+      console.log('[Navbar] 🔍 Initial session check:', session?.user?.id, error);
+      
+      try {
+        if (session?.user) {
+          setSessionId(session.user.id);
+          setHasSession(true);
+          console.log('[Navbar] 📝 Fetching user from users table...');
+          
+          // users 테이블에서 닉네임 가져오기
+          const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select('nickname')
+            .eq('user_id', session.user.id)
+            .is('deleted_at', null)
+            .maybeSingle();
+
+          console.log('[Navbar] 📊 User data result:', userData, userError);
+          
+          if (userData && mounted) {
+            setUser({
+              id: session.user.id,
+              email: session.user.email || '',
+              nickname: userData.nickname,
+            });
+            console.log('[Navbar] ✅ User loaded:', userData.nickname);
+          } else {
+            console.log('[Navbar] ⚠️ Session exists but no user data - redirecting to signup');
+            // Session은 있지만 users 테이블에 데이터가 없음 → 닉네임 입력 필요
+            if (mounted && typeof window !== 'undefined') {
+              window.location.href = '/signup?step=nickname';
+            }
+          }
+        } else {
+          console.log('[Navbar] ℹ️ No session found');
+          setHasSession(false);
+        }
+      } catch (err) {
+        console.error('[Navbar] ❌ Error loading user:', err);
+      } finally {
+        clearTimeout(timeout);
+        if (mounted) {
+          setIsLoading(false);
+          console.log('[Navbar] ✅ Loading complete, isLoading set to false');
+        }
+      }
+    }).catch((err) => {
+      console.error('[Navbar] ❌ Session error:', err);
+      clearTimeout(timeout);
+      if (mounted) setIsLoading(false);
+    });
+
+    // 세션 변경 감지
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      console.log('[Navbar] Auth state changed:', _event, session?.user?.id);
+      setSessionId(session?.user?.id || '');
+      
+      try {
+        if (session?.user) {
+          setHasSession(true);
+          console.log('[Navbar] Fetching user data for:', session.user.id);
+          const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select('nickname')
+            .eq('user_id', session.user.id)
+            .is('deleted_at', null)
+            .maybeSingle();
+
+          console.log('[Navbar] User query result:', userData, userError);
+
+          if (userData) {
+            setUser({
+              id: session.user.id,
+              email: session.user.email || '',
+              nickname: userData.nickname,
+            });
+            console.log('[Navbar] ✅ User set successfully:', userData.nickname);
+          } else {
+            console.log('[Navbar] ⚠️ Auth state: session exists but no user data');
+            setUser(null);
+          }
+        } else {
+          console.log('[Navbar] No session, clearing user');
+          setHasSession(false);
+          setUser(null);
+        }
+      } catch (err) {
+        console.error('[Navbar] Auth state change error:', err);
+        setUser(null);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  // 로그아웃 핸들러
+  const handleLogout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    setUser(null);
+    closeMobile();
+  };
 
   return (
     <>
@@ -80,25 +195,54 @@ export function Navbar() {
               </Link>
             ))}
             <div className="flex items-center gap-2 border-l border-border pl-4">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setLoginOpen(true)}
-                className="gap-1"
-              >
-                <LogIn className="h-4 w-4" />
-                <span className="hidden lg:inline">로그인</span>
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => setSignupOpen(true)}
-                className="gap-1 bg-accent text-accent-foreground hover:bg-accent/90"
-              >
-                <UserPlus className="h-4 w-4" />
-                <span className="hidden lg:inline">회원가입</span>
-              </Button>
+              {/* 디버그: 항상 상태 표시 */}
+              <div className="text-xs text-muted-foreground px-2">
+                Loading: {isLoading ? 'Y' : 'N'} | Session: {sessionId ? 'Y' : 'N'} | User: {user ? user.nickname : 'N'}
+              </div>
+              {isLoading ? (
+                <div className="h-8 w-20 animate-pulse rounded bg-muted" />
+              ) : user ? (
+                <>
+                  <div className="flex items-center gap-2 px-2">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">{user.nickname}</span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleLogout}
+                    className="gap-1"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    <span className="hidden lg:inline">로그아웃</span>
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Link href="/login">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="gap-1"
+                    >
+                      <LogIn className="h-4 w-4" />
+                      <span className="hidden lg:inline">로그인</span>
+                    </Button>
+                  </Link>
+                  <Link href="/signup">
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="gap-1 bg-accent text-accent-foreground hover:bg-accent/90"
+                    >
+                      <UserPlus className="h-4 w-4" />
+                      <span className="hidden lg:inline">회원가입</span>
+                    </Button>
+                  </Link>
+                </>
+              )}
             </div>
           </div>
 
@@ -129,31 +273,50 @@ export function Navbar() {
         >
           <div className="flex flex-col gap-1 px-4 py-3">
             <div className="mb-2 flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setLoginOpen(true);
-                  closeMobile();
-                }}
-                className="flex-1 justify-start gap-2"
-              >
-                <LogIn className="h-4 w-4" />
-                로그인
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => {
-                  setSignupOpen(true);
-                  closeMobile();
-                }}
-                className="flex-1 justify-start gap-2 bg-accent text-accent-foreground hover:bg-accent/90"
-              >
-                <UserPlus className="h-4 w-4" />
-                회원가입
-              </Button>
+              {isLoading ? (
+                <div className="h-9 w-full animate-pulse rounded bg-muted" />
+              ) : user ? (
+                <>
+                  <div className="flex items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-2 flex-1">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">{user.nickname}</span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleLogout}
+                    className="gap-2"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    로그아웃
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Link href="/login" className="flex-1" onClick={closeMobile}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-start gap-2"
+                    >
+                      <LogIn className="h-4 w-4" />
+                      로그인
+                    </Button>
+                  </Link>
+                  <Link href="/signup" className="flex-1" onClick={closeMobile}>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="w-full justify-start gap-2 bg-accent text-accent-foreground hover:bg-accent/90"
+                    >
+                      <UserPlus className="h-4 w-4" />
+                      회원가입
+                    </Button>
+                  </Link>
+                </>
+              )}
             </div>
             {NAV_LINKS.map(({ href, label }) => (
               <Link
@@ -168,36 +331,6 @@ export function Navbar() {
           </div>
         </div>
       </header>
-
-      {/* 로그인 모달 */}
-      <Dialog open={loginOpen} onOpenChange={setLoginOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>로그인</DialogTitle>
-            <DialogDescription>
-              이메일과 비밀번호를 입력하세요. (준비 중)
-            </DialogDescription>
-          </DialogHeader>
-          <div className="rounded-lg border border-border bg-muted/30 p-4 text-center text-sm text-muted-foreground">
-            로그인 기능은 곧 제공됩니다.
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* 회원가입 모달 */}
-      <Dialog open={signupOpen} onOpenChange={setSignupOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>회원가입</DialogTitle>
-            <DialogDescription>
-              새 계정을 만드세요. (준비 중)
-            </DialogDescription>
-          </DialogHeader>
-          <div className="rounded-lg border border-border bg-muted/30 p-4 text-center text-sm text-muted-foreground">
-            회원가입 기능은 곧 제공됩니다.
-          </div>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }

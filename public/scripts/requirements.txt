@@ -1,21 +1,25 @@
-# FMP 데이터 수집 스크립트 의존성
-# 설치: pip install -r requirements.txt
+# Buffett Pick Data Collection Script Dependencies
+# Install: pip install -r requirements.txt
 
-# HTTP 요청
+# HTTP requests
 requests>=2.31.0
 
-# 데이터 처리
+# Data processing
 pandas>=2.0.0
 
-# 환경 변수 로드
+# Environment variables
 python-dotenv>=1.0.0
 
-# Supabase 클라이언트
+# Supabase client
 supabase>=2.0.0
 
-# 진행바 표시
+# Progress bar
 tqdm>=4.66.0
 
-# Wikipedia HTML 파싱 (pandas.read_html 의존성)
+# HTML parsing (pandas.read_html dependency)
 lxml>=4.9.0
 html5lib>=1.1
+
+# yfinance data source
+yfinance>=0.2.30
+curl_cffi>=0.6.0

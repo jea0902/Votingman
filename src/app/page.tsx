@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * Bitcos 홈 메인 (1차 MVP)
  *
@@ -10,6 +12,10 @@
  */
 
 import { StrategyCard } from "@/components/home";
+import { Button } from "@/components/ui/button";
+import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 
 // 매매법 데이터 타입
 interface Strategy {
@@ -58,6 +64,41 @@ const DUMMY_STRATEGIES: Strategy[] = [
 ];
 
 export default function Home() {
+  const router = useRouter();
+  const [user, setUser] = useState<{ nickname: string } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const supabase = createClient();
+    
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user) {
+        const { data: userData } = await supabase
+          .from('users')
+          .select('nickname')
+          .eq('user_id', session.user.id)
+          .is('deleted_at', null)
+          .maybeSingle();
+
+        if (userData) {
+          setUser({ nickname: userData.nickname });
+        }
+      }
+      setIsLoading(false);
+    });
+  }, []);
+
+  const handleLogout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    setUser(null);
+    router.refresh();
+  };
+
+  const handleLogin = () => {
+    router.push('/login');
+  };
+
   return (
     <div className="relative min-h-[calc(100vh-3.5rem)] w-full">
       {/* 배경 그라데이션 */}
@@ -79,6 +120,24 @@ export default function Home() {
             감정 대신 수학적 통계로 투자하세요!<br />
             유효한 지표들로 백테스팅이 끝난 전략을 떠먹여 드립니다
           </p>
+          
+          {/* 디버그: 로그인/로그아웃 버튼 */}
+          <div className="mt-8 flex items-center justify-center gap-4">
+            {isLoading ? (
+              <div className="h-10 w-32 animate-pulse rounded bg-muted" />
+            ) : user ? (
+              <div className="flex items-center gap-4">
+                <span className="text-lg text-foreground">환영합니다, <strong>{user.nickname}</strong>님!</span>
+                <Button onClick={handleLogout} variant="outline" size="lg">
+                  로그아웃
+                </Button>
+              </div>
+            ) : (
+              <Button onClick={handleLogin} size="lg">
+                로그인
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* 매매법 카드 그리드 (3개) */}

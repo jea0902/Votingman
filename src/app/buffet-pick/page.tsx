@@ -2,14 +2,17 @@
  * 버핏원픽 페이지
  *
  * 설계 의도:
- * - 워렌 버핏 기준 우량주/저평가 종목 카드 레이아웃
- * - 빨간색: 우량주, 황금색: 우량주 + 저평가
+ * - Supabase DB에서 버핏 평가 결과를 가져와 표시
+ * - 황금색: 우량주 + 저평가 (PASS + BUY)
+ * - 빨간색: 우량주 (PASS + WAIT)
  * - Deep Dark 테마 유지
  */
 
-import { StockCard } from "@/components/home";
+import { createSupabaseAdmin } from "@/lib/supabase/server";
+import { BuffettCard, StockCard } from "@/components/home";
+import type { BuffettCardResponse } from "@/lib/supabase/db-types";
 
-// 더미 데이터 타입
+// 더미 데이터 타입 (기존 호환용)
 interface Stock {
   id: string;
   name: string;
@@ -21,7 +24,7 @@ interface Stock {
   fairValue: string;
 }
 
-// 더미 종목 데이터
+// 더미 종목 데이터 (DB 데이터 없을 때 표시)
 const DUMMY_STOCKS: Stock[] = [
   {
     id: "1",
@@ -52,76 +55,104 @@ const DUMMY_STOCKS: Stock[] = [
     undervalued: false,
     fairValue: "₩245,000",
   },
-  {
-    id: "4",
-    name: "NAVER",
-    ticker: "035420",
-    logo: "🟢",
-    qualityCriteria: ["매출 성장 25%↑", "시장 점유율 1위", "R&D 투자"],
-    undervalued: true,
-    undervaluedReason: "PSR 2.1 (글로벌 평균 3.5)",
-    fairValue: "₩280,000",
-  },
-  {
-    id: "5",
-    name: "카카오",
-    ticker: "035720",
-    logo: "💬",
-    qualityCriteria: ["MAU 성장", "다각화 수익", "플랫폼 독점"],
-    undervalued: false,
-    fairValue: "₩68,000",
-  },
-  {
-    id: "6",
-    name: "LG화학",
-    ticker: "051910",
-    logo: "⚗️",
-    qualityCriteria: ["배터리 점유율 2위", "ROE 10%↑", "글로벌 진출"],
-    undervalued: true,
-    undervaluedReason: "EV/EBITDA 6.2 (업계 평균 9.1)",
-    fairValue: "₩580,000",
-  },
-  {
-    id: "7",
-    name: "POSCO홀딩스",
-    ticker: "005490",
-    logo: "🏭",
-    qualityCriteria: ["원가 경쟁력", "배당 15년↑", "안정적 현금"],
-    undervalued: false,
-    fairValue: "₩385,000",
-  },
-  {
-    id: "8",
-    name: "기아",
-    ticker: "000270",
-    logo: "🚙",
-    qualityCriteria: ["ROE 14%↑", "영업이익률 8%↑", "브랜드 가치"],
-    undervalued: true,
-    undervaluedReason: "PER 6.8 (글로벌 평균 10.2)",
-    fairValue: "₩125,000",
-  },
-  {
-    id: "9",
-    name: "KB금융",
-    ticker: "105560",
-    logo: "🏦",
-    qualityCriteria: ["ROE 11%↑", "배당수익률 5%↑", "부실채권률 ↓"],
-    undervalued: false,
-    fairValue: "₩72,000",
-  },
-  {
-    id: "10",
-    name: "셀트리온",
-    ticker: "068270",
-    logo: "💊",
-    qualityCriteria: ["글로벌 시장 진출", "파이프라인", "매출 성장"],
-    undervalued: true,
-    undervaluedReason: "PEG 0.8 (성장 대비 저평가)",
-    fairValue: "₩220,000",
-  },
 ];
 
-export default function BuffetPickPage() {
+/**
+ * Supabase에서 최신 버핏 평가 결과 가져오기
+ */
+async function getBuffettResults(): Promise<BuffettCardResponse[]> {
+  try {
+    const supabase = createSupabaseAdmin();
+    
+    // 최신 run_id 조회
+    const { data: runData, error: runError } = await supabase
+      .from("buffett_run")
+      .select("run_id")
+      .order("run_date", { ascending: false })
+      .limit(1);
+    
+    if (runError || !runData || runData.length === 0) {
+      return [];
+    }
+    
+    const runId = runData[0].run_id;
+    
+    // 평가 결과 조회 (PASS만, 총점 내림차순)
+    const { data, error } = await supabase
+      .from("buffett_result")
+      .select(`
+        run_id,
+        stock_id,
+        total_score,
+        pass_status,
+        current_price,
+        intrinsic_value,
+        gap_pct,
+        recommendation,
+        is_undervalued,
+        years_data,
+        trust_grade,
+        trust_grade_text,
+        trust_grade_stars,
+        pass_reason,
+        valuation_reason,
+        created_at,
+        stocks (
+          ticker,
+          company_name
+        )
+      `)
+      .eq("run_id", runId)
+      .order("total_score", { ascending: false });
+    
+    if (error || !data) {
+      return [];
+    }
+    
+    // 데이터 변환
+    return data.map((row: any) => {
+      const stock = Array.isArray(row.stocks) ? row.stocks[0] : row.stocks;
+      return {
+        run_id: row.run_id,
+        stock_id: row.stock_id,
+        ticker: stock?.ticker ?? null,
+        company_name: stock?.company_name ?? null,
+        current_price: row.current_price,
+        price_date: null,
+        total_score: row.total_score,
+        pass_status: row.pass_status,
+        intrinsic_value: row.intrinsic_value,
+        gap_pct: row.gap_pct,
+        recommendation: row.recommendation,
+        is_undervalued: row.is_undervalued,
+        years_data: row.years_data,
+        trust_grade: row.trust_grade,
+        trust_grade_text: row.trust_grade_text,
+        trust_grade_stars: row.trust_grade_stars,
+        pass_reason: row.pass_reason,
+        valuation_reason: row.valuation_reason,
+        created_at: row.created_at,
+      };
+    });
+  } catch (error) {
+    console.error("Failed to fetch buffett results:", error);
+    return [];
+  }
+}
+
+export default async function BuffetPickPage() {
+  // DB에서 버핏 평가 결과 가져오기
+  const buffettResults = await getBuffettResults();
+  
+  // PASS 종목만 필터링
+  const passedResults = buffettResults.filter(r => r.pass_status === "PASS");
+  
+  // 저평가 우량주 (BUY)
+  const undervaluedResults = passedResults.filter(r => r.recommendation === "BUY");
+  
+  // 우량주 (WAIT)
+  const qualityResults = passedResults.filter(r => r.recommendation === "WAIT");
+
   return (
     <div className="relative min-h-[calc(100vh-3.5rem)] w-full">
       {/* 배경 그라데이션 */}
@@ -145,11 +176,63 @@ export default function BuffetPickPage() {
           </p>
         </div>
 
-        {/* 종목 카드 그리드 (한 줄에 5개) */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-          {DUMMY_STOCKS.map((stock) => (
-            <StockCard key={stock.id} stock={stock} />
-          ))}
+        {/* DB 데이터가 있는 경우 */}
+        {buffettResults.length > 0 && (
+          <>
+            {/* 저평가 우량주 섹션 */}
+            {undervaluedResults.length > 0 && (
+              <div className="mb-12">
+                <h2 className="mb-6 text-2xl font-bold text-amber-400">
+                  🔥 저평가 우량주 ({undervaluedResults.length}개)
+                </h2>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+                  {undervaluedResults.map((result) => (
+                    <BuffettCard key={result.stock_id} result={result} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 우량주 섹션 */}
+            {qualityResults.length > 0 && (
+              <div className="mb-12">
+                <h2 className="mb-6 text-2xl font-bold text-red-400">
+                  ✓ 우량주 ({qualityResults.length}개)
+                </h2>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+                  {qualityResults.map((result) => (
+                    <BuffettCard key={result.stock_id} result={result} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 평가 결과 없는 경우 */}
+            {passedResults.length === 0 && (
+              <div className="mb-12 rounded-lg border border-gray-500/30 bg-gray-900/20 p-8 text-center">
+                <p className="text-lg text-muted-foreground">
+                  아직 우량주 기준을 통과한 종목이 없습니다.
+                </p>
+              </div>
+            )}
+
+            {/* 구분선 */}
+            <div className="my-12 h-px bg-gray-700" />
+          </>
+        )}
+
+        {/* DB 데이터 없거나 더미 데이터 표시 */}
+        <div className="mb-8">
+          <h2 className="mb-6 text-xl font-semibold text-muted-foreground">
+            {buffettResults.length > 0 
+              ? "📋 예시 데이터 (한국 주식)" 
+              : "📋 데이터 로딩 중... (예시 데이터)"}
+          </h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            {DUMMY_STOCKS.map((stock) => (
+              <StockCard key={stock.id} stock={stock} />
+            ))}
+          </div>
         </div>
       </div>
     </div>

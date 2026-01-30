@@ -1,6 +1,13 @@
-# 버핏원픽 데이터 수집 스크립트
+# 버핏원픽 데이터 수집 및 평가 스크립트
 
-FMP (Financial Modeling Prep) API를 사용하여 S&P 500, NASDAQ 100 종목의 재무 데이터를 수집하는 Python 스크립트입니다.
+FMP (Financial Modeling Prep) API를 사용하여 S&P 500, NASDAQ 100 종목의 재무 데이터를 수집하고, 버핏 평가를 수행하는 Python 스크립트입니다.
+
+## 스크립트 구성
+
+| 스크립트 | 역할 |
+|----------|------|
+| `fmp_data_collect.py` | FMP API → Supabase Storage 수집 |
+| `buffett_evaluate.py` | Storage → 버핏 평가 → Supabase DB 저장 |
 
 ## 사전 요구사항
 
@@ -140,6 +147,70 @@ schtasks /create /tn "FMP_Prices" /tr "python C:\path\to\fmp_data_collect.py --m
 # 재무제표: 매년 1월 15일 09:00
 0 9 15 1 * cd /path/to/scripts && python fmp_data_collect.py --mode financials
 ```
+
+---
+
+## buffett_evaluate.py 사용법
+
+Storage에 저장된 FMP 데이터를 읽어 버핏 평가를 수행하고 DB에 저장합니다.
+
+### 테스트 모드
+
+5개 종목(AAPL, MSFT, GOOGL, NVDA, META)만 평가합니다.
+
+```bash
+python buffett_evaluate.py --mode test
+```
+
+### 전체 평가 모드
+
+Storage의 prices 폴더에 있는 모든 종목을 평가합니다.
+
+```bash
+# 오늘 날짜 기준
+python buffett_evaluate.py --mode full
+
+# 특정 날짜/연도 지정
+python buffett_evaluate.py --mode full --date 2026-01-30 --year 2026
+```
+
+### 결과 확인
+
+평가 완료 후 API로 결과를 조회할 수 있습니다:
+
+```
+http://localhost:3000/api/buffett?runId={run_id}
+```
+
+---
+
+## 전체 실행 흐름
+
+```bash
+# 1단계: 티커 목록 수집 (월 1회)
+python fmp_data_collect.py --mode tickers
+
+# 2단계: 재무제표 수집 (연 1회)
+python fmp_data_collect.py --mode financials
+
+# 3단계: 현재가 수집 (일간)
+python fmp_data_collect.py --mode prices
+
+# 4단계: 버핏 평가 실행 (일간, 현재가 수집 후)
+python buffett_evaluate.py --mode full
+```
+
+### 테스트 시 빠른 실행
+
+```bash
+# 테스트 데이터 수집 (5종목)
+python fmp_data_collect.py --mode test
+
+# 테스트 평가 (5종목)
+python buffett_evaluate.py --mode test
+```
+
+---
 
 ## 문제 해결
 
