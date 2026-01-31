@@ -61,16 +61,16 @@ export async function GET(
     }
 
     // 조회수 증가 (비동기, 에러 무시)
-    supabase
-      .from('board_posts')
-      .update({ view_count: post.view_count + 1 })
-      .eq('post_id', postId)
-      .then(() => {
-        // 성공 시 아무것도 안 함
-      })
-      .catch((err) => {
+    (async () => {
+      try {
+        await supabase
+          .from('board_posts')
+          .update({ view_count: post.view_count + 1 })
+          .eq('post_id', postId);
+      } catch (err) {
         console.error('Failed to increment view count:', err);
-      });
+      }
+    })();
 
     const response: PostDetailResponse = post;
 

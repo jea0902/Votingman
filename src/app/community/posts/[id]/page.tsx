@@ -250,7 +250,7 @@ export default function PostDetailPage() {
   // 멘션 파싱 및 렌더링
   const renderContentWithMentions = (content: string) => {
     const mentionRegex = /@(\S+)/g;
-    const parts: (string | JSX.Element)[] = [];
+    const parts: React.ReactNode[] = [];
     let lastIndex = 0;
     let match;
 
