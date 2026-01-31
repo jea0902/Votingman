@@ -1,0 +1,262 @@
+---
+description: 시니어 풀스택 개발자 및 시스템 아키텍트 코딩 표준
+alwaysApply: true
+---
+
+# 개발 표준 및 아키텍처 가이드라인
+
+## 1. 설계 우선 원칙
+
+코드를 작성하기 전에 반드시 설계 의도를 먼저 설명해야 합니다.
+
+### 설계 설명에 포함할 내용:
+- **목적**: 이 코드가 해결하려는 문제는 무엇인가?
+- **아키텍처 결정**: 왜 이 방식으로 구현하는가?
+- **의존성**: 다른 모듈/컴포넌트와의 관계는?
+- **확장성**: 향후 변경사항을 어떻게 수용할 것인가?
+
+### 예시:
+```typescript
+/**
+ * 설계 의도:
+ * - 사용자 인증을 위한 JWT 기반 토큰 관리 모듈
+ * - 토큰 갱신, 만료 처리, 보안 검증을 중앙화
+ * - 향후 OAuth, 2FA 확장 가능하도록 인터페이스 기반 설계
+ */
+```
+
+## 2. 코드 주석 및 문서화
+
+모든 코드 블록에는 목적과 동작을 설명하는 주석이 필요합니다.
+
+### 주석 작성 규칙:
+- **함수/클래스**: 목적, 파라미터, 반환값, 예외 설명
+- **복잡한 로직**: 알고리즘 설명 및 의도
+- **비즈니스 로직**: 도메인 규칙 설명
+- **보안 관련**: 보안 고려사항 명시
+
+### 예시:
+```typescript
+/**
+ * 사용자 입력을 검증하고 안전하게 처리합니다.
+ * 
+ * @param input - 사용자 입력 문자열
+ * @returns 검증된 입력값 또는 null (검증 실패 시)
+ * @throws ValidationError - 입력 형식이 올바르지 않을 때
+ * 
+ * 보안: SQL Injection 및 XSS 공격 방지를 위해 입력값을 이스케이프 처리합니다.
+ */
+function validateUserInput(input: string): string | null {
+  // 입력값이 비어있거나 null인 경우 조기 반환
+  if (!input || input.trim().length === 0) {
+    return null;
+  }
+  
+  // HTML 태그 제거로 XSS 방지
+  const sanitized = input.replace(/<[^>]*>/g, '');
+  
+  // 최대 길이 제한 (DoS 공격 방지)
+  if (sanitized.length > 1000) {
+    throw new ValidationError('Input exceeds maximum length');
+  }
+  
+  return sanitized;
+}
+```
+
+## 3. 유지보수성 설계
+
+코드는 장기적으로 유지보수하기 쉽도록 설계되어야 합니다.
+
+### 원칙:
+- **단일 책임 원칙**: 각 함수/클래스는 하나의 책임만 가짐
+- **DRY (Don't Repeat Yourself)**: 중복 코드 제거
+- **명확한 네이밍**: 변수/함수명만으로도 의도가 명확해야 함
+- **모듈화**: 재사용 가능한 작은 단위로 분리
+- **의존성 주입**: 테스트 가능하고 유연한 구조
+- **타입 안정성**: TypeScript 타입을 명확히 정의
+
+### 예시:
+```typescript
+// ❌ BAD: 단일 책임 위반, 테스트 어려움
+class UserService {
+  async createUser(data: any) {
+    const db = new Database();
+    const email = data.email.toLowerCase();
+    const hashed = await bcrypt.hash(data.password, 10);
+    await db.query('INSERT INTO users...');
+    await sendWelcomeEmail(email);
+  }
+}
+
+// ✅ GOOD: 책임 분리, 의존성 주입, 테스트 가능
+interface IUserRepository {
+  save(user: User): Promise<User>;
+}
+
+interface IEmailService {
+  sendWelcome(email: string): Promise<void>;
+}
+
+class UserService {
+  constructor(
+    private userRepo: IUserRepository,
+    private emailService: IEmailService
+  ) {}
+  
+  async createUser(data: CreateUserDto): Promise<User> {
+    const user = User.create(data);
+    const savedUser = await this.userRepo.save(user);
+    await this.emailService.sendWelcome(savedUser.email);
+    return savedUser;
+  }
+}
+```
+
+## 4. 보안 검토 필수
+
+모든 코드는 보안 이슈를 검토해야 합니다.
+
+### 체크리스트:
+- [ ] **입력 검증**: 모든 사용자 입력 검증 및 이스케이프
+- [ ] **인증/인가**: 적절한 권한 검사
+- [ ] **SQL Injection**: 파라미터화된 쿼리 사용
+- [ ] **XSS 방지**: 출력값 이스케이프
+- [ ] **CSRF 방지**: 토큰 검증
+- [ ] **민감 정보**: 로그에 비밀번호/토큰 노출 금지
+- [ ] **Rate Limiting**: DoS 공격 방지
+- [ ] **HTTPS**: 프로덕션에서는 반드시 사용
+- [ ] **의존성**: 보안 취약점이 있는 패키지 사용 금지
+
+### 예시:
+```typescript
+// ❌ BAD: SQL Injection 취약
+async function getUser(id: string) {
+  return db.query(`SELECT * FROM users WHERE id = ${id}`);
+}
+
+// ✅ GOOD: 파라미터화된 쿼리
+async function getUser(id: string) {
+  // 입력 검증
+  if (!isValidUUID(id)) {
+    throw new ValidationError('Invalid user ID format');
+  }
+  
+  // 파라미터화된 쿼리로 SQL Injection 방지
+  return db.query('SELECT * FROM users WHERE id = $1', [id]);
+}
+```
+
+## 5. 에러 처리 필수
+
+모든 함수는 적절한 에러 처리를 포함해야 합니다.
+
+### 에러 처리 원칙:
+- **명시적 에러 처리**: 모든 비동기 작업에 try-catch
+- **구체적인 에러 타입**: 일반 Error 대신 구체적인 에러 클래스 사용
+- **에러 로깅**: 모든 에러는 적절한 레벨로 로깅
+- **사용자 친화적 메시지**: 사용자에게는 안전한 메시지만 노출
+- **에러 전파**: 적절한 레벨에서 처리, 불필요한 전파 방지
+- **Fallback 전략**: 실패 시 대안 제공
+
+### 예시:
+```typescript
+// ❌ BAD: 에러 처리 없음
+async function fetchUserData(userId: string) {
+  const response = await fetch(`/api/users/${userId}`);
+  const data = await response.json();
+  return data;
+}
+
+// ✅ GOOD: 포괄적인 에러 처리
+class UserNotFoundError extends Error {
+  constructor(userId: string) {
+    super(`User with ID ${userId} not found`);
+    this.name = 'UserNotFoundError';
+  }
+}
+
+class NetworkError extends Error {
+  constructor(message: string, cause?: Error) {
+    super(message);
+    this.name = 'NetworkError';
+    this.cause = cause;
+  }
+}
+
+async function fetchUserData(userId: string): Promise<User> {
+  try {
+    // 입력 검증
+    if (!userId || !isValidUUID(userId)) {
+      throw new ValidationError('Invalid user ID');
+    }
+    
+    // 네트워크 요청
+    const response = await fetch(`/api/users/${userId}`, {
+      signal: AbortSignal.timeout(5000), // 타임아웃 설정
+    });
+    
+    // HTTP 에러 처리
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new UserNotFoundError(userId);
+      }
+      throw new NetworkError(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    
+    // 데이터 검증
+    if (!isValidUserData(data)) {
+      throw new ValidationError('Invalid user data format');
+    }
+    
+    return data;
+    
+  } catch (error) {
+    // 에러 타입별 처리
+    if (error instanceof UserNotFoundError) {
+      logger.warn('User not found', { userId });
+      throw error; // 상위로 전파
+    }
+    
+    if (error instanceof NetworkError) {
+      logger.error('Network error while fetching user', { 
+        userId, 
+        error: error.message,
+        cause: error.cause 
+      });
+      throw error;
+    }
+    
+    // 예상치 못한 에러
+    logger.error('Unexpected error in fetchUserData', {
+      userId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    
+    // 사용자에게는 안전한 메시지만 노출
+    throw new Error('Failed to fetch user data. Please try again later.');
+  }
+}
+```
+
+## 6. 코드 작성 워크플로우
+
+코드를 작성할 때 다음 순서를 따릅니다:
+
+1. **설계 설명**: 문제 분석 및 해결 방안 설명
+2. **아키텍처 검토**: 확장성, 유지보수성, 보안 고려
+3. **타입 정의**: 인터페이스 및 타입 먼저 정의
+4. **에러 처리 설계**: 예상되는 에러 케이스 정의
+5. **구현**: 위 원칙들을 따르며 코드 작성
+6. **보안 검토**: 보안 체크리스트 확인
+7. **에러 처리 확인**: 모든 경로에서 에러 처리 확인
+
+## 7. 예외 상황
+
+다음과 같은 경우에도 위 원칙을 준수합니다:
+- 프로토타입 코드
+- 테스트 코드
+- 임시 코드 (나중에 리팩토링 예정이어도)
