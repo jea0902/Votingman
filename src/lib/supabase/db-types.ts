@@ -63,6 +63,7 @@ export type BuffettCardResponse = {
   stock_id: number;
   ticker: string | null;
   company_name: string | null;
+  industry: string | null;  // 산업 섹터
   current_price: number | null;
   price_date: string | null;
   total_score: number | null;

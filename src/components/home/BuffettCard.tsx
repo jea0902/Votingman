@@ -334,6 +334,136 @@ const KOREAN_NAMES: Record<string, string> = {
 };
 
 /**
+ * 산업 섹터 영어-한글 매핑
+ */
+const INDUSTRY_KOREAN: Record<string, string> = {
+  // 기술
+  Technology: "기술",
+  "Information Technology": "정보기술",
+  Software: "소프트웨어",
+  "Software—Infrastructure": "소프트웨어 인프라",
+  "Software—Application": "소프트웨어 애플리케이션",
+  Hardware: "하드웨어",
+  "Computer Hardware": "컴퓨터 하드웨어",
+  Semiconductors: "반도체",
+  "Semiconductor Equipment & Materials": "반도체 장비",
+  "Electronic Components": "전자부품",
+  "Consumer Electronics": "가전제품",
+  // 통신
+  "Communication Services": "통신 서비스",
+  "Communication Equipment": "통신 장비",
+  Telecommunication: "통신",
+  "Telecom Services": "통신 서비스",
+  "Internet Content & Information": "인터넷 콘텐츠",
+  // 금융
+  "Financial Services": "금융 서비스",
+  Financials: "금융",
+  Banks: "은행",
+  "Banks—Diversified": "다각화 은행",
+  "Banks—Regional": "지역 은행",
+  Insurance: "보험",
+  "Insurance—Diversified": "다각화 보험",
+  "Insurance—Life": "생명보험",
+  "Insurance—Property & Casualty": "손해보험",
+  "Asset Management": "자산운용",
+  "Capital Markets": "자본시장",
+  "Credit Services": "신용 서비스",
+  // 헬스케어
+  Healthcare: "헬스케어",
+  "Health Care": "헬스케어",
+  "Healthcare Plans": "의료보험",
+  "Healthcare Providers & Services": "의료 서비스",
+  Biotechnology: "바이오테크",
+  Pharmaceuticals: "제약",
+  "Drug Manufacturers—General": "의약품 제조",
+  "Drug Manufacturers—Specialty & Generic": "특수의약품",
+  "Medical Devices": "의료기기",
+  "Medical Instruments & Supplies": "의료기기",
+  "Diagnostics & Research": "진단 및 연구",
+  // 소비재
+  "Consumer Discretionary": "임의소비재",
+  "Consumer Cyclical": "경기소비재",
+  "Consumer Staples": "필수소비재",
+  "Consumer Defensive": "방어적 소비재",
+  Retail: "소매",
+  "Specialty Retail": "전문 소매",
+  "Internet Retail": "인터넷 소매",
+  "Home Improvement Retail": "홈 인테리어",
+  "Discount Stores": "할인점",
+  "Department Stores": "백화점",
+  "Grocery Stores": "식료품점",
+  Restaurants: "레스토랑",
+  "Beverages—Non-Alcoholic": "비알콜 음료",
+  "Beverages—Soft Drinks": "청량음료",
+  "Packaged Foods": "포장식품",
+  "Household & Personal Products": "가정용품",
+  "Apparel Manufacturing": "의류 제조",
+  "Footwear & Accessories": "신발 및 액세서리",
+  "Luxury Goods": "명품",
+  // 산업재
+  Industrials: "산업재",
+  "Industrial Products": "산업제품",
+  "Aerospace & Defense": "항공우주 및 방위",
+  "Farm & Heavy Construction Machinery": "농업 및 건설기계",
+  "Specialty Industrial Machinery": "특수산업기계",
+  "Electrical Equipment & Parts": "전기장비",
+  "Industrial Distribution": "산업유통",
+  "Integrated Freight & Logistics": "물류",
+  Railroads: "철도",
+  Airlines: "항공",
+  "Trucking": "트럭 운송",
+  "Waste Management": "폐기물 관리",
+  // 에너지
+  Energy: "에너지",
+  "Oil & Gas": "석유 및 가스",
+  "Oil & Gas Integrated": "통합 석유",
+  "Oil & Gas E&P": "석유 탐사",
+  "Oil & Gas Refining & Marketing": "석유 정제",
+  "Oil & Gas Equipment & Services": "석유 장비",
+  "Oil & Gas Midstream": "석유 중류",
+  // 유틸리티
+  Utilities: "유틸리티",
+  "Utilities—Regulated Electric": "규제 전력",
+  "Utilities—Diversified": "다각화 유틸리티",
+  "Utilities—Renewable": "재생에너지",
+  // 부동산
+  "Real Estate": "부동산",
+  "REIT—Diversified": "다각화 리츠",
+  "REIT—Industrial": "산업용 리츠",
+  "REIT—Retail": "소매 리츠",
+  "REIT—Residential": "주거용 리츠",
+  "REIT—Specialty": "특수 리츠",
+  // 소재
+  Materials: "소재",
+  "Basic Materials": "기초소재",
+  Chemicals: "화학",
+  "Specialty Chemicals": "특수화학",
+  "Agricultural Inputs": "농업 투입재",
+  Steel: "철강",
+  Gold: "금",
+  Copper: "구리",
+  // 기타
+  Conglomerates: "복합기업",
+  "Business Services": "비즈니스 서비스",
+  "Staffing & Employment Services": "인력서비스",
+  Entertainment: "엔터테인먼트",
+  "Electronic Gaming & Multimedia": "전자 게임",
+  "Travel Services": "여행 서비스",
+  "Resorts & Casinos": "리조트 및 카지노",
+  "Lodging": "숙박",
+  "Auto Manufacturers": "자동차 제조",
+  "Auto Parts": "자동차 부품",
+};
+
+/**
+ * 산업 섹터 한글명 가져오기
+ */
+function getIndustryKorean(industry: string | null): string | null {
+  if (!industry) return null;
+  return INDUSTRY_KOREAN[industry] ?? null;
+}
+
+/**
  * 평가 지표 설명 데이터
  */
 const METRIC_INFO = {
@@ -537,6 +667,16 @@ export function BuffettCard({ result }: BuffettCardProps) {
           <p className="truncate text-xs text-muted-foreground">
             {result.company_name ?? "Unknown"}
           </p>
+          {result.industry && (
+            <p className="mt-0.5 truncate text-[10px] text-blue-400/80">
+              {result.industry}
+              {getIndustryKorean(result.industry) && (
+                <span className="ml-1">
+                  {getIndustryKorean(result.industry)}
+                </span>
+              )}
+            </p>
+          )}
         </div>
 
         {/* 구분선 */}
@@ -640,17 +780,17 @@ export function BuffettCard({ result }: BuffettCardProps) {
       {/* 평가 상세 모달 */}
       {isModalOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4"
           onClick={() => setIsModalOpen(false)}
         >
           <div
             className={cn(
               "relative max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl border-2 p-6",
               isUndervalued
-                ? "border-amber-500/50 bg-gradient-to-br from-gray-900 to-amber-950/30"
+                ? "border-amber-500/50 bg-gradient-to-br from-gray-950 to-amber-950/50"
                 : isPassed
-                  ? "border-red-500/50 bg-gradient-to-br from-gray-900 to-red-950/30"
-                  : "border-gray-500/50 bg-gray-900"
+                  ? "border-red-500/50 bg-gradient-to-br from-gray-950 to-red-950/50"
+                  : "border-gray-500/50 bg-gray-950"
             )}
             onClick={(e) => e.stopPropagation()}
           >
@@ -685,6 +825,16 @@ export function BuffettCard({ result }: BuffettCardProps) {
               <p className="mt-1 text-sm text-muted-foreground">
                 {result.company_name}
               </p>
+              {result.industry && (
+                <p className="mt-1 text-xs text-blue-400">
+                  📁 {result.industry}
+                  {getIndustryKorean(result.industry) && (
+                    <span className="ml-1">
+                      {getIndustryKorean(result.industry)}
+                    </span>
+                  )}
+                </p>
+              )}
             </div>
 
             {/* 총점 요약 */}

@@ -96,3 +96,34 @@ body {
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
+
+/* --------------------------------------------------------------------------
+ * 다크 테마 스크롤바
+ * - 모달 및 전체 페이지에 어울리는 어두운 스크롤바
+ * -------------------------------------------------------------------------- */
+
+/* Webkit 브라우저 (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #16181c;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #3f4347;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #5a5f65;
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #3f4347 #16181c;
+}

@@ -99,7 +99,8 @@ async function getBuffettResults(): Promise<BuffettCardResponse[]> {
         created_at,
         stocks (
           ticker,
-          company_name
+          company_name,
+          industry
         )
       `)
       .eq("run_id", runId)
@@ -117,6 +118,7 @@ async function getBuffettResults(): Promise<BuffettCardResponse[]> {
         stock_id: row.stock_id,
         ticker: stock?.ticker ?? null,
         company_name: stock?.company_name ?? null,
+        industry: stock?.industry ?? null,
         current_price: row.current_price,
         price_date: null,
         total_score: row.total_score,
@@ -178,12 +180,12 @@ export default async function BuffetPickPage() {
           {/* 서비스 설명 문구 */}
           <div className="mx-auto mt-8 max-w-3xl space-y-2 text-sm text-muted-foreground">
             <p>
-              미국 주식 중 <span className="text-foreground font-medium">S&P 500</span>과 <span className="text-foreground font-medium">NASDAQ 100</span> 지수에 편입된 종목만 평가합니다.
+              미국 주식 중 <span className="font-bold">S&P 500</span>과 <span className="font-bold">NASDAQ 100</span> 지수에 편입된 종목만 평가합니다.
             </p>
             <p>
-              오직 워렌 버핏의 우량주 평가 기준에 맞게 평가했으며, <span className="text-foreground font-medium">과거 데이터의 평균 지표</span>를 기반으로 가치 평가를 매겼습니다.
+              오직 워렌 버핏의 우량주 평가 기준에 맞게 평가했으며, <span className="font-bold">과거 데이터의 평균 지표</span>를 기반으로 가치 평가를 매겼습니다.
               <br />
-              <span className="text-foreground font-medium">85점 이상</span>만 우량주로 평가되어 아래에 표시됩니다.
+              <span className="font-bold">85점 이상</span>만 우량주로 평가되어 아래에 표시됩니다.
             </p>
             <p className="text-amber-400/80">
               💡 각 카드를 클릭하면 구체적인 버핏의 평가 이유를 확인할 수 있습니다.
@@ -199,6 +201,9 @@ export default async function BuffetPickPage() {
               <div className="mb-12">
                 <h2 className="mb-6 text-2xl font-bold text-amber-400">
                   🔥 저평가 우량주 ({undervaluedResults.length}개)
+                  <span className="ml-3 text-sm font-normal text-muted-foreground">
+                    (워렌 버핏보다 20% 더 보수적으로 적정가를 산정)
+                  </span>
                 </h2>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                   {undervaluedResults.map((result) => (
