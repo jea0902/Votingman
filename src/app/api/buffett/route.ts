@@ -54,6 +54,7 @@ type BuffettRow = {
     | {
         ticker: string | null;
         company_name: string | null;
+        industry: string | null;
         latest_price:
           | {
               current_price: number | null;
@@ -68,6 +69,7 @@ type BuffettRow = {
     | {
         ticker: string | null;
         company_name: string | null;
+        industry: string | null;
         latest_price:
           | {
               current_price: number | null;
@@ -138,6 +140,7 @@ export async function GET(request: NextRequest) {
         stocks (
           ticker,
           company_name,
+          industry,
           latest_price (
             current_price,
             price_date
@@ -165,6 +168,7 @@ export async function GET(request: NextRequest) {
         stock_id: row.stock_id,
         ticker: stock?.ticker ?? null,
         company_name: stock?.company_name ?? null,
+        industry: stock?.industry ?? null,
         current_price: latest?.current_price ?? row.current_price ?? null,
         price_date: latest?.price_date ?? null,
         total_score: row.total_score,
