@@ -18,8 +18,7 @@ import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 
-const NAV_LINKS = [ // 네비게이션 링크
-  { href: "/", label: "홈" },
+const NAV_LINKS = [ // 네비게이션 링크 (홈은 로고 클릭으로 이동)
   { href: "/verified-strategies", label: "검증된 매매법" },
   { href: "/research-lab", label: "매매법 연구소" },
   { href: "/buffet-pick", label: "버핏원픽" },
