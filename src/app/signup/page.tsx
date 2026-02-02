@@ -120,6 +120,38 @@ export default function SignupPage() {
     }
   };
 
+  // 닉네임 유효성 검사 (한글, 영어, 숫자만 허용)
+  const [nicknameError, setNicknameError] = useState<string>("");
+  
+  const validateNickname = (value: string): boolean => {
+    // 빈 값 체크
+    if (!value) {
+      setNicknameError("");
+      return false;
+    }
+    
+    // 한글, 영어, 숫자만 허용하는 정규식
+    const validPattern = /^[가-힣a-zA-Z0-9]+$/;
+    
+    if (!validPattern.test(value)) {
+      setNicknameError("닉네임은 한글, 영어, 숫자만 사용할 수 있습니다");
+      return false;
+    }
+    
+    if (value.length < 2) {
+      setNicknameError("닉네임은 2자 이상이어야 합니다");
+      return false;
+    }
+    
+    if (value.length > 10) {
+      setNicknameError("닉네임은 10자 이하여야 합니다");
+      return false;
+    }
+    
+    setNicknameError("");
+    return true;
+  };
+
   // 닉네임 입력 핸들러 (디바운스)
   const [nicknameTimeout, setNicknameTimeout] = useState<NodeJS.Timeout | null>(null);
   
@@ -128,17 +160,23 @@ export default function SignupPage() {
     setNickname(value);
     setNicknameAvailable(null);
     
+    // 유효성 검사
+    const isValid = validateNickname(value);
+    
     // 기존 타이머 취소
     if (nicknameTimeout) {
       clearTimeout(nicknameTimeout);
     }
     
-    // 새 타이머 설정 (500ms 디바운스)
-    const timeoutId = setTimeout(() => {
-      checkNickname(value);
-    }, 500);
-    
-    setNicknameTimeout(timeoutId);
+    // 유효한 경우에만 중복 체크
+    if (isValid) {
+      // 새 타이머 설정 (500ms 디바운스)
+      const timeoutId = setTimeout(() => {
+        checkNickname(value);
+      }, 500);
+      
+      setNicknameTimeout(timeoutId);
+    }
   };
 
   // 회원가입 완료
@@ -164,16 +202,40 @@ export default function SignupPage() {
       }
 
       // users 테이블에 닉네임 저장
-      const { error: insertError } = await supabase
+      // 재가입 시 기존 데이터가 있을 수 있으므로 먼저 확인
+      const { data: existingUser } = await supabase
         .from('users')
-        .insert({
-          user_id: session.user.id,
-          email: session.user.email!,
-          nickname: nickname.trim(),
-        });
+        .select('user_id')
+        .eq('email', session.user.email!)
+        .maybeSingle();
 
-      if (insertError) {
-        throw insertError;
+      if (existingUser) {
+        // 기존 사용자가 있으면 업데이트 (재가입)
+        const { error: updateError } = await supabase
+          .from('users')
+          .update({
+            user_id: session.user.id,
+            nickname: nickname.trim(),
+            deleted_at: null, // soft delete 해제
+          })
+          .eq('email', session.user.email!);
+
+        if (updateError) {
+          throw updateError;
+        }
+      } else {
+        // 신규 사용자면 삽입
+        const { error: insertError } = await supabase
+          .from('users')
+          .insert({
+            user_id: session.user.id,
+            email: session.user.email!,
+            nickname: nickname.trim(),
+          });
+
+        if (insertError) {
+          throw insertError;
+        }
       }
 
       // 성공: 로그인 페이지로 리다이렉트
@@ -262,7 +324,7 @@ export default function SignupPage() {
                     value={nickname}
                     onChange={handleNicknameChange}
                     placeholder="사용할 닉네임을 입력하세요"
-                    maxLength={20}
+                    maxLength={10}
                     disabled={isSubmitting}
                     className="pr-10"
                     required
@@ -272,10 +334,10 @@ export default function SignupPage() {
                     {isCheckingNickname && (
                       <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                     )}
-                    {!isCheckingNickname && nicknameAvailable === true && (
+                    {!isCheckingNickname && !nicknameError && nicknameAvailable === true && (
                       <CheckCircle2 className="h-4 w-4 text-green-500" />
                     )}
-                    {!isCheckingNickname && nicknameAvailable === false && (
+                    {!isCheckingNickname && (nicknameError || nicknameAvailable === false) && nickname.length > 0 && (
                       <XCircle className="h-4 w-4 text-destructive" />
                     )}
                   </div>
@@ -284,14 +346,19 @@ export default function SignupPage() {
                 {/* 닉네임 안내 */}
                 <div className="text-xs space-y-1">
                   <p className="text-muted-foreground">
-                    • 2-20자 이내로 입력해주세요
+                    • 2-10자, 한글/영어/숫자만 사용 가능
                   </p>
-                  {nicknameAvailable === false && (
+                  {nicknameError && (
+                    <p className="text-destructive">
+                      • {nicknameError}
+                    </p>
+                  )}
+                  {!nicknameError && nicknameAvailable === false && (
                     <p className="text-destructive">
                       • 이미 사용 중인 닉네임입니다
                     </p>
                   )}
-                  {nicknameAvailable === true && (
+                  {!nicknameError && nicknameAvailable === true && (
                     <p className="text-green-600 dark:text-green-400">
                       • 사용 가능한 닉네임입니다
                     </p>
@@ -309,7 +376,7 @@ export default function SignupPage() {
               {/* 완료 버튼 */}
               <Button
                 type="submit"
-                disabled={isSubmitting || !nicknameAvailable}
+                disabled={isSubmitting || !nicknameAvailable || !!nicknameError}
                 className="w-full"
                 size="lg"
               >
