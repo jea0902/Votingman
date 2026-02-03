@@ -15,7 +15,7 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { isVotingOpenKST } from "@/lib/utils/sentiment-vote";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 
 type VoteChoice = "long" | "short" | null;
 
@@ -188,9 +188,12 @@ export function HumanIndicatorSection() {
               로그인하고 투표하시면, 투표 기록이 저장되어 내가 맞춘 확률을 볼
               수 있어요.
               <span className="ml-3 inline-block">
-                <Button asChild size="sm" variant="default">
-                  <Link href="/login">로그인</Link>
-                </Button>
+                <Link
+                  href="/login"
+                  className={buttonVariants({ size: "sm", variant: "default" })}
+                >
+                  로그인
+                </Link>
               </span>
             </p>
           )}
