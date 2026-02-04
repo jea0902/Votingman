@@ -18,8 +18,8 @@ CREATE TABLE public.users (
     allow_notif_bo CHAR(1) DEFAULT 'Y',        -- 게시판 알림 허용
     created_at TIMESTAMPTZ DEFAULT now(),
     deleted_at TIMESTAMPTZ,                    -- Soft Delete
-    virtual_cash_balance BIGINT DEFAULT 10000, -- 모의 거래 자산 (레거시, simulation_accounts로 이관)
-    
+    voting_coin_balance BIGINT DEFAULT 10000, -- 보팅맨 보팅코인 잔액 (기존 virtual_cash_balance에서 이름 변경)
+
     CONSTRAINT users_pkey PRIMARY KEY (user_id),
     CONSTRAINT users_email_unique UNIQUE (email),
     CONSTRAINT users_nickname_unique UNIQUE (nickname),
@@ -29,7 +29,7 @@ CREATE TABLE public.users (
 
 COMMENT ON TABLE public.users IS '사용자 정보 테이블 (auth.users 연동)';
 COMMENT ON COLUMN public.users.role IS 'USER: 일반회원, ADMIN: 관리자';
-COMMENT ON COLUMN public.users.virtual_cash_balance IS '레거시 - simulation_accounts 테이블 사용 권장';
+COMMENT ON COLUMN public.users.voting_coin_balance IS '보팅맨 보팅코인 잔액';
 
 
 -- =============================================

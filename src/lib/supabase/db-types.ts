@@ -128,6 +128,8 @@ export type UserRow = {
   allow_notif_bo: string;
   created_at: string;
   deleted_at: string | null;
+  /** 보팅맨 보팅코인 잔액 (DB: voting_coin_balance, 기존 virtual_cash_balance에서 이름 변경). select 시에만 존재 */
+  voting_coin_balance?: number;
 };
 
 /** board_posts: 게시글 */
@@ -219,25 +221,40 @@ export type PostListResponse = {
 // 인간 지표 (데일리 투표)
 // =========================================
 
-/** sentiment_polls: 일별 투표 마스터 (KST poll_date, BTC 시가/종가 USD) */
+/** sentiment_polls: 일별 투표 마스터 (KST poll_date, 시장별 폴) */
 export type SentimentPollRow = {
   id: string;
   poll_date: string;
+  market: string | null;
   btc_open: number | null;
   btc_close: number | null;
   btc_change_pct: number | null;
   long_count: number;
   short_count: number;
+  long_coin_total: number;
+  short_coin_total: number;
   created_at: string;
   updated_at: string;
 };
 
-/** sentiment_votes: 개별 투표 (choice: 'long' | 'short') */
+/** sentiment_votes: 개별 투표 (choice + bet_amount) */
 export type SentimentVoteRow = {
   id: string;
   poll_id: string;
   user_id: string | null;
   anonymous_id: string | null;
   choice: 'long' | 'short';
+  bet_amount: number;
   created_at: string;
+};
+
+/** payout_history: 정산 이력 (당첨자별 수령 코인) */
+export type PayoutHistoryRow = {
+  id: string;
+  poll_id: string;
+  user_id: string;
+  market: string | null;
+  bet_amount: number;
+  payout_amount: number;
+  settled_at: string;
 };

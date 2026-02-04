@@ -27,6 +27,7 @@ export async function getOrCreateTodayPoll(): Promise<TodayPollResult> {
     .from("sentiment_polls")
     .select("*")
     .eq("poll_date", today)
+    .eq("market", "btc")
     .maybeSingle();
 
   if (existing) {
@@ -44,9 +45,12 @@ export async function getOrCreateTodayPoll(): Promise<TodayPollResult> {
     .from("sentiment_polls")
     .insert({
       poll_date: today,
+      market: "btc",
       btc_open: btcOpenRounded,
       long_count: 0,
       short_count: 0,
+      long_coin_total: 0,
+      short_coin_total: 0,
     })
     .select()
     .single();

@@ -8,7 +8,7 @@
 
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { Navbar, Footer, AdRailLayout } from "@/components/layout";
+import { Navbar, Footer } from "@/components/layout";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -37,8 +37,8 @@ export default function RootLayout({
       >
         <div className="flex min-h-screen flex-col">
           <Navbar />
-          <main className="flex-1">
-            <AdRailLayout>{children}</AdRailLayout>
+          <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
+            {children}
           </main>
           <Footer />
         </div>

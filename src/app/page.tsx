@@ -3,8 +3,7 @@
 /**
  * 보팅맨 홈 메인 (2차 MVP)
  *
- * - 3단 레이아웃(광고|메인|광고)은 루트 레이아웃(AdRailLayout)에서 적용됨
- * - 이 페이지는 메인 영역만 담당: 비전 문구 + 인간 지표 등 섹션 6개
+ * - 메인 영역: 비전 문구 + 인간 지표 등 섹션 6개
  */
 
 import { HumanIndicatorSection } from "@/components/home";
@@ -28,12 +27,16 @@ export default function Home() {
         <div className="absolute left-1/2 top-0 h-[300px] w-[800px] -translate-x-1/2 rounded-full bg-[radial-gradient(ellipse_80%_50%_at_50%_0%,rgba(59,130,246,0.08),transparent)]" />
       </div>
 
-      {/* 비전 문구 */}
+      {/* 비전 문구 (버핏 원픽과 동일: 파란 제목 + 노란 부제) */}
       <div className="mb-12 text-center">
-        <h1 className="mb-4 text-5xl font-bold tracking-tight text-[#3b82f6] sm:text-6xl lg:text-4xl">
-          그 어떤 지표보다 신뢰성 있는 인간 지표 탈중앙화 시장 예측 플랫폼
+        <h1 className="mb-4 text-5xl font-bold tracking-tight text-[#3b82f6] sm:text-6xl lg:text-7xl">
+          탈중앙화 시장 예측 배팅 플랫폼
         </h1>
+        <p className="text-xl font-medium text-[#fbbf24] sm:text-2xl lg:text-3xl">
+          투자자들이 코인을 배팅해 투자 심리를 반영한 인간 지표
+        </p>
       </div>
+      
 
       {/* 섹션들: 1번 인간 지표 실구현, 나머지 플레이스홀더 */}
       <div className="mx-auto max-w-4xl space-y-6">
