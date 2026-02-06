@@ -235,6 +235,8 @@ export type SentimentPollRow = {
   short_coin_total: number;
   created_at: string;
   updated_at: string;
+  /** 정산 완료 시각 (재실행 방지). NULL이면 미정산 */
+  settled_at?: string | null;
 };
 
 /** sentiment_votes: 개별 투표 (choice + bet_amount) */

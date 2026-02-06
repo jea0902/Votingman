@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/btc-ohlc-daily",
+      "schedule": "1 15 * * *"
+    }
+  ]
+}

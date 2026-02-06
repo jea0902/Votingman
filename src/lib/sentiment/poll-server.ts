@@ -77,3 +77,49 @@ export async function getOrCreateTodayPollByMarket(
 export async function getOrCreateTodayPoll(): Promise<TodayPollResult> {
   return getOrCreateTodayPollByMarket("btc");
 }
+
+const POLL_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * 특정 poll_date + market에 해당하는 폴 행 조회. 없으면 생성 후 반환.
+ * 크론 등에서 투표 유무와 무관하게 "그날 그 시장" 행을 만들 때 사용.
+ */
+export async function getOrCreatePollByDateAndMarket(
+  pollDate: string,
+  market: string
+): Promise<{ poll: SentimentPollRow; created: boolean }> {
+  if (!POLL_DATE_REGEX.test(pollDate)) {
+    throw new Error("poll_date must be YYYY-MM-DD");
+  }
+  const m: SentimentMarket = isSentimentMarket(market) ? market : "btc";
+  const admin = createSupabaseAdmin();
+
+  const { data: existing } = await admin
+    .from("sentiment_polls")
+    .select("*")
+    .eq("poll_date", pollDate)
+    .eq("market", m)
+    .maybeSingle();
+
+  if (existing) {
+    return { poll: existing as SentimentPollRow, created: false };
+  }
+
+  const { data: inserted, error } = await admin
+    .from("sentiment_polls")
+    .insert({
+      poll_date: pollDate,
+      market: m,
+      btc_open: null,
+      btc_close: null,
+      long_count: 0,
+      short_count: 0,
+      long_coin_total: 0,
+      short_coin_total: 0,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return { poll: inserted as SentimentPollRow, created: true };
+}

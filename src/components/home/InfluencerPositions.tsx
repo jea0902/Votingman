@@ -5,9 +5,7 @@
  *
  * 설계 의도:
  * - 유명 트레이더/인플루언서들의 현재 포지션 표시
- * - 프로필 이미지, 닉네임, 포지션 타입(Long/Short), 심볼, 진입가, 시장가, 수익률
- * - 코인충 스타일의 카드 레이아웃
- * - Deep Dark 테마, 롱=녹색/숏=빨강
+ * - 8단계: 크롤러/연동 API 연동 예정. 현재는 샘플 데이터 표시.
  */
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,7 +24,8 @@ interface InfluencerPosition {
   isLive: boolean;
 }
 
-const DUMMY_INFLUENCERS: InfluencerPosition[] = [
+/** 크롤러/API 연동 전까지 샘플 데이터 (UI 미리보기용) */
+const SAMPLE_INFLUENCERS: InfluencerPosition[] = [
   {
     id: "1",
     name: "박호두",
@@ -106,9 +105,6 @@ function PositionCard({ influencer }: { influencer: InfluencerPosition }) {
             <span className="truncate text-sm font-semibold text-foreground">
               {influencer.name}
             </span>
-            <span className="shrink-0 text-xs text-muted-foreground">
-              {influencer.rank}등
-            </span>
           </div>
           <div className="mt-0.5 flex items-center gap-2 text-xs">
             <span className="font-medium text-foreground">{influencer.symbol}</span>
@@ -182,11 +178,11 @@ export function InfluencerPositions({ className }: { className?: string }) {
       <CardHeader className="pb-3">
         <CardTitle className="text-base">코인 유튜버 실시간 포지션</CardTitle>
         <p className="text-xs text-muted-foreground">
-          롱/숏 비율 및 실시간 수익률 (더미)
+          롱/숏 비율 및 실시간 수익률 · 크롤러/API 연동 예정 (현재 샘플)
         </p>
       </CardHeader>
       <CardContent className="space-y-3">
-        {DUMMY_INFLUENCERS.map((influencer) => (
+        {SAMPLE_INFLUENCERS.map((influencer) => (
           <PositionCard key={influencer.id} influencer={influencer} />
         ))}
       </CardContent>

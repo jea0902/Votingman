@@ -47,7 +47,7 @@ function formatCoinRatio(
     return {
       longPct: 50,
       shortPct: 50,
-      coinLabel: "롱 0코인 (0%) / 숏 0코인 (0%)",
+      coinLabel: "롱 0 VTC (0%) / 숏 0 VTC (0%)",
       participantLabel: "0명 참여",
     };
   }
@@ -56,7 +56,7 @@ function formatCoinRatio(
   return {
     longPct,
     shortPct,
-    coinLabel: `롱 ${longCoin.toLocaleString()}코인 (${longPct}%) / 숏 ${shortCoin.toLocaleString()}코인 (${shortPct}%)`,
+    coinLabel: `롱 ${longCoin.toLocaleString()} VTC (${longPct}%) / 숏 ${shortCoin.toLocaleString()} VTC (${shortPct}%)`,
     participantLabel: `${participantCount.toLocaleString()}명 참여`,
   };
 }
@@ -227,7 +227,7 @@ export function MarketVoteCard({ market, poll, user, onUpdate }: Props) {
 
       {canVote && (
         <div className="mb-4">
-          <p className="mb-2 text-sm font-medium text-foreground">몇 코인 걸까요?</p>
+          <p className="mb-2 text-sm font-medium text-foreground">몇 VTC 걸까요?</p>
           <div className="flex flex-wrap gap-2">
             {PERCENT_BUTTONS.map((pct) => {
               const valueForPct = Math.max(MIN_BET, Math.min(maxBet, Math.floor((availableBalance * pct) / 100)));
@@ -256,16 +256,16 @@ export function MarketVoteCard({ market, poll, user, onUpdate }: Props) {
               pattern="[0-9]*"
               value={betAmountInput}
               onChange={(e) => setBetAmountInput(e.target.value.replace(/\D/g, ""))}
-              placeholder="코인 수 입력"
+              placeholder="VTC 입력"
               className="h-9 w-24 rounded-lg border border-border bg-background px-2 text-sm tabular-nums"
             />
             <span className="text-xs text-muted-foreground">
-              코인 (잔액: {balance.toLocaleString()} / 최소 {MIN_BET}코인)
+              VTC (잔액: {balance.toLocaleString()} / 최소 {MIN_BET} VTC)
             </span>
           </div>
           {showMinBetWarning && (
             <p className="mt-1.5 text-xs font-medium text-destructive" role="alert">
-              최소 10코인 이상 배팅해 주세요.
+              최소 10 VTC 이상 배팅해 주세요.
             </p>
           )}
         </div>
@@ -312,7 +312,7 @@ export function MarketVoteCard({ market, poll, user, onUpdate }: Props) {
         <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
           <span className="text-sm text-muted-foreground">
             {vote === "long" ? "롱" : "숏"}에{" "}
-            <span className="font-medium text-foreground">{myBetAmount.toLocaleString()}코인</span>
+            <span className="font-medium text-foreground">{myBetAmount.toLocaleString()} VTC</span>
             을 배팅하셨습니다. 행운을 빕니다.
           </span>
           <button

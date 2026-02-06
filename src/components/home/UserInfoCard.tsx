@@ -50,6 +50,14 @@ function formatSeasonLabel(seasonId: string): string {
   return y && q ? `${y} ${q}시즌 랭크` : "시즌 랭크";
 }
 
+/** 비로그인 시 표시용: 현재 연도·시즌(1~4분기) 랭크 라벨 */
+function getCurrentSeasonLabel(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const quarter = Math.ceil((now.getMonth() + 1) / 3) as 1 | 2 | 3 | 4;
+  return `${year} ${quarter}시즌 랭크`;
+}
+
 type TierMarketData = {
   market: string;
   placement_matches_played: number;
@@ -169,23 +177,35 @@ export function UserInfoCard() {
       {!user ? (
         <>
           <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            시즌 랭크
+            {getCurrentSeasonLabel()}
           </div>
-          <p className="mb-4 text-sm text-muted-foreground">
-            로그인하면 내 티어·MMR·승률을 확인할 수 있어요.
+          <p className="mb-1.5 text-sm font-medium text-foreground">
+            로그인하고 바로 이용하세요
           </p>
+          <ul className="mb-4 list-none space-y-1 text-sm text-muted-foreground">
+            <li className="flex items-center gap-1.5">
+              <span className="text-[10px] text-[#3b82f6]">●</span>
+              예측 배팅에 참여할 수 있어요
+            </li>
+            <li className="flex items-center gap-1.5">
+              <span className="text-[10px] text-[#3b82f6]">●</span>
+              티어·MMR·승률로 내 실력을 확인해요
+            </li>
+          </ul>
           <div className="flex flex-col gap-2">
             <Link
               href="/login"
-              className="flex items-center justify-center rounded-lg bg-[#3b82f6] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#2563eb] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex flex-col items-center justify-center gap-0.5 rounded-lg border-2 border-[#3b82f6] bg-[#3b82f6]/10 px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-[#3b82f6]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              로그인
+              <span>1초 로그인</span>
+              <span className="text-xs font-semibold text-[#3b82f6]">바로 예측 배팅</span>
             </Link>
             <Link
               href="/signup"
-              className="flex items-center justify-center rounded-lg border border-border bg-transparent px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex flex-col items-center justify-center gap-0.5 rounded-lg border-2 border-[#fbbf24] bg-[#fbbf24]/10 px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-[#fbbf24]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              회원가입
+              <span>3초 회원가입</span>
+              <span className="text-xs font-semibold text-[#fbbf24]">10,000 VTC 지급</span>
             </Link>
           </div>
         </>
@@ -203,7 +223,7 @@ export function UserInfoCard() {
                     {user.nickname}
                   </span>
                   <span className="mt-0.5 block text-[10px] text-muted-foreground">
-                    가용 코인 수 : {user.voting_coin_balance != null ? user.voting_coin_balance.toLocaleString() : "—"}
+                    가용 코인 수 : {user.voting_coin_balance != null ? `${user.voting_coin_balance.toLocaleString()} VTC` : "—"}
                   </span>
                 </>
               )}
@@ -272,7 +292,7 @@ export function UserInfoCard() {
                     {user.nickname}
                   </span>
                   <span className="mt-0.5 block text-xs text-muted-foreground">
-                    가용 코인 수 : {user.voting_coin_balance != null ? user.voting_coin_balance.toLocaleString() : "—"}
+                    가용 코인 수 : {user.voting_coin_balance != null ? `${user.voting_coin_balance.toLocaleString()} VTC` : "—"}
                   </span>
                 </>
               )}

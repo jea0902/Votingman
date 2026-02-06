@@ -4,8 +4,8 @@
  * 실시간 비트멕스 상위 랭커 포지션 현황판
  *
  * 설계 의도:
- * - 사이드바 하단에 배치, 롱/숏 비율·수익률 등 더미 데이터 시각화
- * - Deep Dark 테마, 롱=녹색/숏=빨강 등 직관적 색상
+ * - 사이드바 하단에 배치, 롱/숏 비율·수익률 시각화
+ * - 8단계: 외부 API/자체 집계 연동 예정. 현재는 샘플 데이터 표시.
  */
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,7 +19,8 @@ interface RankerItem {
   pnlPercent: number;
 }
 
-const DUMMY_RANKERS: RankerItem[] = [
+/** 외부 API 연동 전까지 샘플 데이터 (UI 미리보기용) */
+const SAMPLE_RANKERS: RankerItem[] = [
   { rank: 1, name: "trader_alpha", position: "long", symbol: "BTCUSDT", pnlPercent: 12.4 },
   { rank: 2, name: "whale_42", position: "short", symbol: "ETHUSDT", pnlPercent: 8.7 },
   { rank: 3, name: "crypto_bull", position: "long", symbol: "BTCUSDT", pnlPercent: 6.2 },
@@ -41,17 +42,17 @@ function PnlBadge({ pnl }: { pnl: number }) {
   );
 }
 
-const longCount = DUMMY_RANKERS.filter((r) => r.position === "long").length;
-const longPct = Math.round((longCount / DUMMY_RANKERS.length) * 100);
-const shortPct = 100 - longPct;
-
 export function TopRankersBoard({ className }: { className?: string }) {
+  const longCount = SAMPLE_RANKERS.filter((r) => r.position === "long").length;
+  const longPct = Math.round((longCount / SAMPLE_RANKERS.length) * 100);
+  const shortPct = 100 - longPct;
+
   return (
     <Card className={cn("border-border bg-card", className)}>
       <CardHeader className="pb-2">
         <CardTitle className="text-base">비트멕스 리더보드 TOP5 랭커 실시간 포지션</CardTitle>
         <CardDescription className="text-xs text-muted-foreground">
-          롱/숏 비율 및 수익률 (더미)
+          롱/숏 비율 및 수익률 · 외부 API 연동 예정 (현재 샘플)
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -72,7 +73,7 @@ export function TopRankersBoard({ className }: { className?: string }) {
           <span className="text-right">수익률</span>
         </div>
         <div className="space-y-2">
-          {DUMMY_RANKERS.map((r) => (
+          {SAMPLE_RANKERS.map((r) => (
             <div
               key={r.rank}
               className="grid grid-cols-[auto_1fr_3.5rem_3.75rem_3.75rem] items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm"

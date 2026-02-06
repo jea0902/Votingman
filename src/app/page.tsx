@@ -3,7 +3,8 @@
 /**
  * 보팅맨 홈 메인 (2차 MVP)
  *
- * - 메인 영역: 비전 문구 + 3탭(비트코인 | 미국 주식 | 한국 주식) + 탭별 콘텐츠
+ * - 작은 화면: 메인 문구 → 유튜버 포지션 → 비트멕스 리더보드 → 시장 탭 → 투표 → UserInfo → 보팅맨 TOP5
+ * - 큰 화면: 왼쪽 25% (UserInfo, 보팅맨 TOP5) | 가운데 50% (메인 문구, 시장 탭, 인간 지표) | 오른쪽 25% (비트멕스, 유튜버)
  */
 
 import { useState } from "react";
@@ -31,64 +32,111 @@ export default function Home() {
         <div className="absolute left-1/2 top-0 h-[300px] w-[800px] -translate-x-1/2 rounded-full bg-[radial-gradient(ellipse_80%_50%_at_50%_0%,rgba(59,130,246,0.08),transparent)]" />
       </div>
 
-      {/* 홈 비중: 왼쪽 25% | 가운데(메인) 50% | 오른쪽 25% */}
-      <div className="flex flex-col gap-8 px-4 sm:px-6 lg:flex-row lg:items-start lg:px-6">
-        {/* 왼쪽 25%: 유저 정보 카드 + 보팅맨 TOP5 실시간 포지션 (오른쪽과 동일하게 25% 전체 사용) */}
-        <aside className="min-w-0 w-full shrink-0 lg:block lg:w-[25%] lg:pr-3 lg:sticky lg:top-4">
-          <div className="min-w-0 w-full space-y-4">
-            <UserInfoCard />
-            <MarketTop5Positions activeTab={activeTab} />
+      {/*
+        작은 화면: flex-col, DOM 순서대로 1→7 노출
+        큰 화면: 3열(왼쪽 | 가운데 | 오른쪽), 가운데·오른쪽은 한 컬럼씩 묶어서 세로 간격/누락 방지
+      */}
+
+      {/* 작은 화면: 7개 블록 순서 유지 */}
+      <div className="flex flex-col gap-8 px-4 sm:px-6 lg:hidden">
+        <div className="min-w-0">
+          <div className="mb-6 flex min-h-[20vh] flex-col justify-center text-center">
+            <h1 className="mb-4 text-5xl font-bold tracking-tight text-[#3b82f6] sm:text-6xl lg:text-7xl">
+              탈중앙화 시장 예측 배팅 플랫폼
+            </h1>
+            <p className="text-xl font-medium text-[#fbbf24] sm:text-2xl lg:text-3xl">
+              투자자들이 코인을 배팅해 투자 심리를 반영한 인간 지표
+            </p>
           </div>
-        </aside>
-
-        {/* 가운데 50%: 메인 콘텐츠 */}
-        <main className="min-w-0 flex-1 lg:w-[50%] lg:px-2">
-      {/* 비전 문구 (버핏 원픽과 동일: 파란 제목 + 노란 부제) */}
-      <div className="mb-8 text-center">
-        <h1 className="mb-4 text-5xl font-bold tracking-tight text-[#3b82f6] sm:text-6xl lg:text-7xl">
-          탈중앙화 시장 예측 배팅 플랫폼
-        </h1>
-        <p className="text-xl font-medium text-[#fbbf24] sm:text-2xl lg:text-3xl">
-          투자자들이 코인을 배팅해 투자 심리를 반영한 인간 지표
-        </p>
-      </div>
-
-      {/* 4.1안: 풀스크린 탭 스위처 (큰 블록 카드) */}
-      <div className="mb-8">
-        <MarketTabCards activeTab={activeTab} onTabChange={setActiveTab} />
-      </div>
-
-      {/* 탭별 콘텐츠: 선택한 탭의 인간 지표 + 플레이스홀더 */}
-      <div className="mx-auto max-w-4xl space-y-6">
-        <div
-          id={`panel-${activeTab}`}
-          role="tabpanel"
-          aria-labelledby={`tab-${activeTab}`}
-          className="space-y-6"
-        >
-          <HumanIndicatorSection activeTab={activeTab} />
-          {SECTION_LABELS.map((label) => (
-            <section
-              key={label}
-              className="min-h-[120px] rounded border border-dashed border-gray-500/60 bg-transparent p-4"
-              style={{ borderWidth: "1px" }}
+        </div>
+        <div className="min-w-0">
+          <InfluencerPositions />
+        </div>
+        <div className="min-w-0">
+          <TopRankersBoard />
+        </div>
+        <div className="min-w-0">
+          <MarketTabCards activeTab={activeTab} onTabChange={setActiveTab} />
+        </div>
+        <div className="min-w-0">
+          <div className="mx-auto max-w-4xl space-y-6">
+            <div
+              id={`panel-${activeTab}-sm`}
+              role="tabpanel"
+              aria-labelledby={`tab-${activeTab}`}
+              className="space-y-6"
             >
-              <p className="text-xs font-medium text-gray-400">{label}</p>
-              <p className="mt-1 text-[10px] text-gray-600 font-mono">
-                L3 섹션 · 추후 콘텐츠
-              </p>
-            </section>
-          ))}
+              <HumanIndicatorSection activeTab={activeTab} />
+              {SECTION_LABELS.map((label) => (
+                <section
+                  key={label}
+                  className="min-h-[120px] rounded border border-dashed border-gray-500/60 bg-transparent p-4"
+                  style={{ borderWidth: "1px" }}
+                >
+                  <p className="text-xs font-medium text-gray-400">{label}</p>
+                  <p className="mt-1 text-[10px] text-gray-600 font-mono">
+                    L3 섹션 · 추후 콘텐츠
+                  </p>
+                </section>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="min-w-0 flex flex-col gap-3">
+          <UserInfoCard />
+          <MarketTop5Positions activeTab={activeTab} />
         </div>
       </div>
+
+      {/* 큰 화면: 3열, 가운데·오른쪽 한 컬럼씩 묶어서 문구-시장탭-투표 간격 최소화 + 비트멕스 항상 노출 */}
+      <div className="hidden px-4 lg:grid lg:grid-cols-[1fr_2fr_1fr] lg:items-start lg:gap-x-8 lg:px-6">
+        {/* 왼쪽: UserInfo + 보팅맨 TOP5, 상단 20% 패딩 */}
+        <aside className="min-h-0 min-w-0 flex flex-col gap-3 lg:sticky lg:top-4 lg:pt-[20vh] lg:pr-3">
+          <UserInfoCard />
+          <MarketTop5Positions activeTab={activeTab} />
+        </aside>
+
+        {/* 가운데: 문구(20vh) → 시장 탭 → 투표, flex로 붙여서 여백 최소화 */}
+        <main className="min-w-0 flex flex-col gap-4 lg:px-2">
+          <div className="flex min-h-[20vh] flex-col justify-end text-center">
+            <h1 className="mb-4 text-5xl font-bold tracking-tight text-[#3b82f6] sm:text-6xl lg:text-7xl">
+              탈중앙화 시장 예측 배팅 플랫폼
+            </h1>
+            <p className="text-xl font-medium text-[#fbbf24] sm:text-2xl lg:text-3xl">
+              투자자들이 코인을 배팅해 투자 심리를 반영한 인간 지표
+            </p>
+          </div>
+          <div>
+            <MarketTabCards activeTab={activeTab} onTabChange={setActiveTab} />
+          </div>
+          <div className="mx-auto w-full max-w-4xl space-y-6">
+            <div
+              id={`panel-${activeTab}`}
+              role="tabpanel"
+              aria-labelledby={`tab-${activeTab}`}
+              className="space-y-6"
+            >
+              <HumanIndicatorSection activeTab={activeTab} />
+              {SECTION_LABELS.map((label) => (
+                <section
+                  key={label}
+                  className="min-h-[120px] rounded border border-dashed border-gray-500/60 bg-transparent p-4"
+                  style={{ borderWidth: "1px" }}
+                >
+                  <p className="text-xs font-medium text-gray-400">{label}</p>
+                  <p className="mt-1 text-[10px] text-gray-600 font-mono">
+                    L3 섹션 · 추후 콘텐츠
+                  </p>
+                </section>
+              ))}
+            </div>
+          </div>
         </main>
 
-        {/* 오른쪽 25%: 비트멕스 리더보드 TOP5 + 코인 유튜버 실시간 포지션 (더미) */}
-        <aside className="hidden shrink-0 lg:block lg:w-[25%] lg:pl-3">
-          <div className="space-y-4">
-            <TopRankersBoard />
-            <InfluencerPositions />
-          </div>
+        {/* 오른쪽: 유튜버 → 비트멕스, 한 컬럼에 세로로 배치해 둘 다 노출 */}
+        <aside className="min-h-0 min-w-0 flex flex-col gap-4 lg:pl-3">
+          <InfluencerPositions />
+          <TopRankersBoard />
         </aside>
       </div>
     </div>

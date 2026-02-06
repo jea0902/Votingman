@@ -11,29 +11,40 @@
  */
 
 import Link from "next/link";
-import { useState, useCallback, useEffect } from "react";
-import { Menu, X, LogIn, UserPlus, LogOut, User } from "lucide-react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { Menu, X, LogIn, UserPlus, LogOut, User, ChevronDown, UserCircle, Pencil, UserX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 
-const NAV_LINKS = [ // 네비게이션 링크 (홈은 로고 클릭으로 이동)
-  { href: "/verified-strategies", label: "검증된 매매법" },
-  { href: "/research-lab", label: "매매법 연구소" },
-  { href: "/buffet-pick", label: "버핏원픽" },
-  { href: "/simulation", label: "모의 선물 투자" },
+const NAV_LINKS = [ // 네비게이션 링크 (홈은 로고 클릭으로 이동) — 순서: 커뮤니티 → 모의 선물 투자 → 자동매매 → 버핏 원픽
   { href: "/community", label: "커뮤니티" },
+  { href: "/simulation", label: "모의 선물 투자" },
+  { href: "/verified-strategies", label: "자동매매" },
+  { href: "/buffet-pick", label: "버핏 원픽" },
 ] as const;
 
 export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [user, setUser] = useState<{ id: string; email: string; nickname: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [sessionId, setSessionId] = useState<string>('');
-  const [hasSession, setHasSession] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   const closeMobile = useCallback(() => setMobileOpen(false), []);
+
+  // 닉네임 드롭다운: 바깥 클릭 시 닫기
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [userMenuOpen]);
 
   // 사용자 세션 확인
   useEffect(() => {
@@ -53,9 +64,8 @@ export function Navbar() {
           return;
         }
         
-        setSessionId(session.user.id);
-        setHasSession(true);
         
+
         // users 테이블 조회
         console.log('[Navbar] 🔍 Querying users table...');
         const { data: userData, error: userError } = await supabase
@@ -163,43 +173,70 @@ export function Navbar() {
                 <div className="h-8 w-20 animate-pulse rounded bg-muted" />
               ) : user ? (
                 <>
-                  <div className="flex items-center gap-2 px-2">
-                    <User className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">{user.nickname}</span>
+                  <div className="relative flex items-center gap-2" ref={userMenuRef}>
+                    <button
+                      type="button"
+                      onClick={() => setUserMenuOpen((o) => !o)}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      aria-expanded={userMenuOpen}
+                      aria-haspopup="true"
+                    >
+                      <User className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className="max-w-[120px] truncate">{user.nickname}</span>
+                      <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", userMenuOpen && "rotate-180")} />
+                    </button>
+                    {userMenuOpen && (
+                      <div className="absolute right-0 top-full z-50 mt-1.5 min-w-[180px] rounded-lg border border-border bg-popover py-1 shadow-md">
+                        <Link
+                          href="/profile"
+                          className="flex items-center gap-2 px-3 py-2 text-sm text-foreground transition-colors hover:bg-muted"
+                          onClick={() => setUserMenuOpen(false)}
+                        >
+                          <UserCircle className="h-4 w-4 shrink-0" />
+                          개인 정보 조회
+                        </Link>
+                        <Link
+                          href="/profile/edit"
+                          className="flex items-center gap-2 px-3 py-2 text-sm text-foreground transition-colors hover:bg-muted"
+                          onClick={() => setUserMenuOpen(false)}
+                        >
+                          <Pencil className="h-4 w-4 shrink-0" />
+                          개인정보 수정
+                        </Link>
+                        <Link
+                          href="/account/leave"
+                          className="flex items-center gap-2 px-3 py-2 text-sm text-foreground transition-colors hover:bg-muted"
+                          onClick={() => setUserMenuOpen(false)}
+                        >
+                          <UserX className="h-4 w-4 shrink-0" />
+                          회원탈퇴
+                        </Link>
+                      </div>
+                    )}
                   </div>
-                  <Button
+                  <button
                     type="button"
-                    variant="ghost"
-                    size="sm"
                     onClick={handleLogout}
-                    className="gap-1"
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border-2 border-rose-500/70 bg-rose-500/10 px-3 py-2 text-sm font-semibold text-rose-400 transition-colors hover:bg-rose-500/20"
                   >
-                    <LogOut className="h-4 w-4" />
+                    <LogOut className="h-4 w-4 shrink-0" />
                     <span className="hidden lg:inline">로그아웃</span>
-                  </Button>
+                  </button>
                 </>
               ) : (
                 <>
                   <Link href="/login">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="gap-1"
-                    >
-                      <LogIn className="h-4 w-4" />
-                      <span className="hidden lg:inline">로그인</span>
-                    </Button>
+                    <span className="inline-flex items-center justify-center gap-1.5 rounded-lg border-2 border-[#3b82f6] bg-[#3b82f6]/10 px-3 py-2 text-sm font-semibold text-[#3b82f6] transition-colors hover:bg-[#3b82f6]/20">
+                      <LogIn className="h-4 w-4 shrink-0" />
+                      <span>1초 로그인</span>
+                    </span>
                   </Link>
                   <Link href="/signup">
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="gap-1 bg-accent text-accent-foreground hover:bg-accent/90"
-                    >
-                      <UserPlus className="h-4 w-4" />
-                      <span className="hidden lg:inline">회원가입</span>
-                    </Button>
+                    <span className="inline-flex items-center justify-center gap-1.5 rounded-lg border-2 border-[#fbbf24] bg-[#fbbf24]/15 px-3 py-2 text-sm font-semibold text-[#fbbf24] transition-colors hover:bg-[#fbbf24]/25">
+                      <UserPlus className="h-4 w-4 shrink-0" />
+                      <span>3초 회원가입</span>
+                      <span className="hidden rounded bg-[#fbbf24]/20 px-1.5 py-0.5 text-xs font-medium sm:inline">+10,000 VTC</span>
+                    </span>
                   </Link>
                 </>
               )}
@@ -237,43 +274,37 @@ export function Navbar() {
                 <div className="h-9 w-full animate-pulse rounded bg-muted" />
               ) : user ? (
                 <>
-                  <div className="flex items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-2 flex-1">
-                    <User className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">{user.nickname}</span>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleLogout}
-                    className="gap-2"
+                  <Link
+                    href="/profile"
+                    className="flex flex-1 items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted/50"
+                    onClick={closeMobile}
                   >
-                    <LogOut className="h-4 w-4" />
+                    <User className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="truncate">{user.nickname}</span>
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border-2 border-rose-500/70 bg-rose-500/10 px-3 py-2 text-sm font-semibold text-rose-400 transition-colors hover:bg-rose-500/20"
+                  >
+                    <LogOut className="h-4 w-4 shrink-0" />
                     로그아웃
-                  </Button>
+                  </button>
                 </>
               ) : (
                 <>
                   <Link href="/login" className="flex-1" onClick={closeMobile}>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="w-full justify-start gap-2"
-                    >
-                      <LogIn className="h-4 w-4" />
-                      로그인
-                    </Button>
+                    <span className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-[#3b82f6] bg-[#3b82f6]/10 py-2.5 text-sm font-semibold text-[#3b82f6]">
+                      <LogIn className="h-4 w-4 shrink-0" />
+                      1초 로그인
+                    </span>
                   </Link>
                   <Link href="/signup" className="flex-1" onClick={closeMobile}>
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="w-full justify-start gap-2 bg-accent text-accent-foreground hover:bg-accent/90"
-                    >
-                      <UserPlus className="h-4 w-4" />
-                      회원가입
-                    </Button>
+                    <span className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-[#fbbf24] bg-[#fbbf24]/15 py-2.5 text-sm font-semibold text-[#fbbf24]">
+                      <UserPlus className="h-4 w-4 shrink-0" />
+                      3초 회원가입
+                      <span className="rounded bg-[#fbbf24]/20 px-1.5 py-0.5 text-xs font-medium">10,000 VTC</span>
+                    </span>
                   </Link>
                 </>
               )}
