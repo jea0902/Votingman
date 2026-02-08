@@ -15,7 +15,9 @@ export const SENTIMENT_TO_TIER_MARKET: Record<SentimentMarket, TierMarket> = {
   kosdaq: "kr",
 };
 
-export const TIER_MARKETS: TierMarket[] = ["btc", "us", "kr"];
+/** 통합 랭킹: market='all'만 사용 */
+export const TIER_MARKET_ALL: TierMarket = "all";
+export const TIER_MARKETS: TierMarket[] = ["all"];
 
 /** 티어 비율 (상위부터): 챌린저 1%, 마스터 9%, 다이아 10%, 플레티넘 20%, 골드 60% */
 export const TIER_PERCENTILE_CUTOFFS: { tier: "challenger" | "master" | "diamond" | "platinum" | "gold"; fromTopPct: number }[] = [

@@ -17,7 +17,7 @@ export type SettlementResult = {
   poll_id: string;
   poll_date: string;
   market: string | null;
-  status: "already_settled" | "invalid_refund" | "one_side_refund" | "settled";
+  status: "already_settled" | "invalid_refund" | "one_side_refund" | "draw_refund" | "settled";
   participant_count: number;
   winner_side: "long" | "short" | null;
   refunded_user_count?: number;
@@ -28,27 +28,27 @@ export type SettlementResult = {
 };
 
 /**
- * 비트코인 폴의 시가·종가를 Binance에서 가져와 DB에 반영
+ * 비트코인 폴의 시가·종가를 Binance에서 가져와 DB에 반영 (소수점 둘째자리까지)
  */
 export async function updateBtcOhlcForPoll(
   pollDate: string,
   pollId: string
-): Promise<{ btc_open: number | null; btc_close: number | null }> {
+): Promise<{ price_open: number | null; price_close: number | null }> {
   if (!POLL_DATE_REGEX.test(pollDate)) {
     throw new Error("poll_date must be YYYY-MM-DD");
   }
   const result = await fetchBtcOpenCloseKst(pollDate);
-  const btc_open =
+  const price_open =
     result.btc_open != null ? Math.round(result.btc_open * 100) / 100 : null;
-  const btc_close =
+  const price_close =
     result.btc_close != null ? Math.round(result.btc_close * 100) / 100 : null;
 
   const admin = createSupabaseAdmin();
-  const updates: { btc_open?: number | null; btc_close?: number | null; btc_change_pct?: number | null } = {};
-  if (btc_open != null) updates.btc_open = btc_open;
-  if (btc_close != null) updates.btc_close = btc_close;
-  if (btc_open != null && btc_close != null && btc_open > 0) {
-    updates.btc_change_pct = Math.round((btc_close - btc_open) / btc_open * 10000) / 10000;
+  const updates: { price_open?: number | null; price_close?: number | null; change_pct?: number | null } = {};
+  if (price_open != null) updates.price_open = price_open;
+  if (price_close != null) updates.price_close = price_close;
+  if (price_open != null && price_close != null && price_open > 0) {
+    updates.change_pct = Math.round((price_close - price_open) / price_open * 10000) / 10000;
   }
   if (Object.keys(updates).length > 0) {
     await admin
@@ -56,7 +56,7 @@ export async function updateBtcOhlcForPoll(
       .update(updates)
       .eq("id", pollId);
   }
-  return { btc_open, btc_close };
+  return { price_open, price_close };
 }
 
 /**
@@ -116,12 +116,12 @@ export async function settlePoll(
   }
 
   // btc 시장이면 시가/종가 없을 때 Binance에서 조회 후 반영
-  let btc_open = pollRow.btc_open != null ? Number(pollRow.btc_open) : null;
-  let btc_close = pollRow.btc_close != null ? Number(pollRow.btc_close) : null;
-  if (market === "btc" && (btc_open == null || btc_close == null)) {
+  let price_open = pollRow.price_open != null ? Number(pollRow.price_open) : null;
+  let price_close = pollRow.price_close != null ? Number(pollRow.price_close) : null;
+  if (market === "btc" && (price_open == null || price_close == null)) {
     const updated = await updateBtcOhlcForPoll(pollDate, pollId);
-    btc_open = updated.btc_open ?? btc_open;
-    btc_close = updated.btc_close ?? btc_close;
+    price_open = updated.price_open ?? price_open;
+    price_close = updated.price_close ?? price_close;
   }
 
   const longCoinTotal = Number(pollRow.long_coin_total ?? 0);
@@ -224,7 +224,7 @@ export async function settlePoll(
       error: "현재 비트코인(btc) 시장만 정산을 지원합니다.",
     };
   }
-  if (btc_open == null || btc_close == null) {
+  if (price_open == null || price_close == null) {
     return {
       poll_id: pollId,
       poll_date: pollDate,
@@ -236,12 +236,39 @@ export async function settlePoll(
     };
   }
 
-  const winnerSide: "long" | "short" =
-    market === "btc" && btc_close != null && btc_open != null && btc_close > btc_open
-      ? "long"
-      : market === "btc" && btc_close != null && btc_open != null
-        ? "short"
-        : "long";
+  // 시가 == 종가(동일가): 당첨자 없음, 전원 원금 환불
+  if (price_open === price_close) {
+    for (const v of votes ?? []) {
+      if (!v.user_id) continue;
+      const refund = Number(v.bet_amount ?? 0);
+      if (refund <= 0) continue;
+      const { data: u } = await admin
+        .from("users")
+        .select("voting_coin_balance")
+        .eq("user_id", v.user_id)
+        .single();
+      const current = Number(u?.voting_coin_balance ?? 0);
+      await admin
+        .from("users")
+        .update({ voting_coin_balance: current + refund })
+        .eq("user_id", v.user_id);
+    }
+    await admin
+      .from("sentiment_polls")
+      .update({ settled_at: new Date().toISOString() })
+      .eq("id", pollId);
+    return {
+      poll_id: pollId,
+      poll_date: pollDate,
+      market: pollRow.market ?? market,
+      status: "draw_refund",
+      participant_count: participantCount,
+      winner_side: null,
+      refunded_user_count: votes?.length ?? 0,
+    };
+  }
+
+  const winnerSide: "long" | "short" = price_close > price_open ? "long" : "short";
   const loserPool = winnerSide === "long" ? shortCoinTotal : longCoinTotal;
   const winnerTotalBet = winnerSide === "long" ? longCoinTotal : shortCoinTotal;
   const winnerVotes = (votes ?? []).filter((v) => v.choice === winnerSide);

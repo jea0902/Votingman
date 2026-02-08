@@ -1,36 +1,22 @@
 /**
  * POST /api/tier/refresh
- * 현재 시즌·전 시장에 대해 MMR·티어 재계산 후 user_season_stats upsert.
- * cron 또는 관리자용. 쿼리 ?market=btc|us|kr 미지정 시 3개 시장 모두 갱신.
+ * 현재 시즌 통합 랭킹(market='all') MMR·티어 재계산 후 user_season_stats upsert.
+ * cron 또는 관리자용.
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { refreshMarketSeason } from "@/lib/tier/tier-service";
 import { getCurrentSeasonId } from "@/lib/constants/seasons";
-import type { TierMarket } from "@/lib/supabase/db-types";
+import { TIER_MARKET_ALL } from "@/lib/tier/constants";
 
-const TIER_MARKETS: TierMarket[] = ["btc", "us", "kr"];
-
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
-    const { searchParams } = new URL(request.url);
-    const marketParam = searchParams.get("market");
     const seasonId = getCurrentSeasonId();
-
-    const markets: TierMarket[] =
-      marketParam && TIER_MARKETS.includes(marketParam as TierMarket)
-        ? [marketParam as TierMarket]
-        : TIER_MARKETS;
-
-    let totalUpdated = 0;
-    for (const market of markets) {
-      const { updated } = await refreshMarketSeason(market, seasonId);
-      totalUpdated += updated;
-    }
+    const { updated } = await refreshMarketSeason(TIER_MARKET_ALL, seasonId);
 
     return NextResponse.json({
       success: true,
-      data: { season_id: seasonId, markets_updated: markets.length, rows_updated: totalUpdated },
+      data: { season_id: seasonId, market: TIER_MARKET_ALL, rows_updated: updated },
     });
   } catch (error) {
     console.error("Tier refresh error:", error);

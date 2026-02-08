@@ -18,11 +18,12 @@ export async function GET() {
         market: string;
         poll_id: string;
         poll_date: string;
-        btc_open: number | null;
-        btc_close: number | null;
+        price_open: number | null;
+        price_close: number | null;
         long_count: number;
         short_count: number;
         total_count: number;
+        participant_count: number;
         long_coin_total: number;
         short_coin_total: number;
         total_coin: number;
@@ -55,15 +56,23 @@ export async function GET() {
         }
       }
 
+      /** sentiment_votes 기준 실제 참여자 수 (bet_amount > 0) */
+      const { count: participantCount } = await admin
+        .from("sentiment_votes")
+        .select("id", { count: "exact", head: true })
+        .eq("poll_id", poll.id)
+        .gt("bet_amount", 0);
+
       pollsByMarket[market] = {
         market: poll.market ?? market,
         poll_id: poll.id,
         poll_date: poll.poll_date,
-        btc_open: poll.btc_open,
-        btc_close: poll.btc_close,
+        price_open: poll.price_open,
+        price_close: poll.price_close,
         long_count: poll.long_count ?? 0,
         short_count: poll.short_count ?? 0,
         total_count: (poll.long_count ?? 0) + (poll.short_count ?? 0),
+        participant_count: participantCount ?? 0,
         long_coin_total: poll.long_coin_total ?? 0,
         short_coin_total: poll.short_coin_total ?? 0,
         total_coin: (poll.long_coin_total ?? 0) + (poll.short_coin_total ?? 0),

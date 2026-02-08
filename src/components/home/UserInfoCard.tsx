@@ -38,7 +38,9 @@ const TIER_RANK: Record<string, number> = {
   gold: 1,
 };
 
+/** 시장 라벨 (통합 랭킹: market='all'만 사용) */
 const MARKET_LABEL: Record<string, string> = {
+  all: "통합",
   btc: "비트코인",
   us: "미국 주식",
   kr: "한국 주식",
@@ -150,26 +152,14 @@ export function UserInfoCard() {
     );
   }
 
-  /** 대표 시장: 배치 완료+티어 있는 시장 중 티어 가장 높은 시장, 없으면 배치 진행 판수 가장 많은 시장 */
+  /** 대표 시장: 통합 랭킹(market='all') 한 개만 사용 */
   const rep =
-    user && tierData?.markets?.length
-      ? (() => {
-          const withTier = tierData.markets.filter((m) => m.placement_done && m.tier);
-          if (withTier.length > 0) {
-            return withTier.reduce((a, b) =>
-              (TIER_RANK[b.tier ?? ""] ?? 0) > (TIER_RANK[a.tier ?? ""] ?? 0) ? b : a
-            );
-          }
-          return tierData.markets.reduce((a, b) =>
-            (b.placement_matches_played ?? 0) > (a.placement_matches_played ?? 0) ? b : a
-          );
-        })()
-      : null;
+    user && tierData?.markets?.length ? tierData.markets[0] ?? null : null;
   const seasonLabel = tierData?.season_id ? formatSeasonLabel(tierData.season_id) : "시즌 랭크";
   const tierName = rep ? (!rep.placement_done || !rep.tier ? "배치 진행 중" : (TIER_LABEL[rep.tier ?? ""] ?? rep.tier ?? "—")) : "—";
 
-  /** btc, us, kr 순서로 시장 목록 (모바일 3박스용) */
-  const marketOrder = ["btc", "us", "kr"] as const;
+  /** 통합 랭킹: market='all' 한 개만 표시 */
+  const marketOrder = ["all"] as const;
   const marketMap = new Map(tierData?.markets?.map((m) => [m.market, m]) ?? []);
 
   return (
@@ -211,175 +201,50 @@ export function UserInfoCard() {
         </>
       ) : (
         <>
-          {/* ——— 모바일 전용 (lg 미만): Row1 시즌+닉네임(붙게), Row2 대표 티어|승률|전적, Row3 3시장 박스 ——— */}
-          <div className="flex flex-col gap-3 lg:hidden">
-            <div>
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                {seasonLabel}
-              </span>
-              {user && (
-                <>
-                  <span className="mt-0.5 block truncate text-xs font-semibold text-foreground" title={user.nickname}>
-                    {user.nickname}
-                  </span>
-                  <span className="mt-0.5 block text-[10px] text-muted-foreground">
-                    가용 코인 수 : {user.voting_coin_balance != null ? `${user.voting_coin_balance.toLocaleString()} VTC` : "—"}
-                  </span>
-                </>
-              )}
-            </div>
+          {/* 로그인 시: 시즌 랭크 → 티어+닉네임 → 승률+전적 → 가용코인 → 통합 박스 */}
+          <div className="flex flex-col gap-3">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground lg:text-xs">
+              {seasonLabel}
+            </span>
             <div className="flex items-center gap-2">
-              {rep ? (
-                <>
-                  <div className="relative h-9 w-9 shrink-0">
-                    <Image
-                      src={!rep.placement_done || !rep.tier ? TIER_LOGO_BEGINER : (TIER_LOGO[rep.tier ?? ""] ?? TIER_LOGO_BEGINER)}
-                      alt={tierName}
-                      width={36}
-                      height={36}
-                      className="h-9 w-9 object-contain"
-                    />
-                  </div>
-                  <span className="min-w-0 truncate text-xs font-semibold text-foreground">{tierName}</span>
-                  <span className="text-[10px] text-foreground">
-                    승률 <span className="font-medium text-[#3b82f6]">
-                      {rep.season_total_count > 0 ? ((rep.win_rate ?? rep.season_win_count / rep.season_total_count) * 100).toFixed(1) : "0.0"}%
-                    </span>
-                  </span>
-                  <span className="text-[10px] text-muted-foreground">
-                    {rep.season_win_count}승 {Math.max(0, rep.season_total_count - rep.season_win_count)}패
-                  </span>
-                </>
-              ) : (
-                <>
-                  <div className="relative h-9 w-9 shrink-0">
-                    <Image src={TIER_LOGO_BEGINER} alt="—" width={36} height={36} className="h-9 w-9 object-contain" />
-                  </div>
-                  <span className="text-xs font-semibold text-foreground">—</span>
-                </>
-              )}
-            </div>
-            <div className="grid grid-cols-3 gap-1.5">
-              {marketOrder.map((key) => {
-                const m = marketMap.get(key);
-                const label = MARKET_LABEL[key] ?? key;
-                const isBeginer = !m || !m.placement_done || !m.tier;
-                const displayText = isBeginer
-                  ? `배치 ${m?.placement_matches_played ?? 0}/5`
-                  : (TIER_LABEL[m!.tier ?? ""] ?? m!.tier ?? "—");
-                return (
-                  <div
-                    key={key}
-                    className="rounded-lg border border-border bg-muted/30 px-1.5 py-2 text-center"
-                  >
-                    <p className="text-[10px] font-medium text-muted-foreground truncate">{label}</p>
-                    <p className="mt-0.5 text-[10px] font-semibold text-foreground truncate">{displayText}</p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* ——— 데스크톱 전용 (lg 이상): 모바일과 동일 형식 — 대표 티어|승률|전적 한 줄 + 바로 아래 3시장 박스 ——— */}
-          <div className="mb-3 hidden flex-col gap-3 lg:mb-0 lg:flex">
-            <div>
-              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {seasonLabel}
-              </span>
-              {user && (
-                <>
-                  <span className="mt-0.5 block truncate text-sm font-semibold text-foreground" title={user.nickname}>
-                    {user.nickname}
-                  </span>
-                  <span className="mt-0.5 block text-xs text-muted-foreground">
-                    가용 코인 수 : {user.voting_coin_balance != null ? `${user.voting_coin_balance.toLocaleString()} VTC` : "—"}
-                  </span>
-                </>
-              )}
-            </div>
-            <div className="flex flex-col gap-1">
-              <div className="flex items-center gap-2">
-                {rep ? (
-                  <>
-                    <div className="relative h-10 w-10 shrink-0 lg:h-12 lg:w-12">
-                      <Image
-                        src={!rep.placement_done || !rep.tier ? TIER_LOGO_BEGINER : (TIER_LOGO[rep.tier ?? ""] ?? TIER_LOGO_BEGINER)}
-                        alt={tierName}
-                        width={48}
-                        height={48}
-                        className="h-10 w-10 object-contain lg:h-12 lg:w-12"
-                      />
-                    </div>
-                    <span className="min-w-0 truncate text-xs font-semibold text-foreground lg:text-sm">{tierName}</span>
-                    {rep.placement_done && typeof rep.mmr === "number" && (
-                      <span className="text-[10px] font-medium text-muted-foreground lg:text-xs">
-                        {Math.round(rep.mmr).toLocaleString()} MMR
-                        {typeof rep.percentile_pct === "number" && (
-                          <span className="ml-0.5">(상위 {rep.percentile_pct.toFixed(2)}%)</span>
-                        )}
-                      </span>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <div className="relative h-10 w-10 shrink-0 lg:h-12 lg:w-12">
-                      <Image src={TIER_LOGO_BEGINER} alt="—" width={48} height={48} className="h-10 w-10 object-contain lg:h-12 lg:w-12" />
-                    </div>
-                    <span className="text-xs font-semibold text-foreground lg:text-sm">—</span>
-                  </>
-                )}
-              </div>
-              {rep && (
-                <div className="flex flex-wrap items-center gap-x-2 text-[10px] lg:text-xs">
-                  <span className="text-foreground">
-                    승률 <span className="font-medium text-[#3b82f6]">
-                      {rep.season_total_count > 0 ? ((rep.win_rate ?? rep.season_win_count / rep.season_total_count) * 100).toFixed(1) : "0.0"}%
-                    </span>
-                  </span>
-                  <span className="text-muted-foreground">
-                    {rep.season_win_count}승 {Math.max(0, rep.season_total_count - rep.season_win_count)}패
-                  </span>
-                </div>
-              )}
-            </div>
-            <div className="grid grid-cols-3 gap-1.5">
-              {marketOrder.map((key) => {
-                const m = marketMap.get(key);
-                const label = MARKET_LABEL[key] ?? key;
-                const isBeginer = !m || !m.placement_done || !m.tier;
-                const displayText = isBeginer
-                  ? `배치 ${m?.placement_matches_played ?? 0}/5`
-                  : (TIER_LABEL[m!.tier ?? ""] ?? m!.tier ?? "—");
-                return (
-                  <div
-                    key={key}
-                    className="rounded-lg border border-border bg-muted/30 px-1.5 py-2 text-center"
-                  >
-                    <p className="text-[10px] font-medium text-muted-foreground truncate">{label}</p>
-                    <p className="mt-0.5 text-[10px] font-semibold text-foreground truncate lg:text-xs">{displayText}</p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* 일별 MMR 추이: 데스크톱(lg)에서만 표시, 모바일/축소 화면에서는 숨김 */}
-          <div className="hidden rounded-lg border border-border bg-muted/30 p-3 lg:block">
-            <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-              일별 MMR 추이
-            </p>
-            <div className="flex h-16 items-end justify-between gap-0.5">
-              {[40, 65, 45, 70, 55, 80, 60].map((h, i) => (
-                <div
-                  key={i}
-                  className="flex-1 rounded-t bg-[#3b82f6]/50 transition-opacity hover:opacity-80"
-                  style={{ height: `${h}%` }}
+              <div className="relative h-9 w-9 shrink-0 lg:h-10 lg:w-10">
+                <Image
+                  src={rep?.placement_done && rep?.tier ? (TIER_LOGO[rep.tier] ?? TIER_LOGO_BEGINER) : TIER_LOGO_BEGINER}
+                  alt={tierName}
+                  width={40}
+                  height={40}
+                  className="h-9 w-9 object-contain lg:h-10 lg:w-10"
                 />
-              ))}
+              </div>
+              <span className="min-w-0 truncate text-xs font-semibold text-foreground lg:text-sm" title={user?.nickname}>
+                {user?.nickname ?? "—"}
+              </span>
             </div>
-            <p className="mt-1 text-[10px] text-muted-foreground">
-              시즌 {tierData?.season_id ?? "—"} · 추후 연동
-            </p>
+            <div className="flex flex-wrap items-center gap-x-2 text-[10px] lg:text-xs">
+              <span className="text-foreground">
+                승률 <span className="font-medium text-[#3b82f6]">
+                  {rep && rep.season_total_count > 0 ? ((rep.win_rate ?? rep.season_win_count / rep.season_total_count) * 100).toFixed(1) : "0.0"}%
+                </span>
+              </span>
+              <span className="text-muted-foreground">
+                {rep ? `${rep.season_win_count}승 ${Math.max(0, rep.season_total_count - rep.season_win_count)}패` : "—"}
+              </span>
+            </div>
+            <span className="text-[10px] font-semibold text-amber-500 lg:text-xs">
+              가용 코인 수 : {user?.voting_coin_balance != null ? `${user.voting_coin_balance.toLocaleString()} VTC` : "—"}
+            </span>
+            <div className="w-fit min-w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-center">
+              {marketOrder.map((key) => {
+                const m = marketMap.get(key);
+                const isBeginer = !m || !m.placement_done || !m.tier;
+                const displayText = isBeginer
+                  ? `배치 ${m?.placement_matches_played ?? 0}/5`
+                  : (TIER_LABEL[m!.tier ?? ""] ?? m!.tier ?? "—");
+                return (
+                  <p key={key} className="text-[10px] font-semibold text-foreground lg:text-xs">{displayText}</p>
+                );
+              })}
+            </div>
           </div>
         </>
       )}

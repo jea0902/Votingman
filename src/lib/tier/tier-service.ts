@@ -21,6 +21,7 @@ import {
   MMR_CLAMP_MIN,
   MMR_CLAMP_MAX,
   TIER_PERCENTILE_CUTOFFS,
+  TIER_MARKET_ALL,
 } from "./constants";
 
 const TIER_MARKET_FROM_SENTIMENT = SENTIMENT_TO_TIER_MARKET as Record<string, TierMarket>;
@@ -43,6 +44,7 @@ export type UserMarketStats = {
 /**
  * 시즌·시장 그룹에 해당하는 정산된 폴 ID 목록 조회
  * (payout_history에 1건이라도 있는 폴 = 정산 완료, 무효판 제외됨)
+ * - tierMarket='all': 전체 시장(btc, ndq, sp500, kospi, kosdaq) 정산 폴 모두 반환
  */
 async function getSettledPollIdsInSeason(
   seasonId: SeasonId,
@@ -67,10 +69,13 @@ async function getSettledPollIdsInSeason(
     .lte("poll_date", end)
     .not("market", "is", null);
 
-  const filtered = (polls ?? []).filter((p) => {
-    const group = TIER_MARKET_FROM_SENTIMENT[p.market ?? ""];
-    return group === tierMarket;
-  });
+  const filtered =
+    tierMarket === TIER_MARKET_ALL
+      ? polls ?? []
+      : (polls ?? []).filter((p) => {
+          const group = TIER_MARKET_FROM_SENTIMENT[p.market ?? ""];
+          return group === tierMarket;
+        });
 
   return filtered.map((p) => ({ poll_id: p.id, market: p.market ?? "" }));
 }
@@ -194,35 +199,33 @@ export async function computeUserStatsForSeason(
   const balance = Number(userRow?.voting_coin_balance ?? 0);
 
   const prevSeasonId = getPrevSeasonId(seasonId);
-  const prevMmrs: Record<TierMarket, number | null> = { btc: null, us: null, kr: null };
+  let prevMmr: number | null = null;
   if (prevSeasonId) {
-    const { data: prevRows } = await admin
+    const { data: prevRow } = await admin
       .from("user_season_stats")
-      .select("market, mmr")
+      .select("mmr")
       .eq("user_id", userId)
-      .eq("season_id", prevSeasonId);
-    for (const row of prevRows ?? []) {
-      prevMmrs[row.market as TierMarket] = Number(row.mmr);
-    }
+      .eq("market", TIER_MARKET_ALL)
+      .eq("season_id", prevSeasonId)
+      .maybeSingle();
+    if (prevRow?.mmr != null) prevMmr = Number(prevRow.mmr);
   }
 
-  const results: UserMarketStats[] = [];
-  for (const market of ["btc", "us", "kr"] as TierMarket[]) {
-    const { placement_matches_played, season_win_count, season_total_count } =
-      await computeUserMarketSeason(userId, market, seasonId);
+  const { placement_matches_played, season_win_count, season_total_count } =
+    await computeUserMarketSeason(userId, TIER_MARKET_ALL, seasonId);
 
-    const placement_done = placement_matches_played >= PLACEMENT_MATCHES_REQUIRED;
-    const win_rate =
-      season_total_count > 0 ? season_win_count / season_total_count : 0;
-    let mmr = placement_done ? balance * win_rate : 0;
+  const placement_done = placement_matches_played >= PLACEMENT_MATCHES_REQUIRED;
+  const win_rate =
+    season_total_count > 0 ? season_win_count / season_total_count : 0;
+  let mmr = placement_done ? balance * win_rate : 0;
 
-    const prev = prevMmrs[market];
-    if (prev != null && prev > 0 && placement_done) {
-      mmr = Math.max(prev * MMR_CLAMP_MIN, Math.min(prev * MMR_CLAMP_MAX, mmr));
-    }
+  if (prevMmr != null && prevMmr > 0 && placement_done) {
+    mmr = Math.max(prevMmr * MMR_CLAMP_MIN, Math.min(prevMmr * MMR_CLAMP_MAX, mmr));
+  }
 
-    results.push({
-      market,
+  return [
+    {
+      market: TIER_MARKET_ALL,
       season_id: seasonId,
       placement_matches_played,
       placement_done,
@@ -230,12 +233,11 @@ export async function computeUserStatsForSeason(
       season_total_count,
       win_rate,
       mmr,
-      prev_season_mmr: prev,
+      prev_season_mmr: prevMmr,
       tier: null, // 티어는 refreshMarketSeason에서 코호트 기준으로 부여
       percentile_pct: null,
-    });
-  }
-  return results;
+    },
+  ];
 }
 
 /**
@@ -303,7 +305,7 @@ export async function refreshMarketSeason(
     const { data: prevRows } = await admin
       .from("user_season_stats")
       .select("user_id, mmr")
-      .eq("market", tierMarket)
+      .eq("market", tierMarket === TIER_MARKET_ALL ? TIER_MARKET_ALL : tierMarket)
       .eq("season_id", prevSeasonId);
     for (const r of prevRows ?? []) {
       prevMmrs.set(r.user_id, Number(r.mmr));
@@ -365,7 +367,7 @@ export async function refreshMarketSeason(
     const { error } = await admin.from("user_season_stats").upsert(
       {
         user_id: row.user_id,
-        market: tierMarket,
+        market: tierMarket === TIER_MARKET_ALL ? TIER_MARKET_ALL : tierMarket,
         season_id: seasonId,
         placement_matches_played: row.placement_matches_played,
         placement_done: row.placement_done,
@@ -388,7 +390,8 @@ export async function refreshMarketSeason(
 
 /**
  * 내 티어·MMR 조회: user_season_stats 우선, 없으면 계산 후 upsert.
- * 배치 완료인데 티어가 비어 있는 시장이 있으면 해당 시장만 갱신 후 재조회(유저별 수동 호출 없이 페이지 로드 시 자동 반영).
+ * 통합 랭킹: market='all' 한 행만 사용.
+ * 배치 완료인데 티어가 비어 있으면 갱신 후 재조회.
  */
 export async function getMyTierStats(userId: string): Promise<{
   season_id: SeasonId;
@@ -402,122 +405,93 @@ export async function getMyTierStats(userId: string): Promise<{
     .select("*")
     .eq("user_id", userId)
     .eq("season_id", seasonId)
-    .order("market", { ascending: true });
+    .eq("market", TIER_MARKET_ALL)
+    .maybeSingle();
 
-  const toRefresh = (rows: { market: string; placement_done: boolean; tier: string | null }[]): TierMarket[] =>
-    (rows ?? [])
-      .filter((r) => r.placement_done && !r.tier)
-      .map((r) => r.market as TierMarket);
+  const rowToRaw = (r: { market: string; season_id: string; placement_matches_played: number; placement_done: boolean; season_win_count: number; season_total_count: number; mmr: unknown; prev_season_mmr: unknown; tier: string | null }): Omit<UserMarketStats, "percentile_pct"> => ({
+    market: r.market as TierMarket,
+    season_id: r.season_id as SeasonId,
+    placement_matches_played: r.placement_matches_played,
+    placement_done: r.placement_done,
+    season_win_count: r.season_win_count,
+    season_total_count: r.season_total_count,
+    win_rate: r.season_total_count > 0 ? r.season_win_count / r.season_total_count : 0,
+    mmr: Number(r.mmr),
+    prev_season_mmr: r.prev_season_mmr != null ? Number(r.prev_season_mmr) : null,
+    tier: r.tier as TierKey | null,
+  });
 
-  if (existing && existing.length === 3) {
-    const needRefresh = toRefresh(existing);
-    if (needRefresh.length > 0) {
-      for (const market of needRefresh) {
-        await refreshMarketSeason(market, seasonId);
-      }
+  if (existing) {
+    const needRefresh = existing.placement_done && !existing.tier;
+    if (needRefresh) {
+      await refreshMarketSeason(TIER_MARKET_ALL, seasonId);
       const { data: after } = await admin
         .from("user_season_stats")
         .select("*")
         .eq("user_id", userId)
         .eq("season_id", seasonId)
-        .order("market", { ascending: true });
-      const rows = (after && after.length === 3) ? after : existing;
-      const raw: Omit<UserMarketStats, "percentile_pct">[] = rows.map((r) => ({
-        market: r.market as TierMarket,
-        season_id: r.season_id as SeasonId,
-        placement_matches_played: r.placement_matches_played,
-        placement_done: r.placement_done,
-        season_win_count: r.season_win_count,
-        season_total_count: r.season_total_count,
-        win_rate: r.season_total_count > 0 ? r.season_win_count / r.season_total_count : 0,
-        mmr: Number(r.mmr),
-        prev_season_mmr: r.prev_season_mmr != null ? Number(r.prev_season_mmr) : null,
-        tier: r.tier as TierKey | null,
-      }));
-      const markets = await addPercentilesToMarkets(admin, seasonId, raw);
+        .eq("market", TIER_MARKET_ALL)
+        .maybeSingle();
+      const row = after ?? existing;
+      const raw = rowToRaw(row);
+      const markets = await addPercentilesToMarkets(admin, seasonId, [raw]);
       return { season_id: seasonId, markets };
     }
-    const raw: Omit<UserMarketStats, "percentile_pct">[] = existing.map((r) => ({
-      market: r.market as TierMarket,
-      season_id: r.season_id as SeasonId,
-      placement_matches_played: r.placement_matches_played,
-      placement_done: r.placement_done,
-      season_win_count: r.season_win_count,
-      season_total_count: r.season_total_count,
-      win_rate: r.season_total_count > 0 ? r.season_win_count / r.season_total_count : 0,
-      mmr: Number(r.mmr),
-      prev_season_mmr: r.prev_season_mmr != null ? Number(r.prev_season_mmr) : null,
-      tier: r.tier as TierKey | null,
-    }));
-    const markets = await addPercentilesToMarkets(admin, seasonId, raw);
+    const raw = rowToRaw(existing);
+    const markets = await addPercentilesToMarkets(admin, seasonId, [raw]);
     return { season_id: seasonId, markets };
   }
 
   const computed = await computeUserStatsForSeason(userId, seasonId);
+  const m = computed[0];
+  if (!m) return { season_id: seasonId, markets: [] };
 
-  const { data: existingForMerge } = await admin
+  const { data: existingTier } = await admin
     .from("user_season_stats")
-    .select("market, tier")
+    .select("tier")
     .eq("user_id", userId)
-    .eq("season_id", seasonId);
+    .eq("season_id", seasonId)
+    .eq("market", TIER_MARKET_ALL)
+    .maybeSingle();
 
-  const tierByMarket = new Map<string, TierKey | null>();
-  for (const r of existingForMerge ?? []) {
-    if (r.tier) tierByMarket.set(r.market, r.tier as TierKey);
-  }
+  const preserveTier = (existingTier?.tier as TierKey) ?? m.tier;
+  await admin.from("user_season_stats").upsert(
+    {
+      user_id: userId,
+      market: TIER_MARKET_ALL,
+      season_id: m.season_id,
+      placement_matches_played: m.placement_matches_played,
+      placement_done: m.placement_done,
+      season_win_count: m.season_win_count,
+      season_total_count: m.season_total_count,
+      mmr: m.mmr,
+      prev_season_mmr: m.prev_season_mmr,
+      tier: preserveTier,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id,market,season_id", ignoreDuplicates: false }
+  );
 
-  for (const m of computed) {
-    const preserveTier = tierByMarket.get(m.market) ?? m.tier;
-    await admin.from("user_season_stats").upsert(
-      {
-        user_id: userId,
-        market: m.market,
-        season_id: m.season_id,
-        placement_matches_played: m.placement_matches_played,
-        placement_done: m.placement_done,
-        season_win_count: m.season_win_count,
-        season_total_count: m.season_total_count,
-        mmr: m.mmr,
-        prev_season_mmr: m.prev_season_mmr,
-        tier: preserveTier,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id,market,season_id", ignoreDuplicates: false }
-    );
-  }
-
-  const needRefresh = computed.filter((m) => m.placement_done && !tierByMarket.get(m.market)).map((m) => m.market);
-  if (needRefresh.length > 0) {
-    for (const market of needRefresh) {
-      await refreshMarketSeason(market, seasonId);
-    }
+  const needRefresh = m.placement_done && !preserveTier;
+  if (needRefresh) {
+    await refreshMarketSeason(TIER_MARKET_ALL, seasonId);
     const { data: after } = await admin
       .from("user_season_stats")
       .select("*")
       .eq("user_id", userId)
       .eq("season_id", seasonId)
-      .order("market", { ascending: true });
-    if (after && after.length === 3) {
-      const raw: Omit<UserMarketStats, "percentile_pct">[] = after.map((r) => ({
-        market: r.market as TierMarket,
-        season_id: r.season_id as SeasonId,
-        placement_matches_played: r.placement_matches_played,
-        placement_done: r.placement_done,
-        season_win_count: r.season_win_count,
-        season_total_count: r.season_total_count,
-        win_rate: r.season_total_count > 0 ? r.season_win_count / r.season_total_count : 0,
-        mmr: Number(r.mmr),
-        prev_season_mmr: r.prev_season_mmr != null ? Number(r.prev_season_mmr) : null,
-        tier: r.tier as TierKey | null,
-      }));
-      const markets = await addPercentilesToMarkets(admin, seasonId, raw);
+      .eq("market", TIER_MARKET_ALL)
+      .maybeSingle();
+    if (after) {
+      const raw = rowToRaw(after);
+      const markets = await addPercentilesToMarkets(admin, seasonId, [raw]);
       return { season_id: seasonId, markets };
     }
   }
 
-  const raw: Omit<UserMarketStats, "percentile_pct">[] = computed.map((m) => ({
-    ...m,
-    tier: tierByMarket.get(m.market) ?? m.tier,
+  const raw: Omit<UserMarketStats, "percentile_pct">[] = computed.map((x) => ({
+    ...x,
+    tier: preserveTier ?? x.tier,
   }));
   const markets = await addPercentilesToMarkets(admin, seasonId, raw);
   return { season_id: seasonId, markets };

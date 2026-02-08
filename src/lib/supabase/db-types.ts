@@ -226,9 +226,9 @@ export type SentimentPollRow = {
   id: string;
   poll_date: string;
   market: string | null;
-  btc_open: number | null;
-  btc_close: number | null;
-  btc_change_pct: number | null;
+  price_open: number | null;
+  price_close: number | null;
+  change_pct: number | null;
   long_count: number;
   short_count: number;
   long_coin_total: number;
@@ -239,7 +239,7 @@ export type SentimentPollRow = {
   settled_at?: string | null;
 };
 
-/** sentiment_votes: 개별 투표 (choice + bet_amount) */
+/** sentiment_votes: 개별 투표 (choice + bet_amount + market) */
 export type SentimentVoteRow = {
   id: string;
   poll_id: string;
@@ -247,6 +247,8 @@ export type SentimentVoteRow = {
   anonymous_id: string | null;
   choice: 'long' | 'short';
   bet_amount: number;
+  /** 시장 구분: btc, ndq, sp500, kospi, kosdaq. 투표 시 해당 폴의 market 저장 */
+  market: string | null;
   created_at: string;
 };
 
@@ -265,8 +267,8 @@ export type PayoutHistoryRow = {
 // 7단계: 시장별 시즌 통계·MMR·티어
 // =========================================
 
-/** 시장 그룹 (티어/MMR): btc | us | kr */
-export type TierMarket = "btc" | "us" | "kr";
+/** 시장 그룹 (티어/MMR): all (통합 랭킹) | btc | us | kr (레거시) */
+export type TierMarket = "all" | "btc" | "us" | "kr";
 
 /** 티어 (배치 완료자만) */
 export type TierKey = "gold" | "platinum" | "diamond" | "master" | "challenger";

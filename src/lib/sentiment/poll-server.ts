@@ -54,8 +54,8 @@ export async function getOrCreateTodayPollByMarket(
     .insert({
       poll_date: today,
       market: m,
-      btc_open: openValue,
-      btc_close: null,
+      price_open: openValue,
+      price_close: null,
       long_count: 0,
       short_count: 0,
       long_coin_total: 0,
@@ -110,8 +110,8 @@ export async function getOrCreatePollByDateAndMarket(
     .insert({
       poll_date: pollDate,
       market: m,
-      btc_open: null,
-      btc_close: null,
+      price_open: null,
+      price_close: null,
       long_count: 0,
       short_count: 0,
       long_coin_total: 0,

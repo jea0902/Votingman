@@ -5,7 +5,7 @@
  * HumanIndicatorSection에서 비트코인|미국주식|한국주식 섹션별로 사용
  */
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { isVotingOpenKST, getVotingCloseLabel } from "@/lib/utils/sentiment-vote";
 import { MARKET_LABEL } from "@/lib/constants/sentiment-markets";
 import type { SentimentMarket } from "@/lib/constants/sentiment-markets";
@@ -32,6 +32,7 @@ export type PollData = {
   poll_id: string;
   long_count: number;
   short_count: number;
+  participant_count?: number;
   long_coin_total: number;
   short_coin_total: number;
   my_vote: { choice: "long" | "short"; bet_amount: number } | null;
@@ -61,6 +62,11 @@ function formatCoinRatio(
   };
 }
 
+type MarketRegimeData = {
+  currentRegime: string | null;
+  pastStats: { regime: string; longWinRatePct: number; shortWinRatePct: number; sampleCount: number }[];
+} | null;
+
 type Props = {
   market: SentimentMarket;
   poll: PollData | null;
@@ -73,10 +79,31 @@ export function MarketVoteCard({ market, poll, user, onUpdate }: Props) {
   const [voteLoading, setVoteLoading] = useState(false);
   const [cancelLoading, setCancelLoading] = useState(false);
   const [voteError, setVoteError] = useState<string | null>(null);
+  const [regimeData, setRegimeData] = useState<MarketRegimeData>(null);
   /** 입력란 자유 입력용 (빈 문자열 가능). 제출 시에만 최소 10코인 검사 */
   const [betAmountInput, setBetAmountInput] = useState(stringifyBet(MIN_BET));
 
   const voteOpen = useMemo(() => isVotingOpenKST(market), [market]);
+
+  /** btc 시장만 시장세 API 연동 (6단계: 시장세 + 과거 시각화) */
+  useEffect(() => {
+    if (market !== "btc") return;
+    let cancelled = false;
+    fetch(`/api/sentiment/market-regime?market=btc`)
+      .then((res) => res.json())
+      .then((json) => {
+        if (cancelled) return;
+        if (json?.success && json?.data) {
+          const d = json.data;
+          setRegimeData({
+            currentRegime: d.currentRegime ?? null,
+            pastStats: Array.isArray(d.pastStats) ? d.pastStats : [],
+          });
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [market]);
   const closeLabel = getVotingCloseLabel(market);
 
   const {
@@ -97,11 +124,15 @@ export function MarketVoteCard({ market, poll, user, onUpdate }: Props) {
         myBetAmount: 0,
       };
     }
+    const participantCount =
+      typeof poll.participant_count === "number"
+        ? poll.participant_count
+        : (poll.long_count ?? 0) + (poll.short_count ?? 0);
     const { longPct: lp, shortPct: sp, coinLabel: cl, participantLabel: pl } =
       formatCoinRatio(
         poll.long_coin_total ?? 0,
         poll.short_coin_total ?? 0,
-        (poll.long_count ?? 0) + (poll.short_count ?? 0)
+        participantCount
       );
     const mv = poll.my_vote;
     return {
@@ -200,6 +231,26 @@ export function MarketVoteCard({ market, poll, user, onUpdate }: Props) {
         </span>
       </div>
 
+      {market === "btc" && regimeData && (
+        <div className="mb-4 rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
+          {regimeData.currentRegime && (
+            <p className="text-xs font-medium text-foreground">
+              현재 시장세: <span className="text-primary">{regimeData.currentRegime}</span>
+            </p>
+          )}
+          {regimeData.currentRegime && regimeData.pastStats.length > 0 && (() => {
+            const stat = regimeData.pastStats.find((s) => s.regime === regimeData.currentRegime);
+            if (!stat || stat.sampleCount < 5) return null;
+            return (
+              <p className="mt-1 text-[10px] text-muted-foreground">
+                과거 {regimeData.currentRegime}일 때: 롱 당첨 {stat.longWinRatePct}% / 숏 당첨 {stat.shortWinRatePct}%
+                <span className="ml-1 text-[9px] opacity-80">({stat.sampleCount}일)</span>
+              </p>
+            );
+          })()}
+        </div>
+      )}
+
       <div className="mb-4">
         <div className="mb-2 flex justify-between text-sm">
           <span className="font-medium text-emerald-500">롱 {longPct}%</span>
@@ -260,7 +311,7 @@ export function MarketVoteCard({ market, poll, user, onUpdate }: Props) {
               className="h-9 w-24 rounded-lg border border-border bg-background px-2 text-sm tabular-nums"
             />
             <span className="text-xs text-muted-foreground">
-              VTC (잔액: {balance.toLocaleString()} / 최소 {MIN_BET} VTC)
+              VTC (잔액 : <span className="font-semibold text-amber-500">{balance.toLocaleString()} VTC</span>)
             </span>
           </div>
           {showMinBetWarning && (

@@ -59,8 +59,8 @@ export async function POST(request: Request) {
 
     const results: {
       poll_date: string;
-      btc_open: number | null;
-      btc_close: number | null;
+      price_open: number | null;
+      price_close: number | null;
       poll_created: boolean;
     }[] = [];
 
@@ -69,8 +69,8 @@ export async function POST(request: Request) {
       const ohlc = await updateBtcOhlcForPoll(pollDate, poll.id);
       results.push({
         poll_date: pollDate,
-        btc_open: ohlc.btc_open,
-        btc_close: ohlc.btc_close,
+        price_open: ohlc.price_open,
+        price_close: ohlc.price_close,
         poll_created: created,
       });
     }

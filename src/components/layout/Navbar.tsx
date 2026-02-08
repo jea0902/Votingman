@@ -12,13 +12,14 @@
 
 import Link from "next/link";
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Menu, X, LogIn, UserPlus, LogOut, User, ChevronDown, UserCircle, Pencil, UserX } from "lucide-react";
+import { Menu, X, LogIn, UserPlus, LogOut, User, ChevronDown, UserCircle, Pencil, UserX, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 
-const NAV_LINKS = [ // 네비게이션 링크 (홈은 로고 클릭으로 이동) — 순서: 커뮤니티 → 모의 선물 투자 → 자동매매 → 버핏 원픽
+const NAV_LINKS = [ // 네비게이션 링크 (홈은 로고 클릭으로 이동) — 순서: 리더보드 → 커뮤니티 → 모의 선물 투자 → 자동매매 → 버핏 원픽
+  { href: "/leaderboard", label: "리더보드" },
   { href: "/community", label: "커뮤니티" },
   { href: "/simulation", label: "모의 선물 투자" },
   { href: "/verified-strategies", label: "자동매매" },
@@ -188,6 +189,14 @@ export function Navbar() {
                     {userMenuOpen && (
                       <div className="absolute right-0 top-full z-50 mt-1.5 min-w-[180px] rounded-lg border border-border bg-popover py-1 shadow-md">
                         <Link
+                          href="/profile/stats"
+                          className="flex items-center gap-2 px-3 py-2 text-sm text-foreground transition-colors hover:bg-muted"
+                          onClick={() => setUserMenuOpen(false)}
+                        >
+                          <Trophy className="h-4 w-4 shrink-0" />
+                          전적 및 승률 조회
+                        </Link>
+                        <Link
                           href="/profile"
                           className="flex items-center gap-2 px-3 py-2 text-sm text-foreground transition-colors hover:bg-muted"
                           onClick={() => setUserMenuOpen(false)}
@@ -309,6 +318,16 @@ export function Navbar() {
                 </>
               )}
             </div>
+            {user && (
+              <Link
+                href="/profile/stats"
+                className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                onClick={closeMobile}
+              >
+                <Trophy className="h-4 w-4 shrink-0" />
+                전적 및 승률 조회
+              </Link>
+            )}
             {NAV_LINKS.map(({ href, label }) => (
               <Link
                 key={href}

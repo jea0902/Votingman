@@ -127,10 +127,11 @@ export async function POST(request: NextRequest) {
     const longCountDelta = (choice === "long" ? 1 : 0) - (prevChoice === "long" ? 1 : 0);
     const shortCountDelta = (choice === "short" ? 1 : 0) - (prevChoice === "short" ? 1 : 0);
 
+    const voteMarket = poll.market ?? market;
     if (existingVote) {
       await admin
         .from("sentiment_votes")
-        .update({ choice, bet_amount: betAmount })
+        .update({ choice, bet_amount: betAmount, market: voteMarket })
         .eq("id", existingVote.id);
     } else {
       await admin.from("sentiment_votes").insert({
@@ -139,6 +140,7 @@ export async function POST(request: NextRequest) {
         anonymous_id: null,
         choice,
         bet_amount: betAmount,
+        market: voteMarket,
       });
     }
 

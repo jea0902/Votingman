@@ -16,3 +16,5 @@ export { HumanIndicatorSection } from "./HumanIndicatorSection";
 export { MarketTabCards } from "./MarketTabCards";
 export { UserInfoCard } from "./UserInfoCard";
 export { MarketTop5Positions } from "./MarketTop5Positions";
+export { MarketVoteCard } from "./MarketVoteCard";
+export { MarketVoteCardCompact } from "./MarketVoteCardCompact";

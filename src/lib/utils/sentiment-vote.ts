@@ -51,3 +51,22 @@ export function getVotingCloseLabel(market?: string): string {
 
 /** @deprecated 비트코인 단일 시장용. getVotingCloseLabel('btc') 사용 권장 */
 export const VOTING_CLOSE_LABEL = "투표 마감 시간 20:30";
+
+/**
+ * 해당 시장 마감 시각(한국 시간)까지 남은 밀리초. 마감 후면 0 반환.
+ */
+export function getMillisUntilClose(market?: string): number {
+  const m: SentimentMarket = market && isSentimentMarket(market) ? market : "btc";
+  const utcMs = Date.now();
+  const kstOffset = 9 * 60 * 60 * 1000;
+  const kst = new Date(utcMs + kstOffset);
+  const y = kst.getUTCFullYear();
+  const mo = kst.getUTCMonth();
+  const d = kst.getUTCDate();
+  const { hour, minute } = MARKET_CLOSE_KST[m];
+  let closeUtcMs = Date.UTC(y, mo, d, hour - 9, minute, 0, 0);
+  if (closeUtcMs <= utcMs) {
+    closeUtcMs = Date.UTC(y, mo, d + 1, hour - 9, minute, 0, 0);
+  }
+  return Math.max(0, closeUtcMs - utcMs);
+}

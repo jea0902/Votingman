@@ -65,15 +65,15 @@ export async function POST(request: Request) {
       );
     }
 
-    const { btc_open, btc_close } = await updateBtcOhlcForPoll(pollDate, poll.id);
+    const { price_open, price_close } = await updateBtcOhlcForPoll(pollDate, poll.id);
 
     return NextResponse.json({
       success: true,
       data: {
         poll_date: pollDate,
         market,
-        btc_open,
-        btc_close,
+        price_open,
+        price_close,
       },
     });
   } catch (e) {
