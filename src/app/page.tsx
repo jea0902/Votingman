@@ -36,7 +36,8 @@ export default function Home() {
               탈중앙화 예측 배팅 플랫폼
             </h1>
             <p className="text-xl font-medium text-[#fbbf24] sm:text-2xl lg:text-3xl">
-              말이 아닌 돈으로 예측하는 진짜 시장의 방향
+              말이 아닌 돈으로 예측하는 진짜 시장의 방향 <br />
+              집단지성 기반의 투자 인사이트 플랫폼
             </p>
           </div>
         </div>
