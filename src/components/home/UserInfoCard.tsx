@@ -175,7 +175,7 @@ export function UserInfoCard() {
           <ul className="mb-4 list-none space-y-1 text-sm text-muted-foreground">
             <li className="flex items-center gap-1.5">
               <span className="text-[10px] text-[#3b82f6]">●</span>
-              예측 배팅에 참여할 수 있어요
+              예측 투표에 참여할 수 있어요
             </li>
             <li className="flex items-center gap-1.5">
               <span className="text-[10px] text-[#3b82f6]">●</span>
@@ -188,7 +188,7 @@ export function UserInfoCard() {
               className="flex flex-col items-center justify-center gap-0.5 rounded-lg border-2 border-[#3b82f6] bg-[#3b82f6]/10 px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-[#3b82f6]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <span>1초 로그인</span>
-              <span className="text-xs font-semibold text-[#3b82f6]">바로 예측 배팅</span>
+              <span className="text-xs font-semibold text-[#3b82f6]">바로 예측 투표</span>
             </Link>
             <Link
               href="/signup"

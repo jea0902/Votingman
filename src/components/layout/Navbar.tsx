@@ -11,6 +11,7 @@
  */
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Menu, X, LogIn, UserPlus, LogOut, User, ChevronDown, UserCircle, Pencil, UserX, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,7 +19,8 @@ import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 
-const NAV_LINKS = [ // 네비게이션 링크 (홈은 로고 클릭으로 이동) — 순서: 리더보드 → 커뮤니티 → 모의 선물 투자 → 자동매매 → 버핏 원픽
+const NAV_LINKS = [ // 네비게이션 링크 — 투표(홈) → 리더보드 → 커뮤니티 → 모의 선물 투자 → 자동매매 → 버핏 원픽
+  { href: "/home", label: "투표" },
   { href: "/leaderboard", label: "리더보드" },
   { href: "/community", label: "커뮤니티" },
   { href: "/simulation", label: "모의 선물 투자" },
@@ -27,15 +29,18 @@ const NAV_LINKS = [ // 네비게이션 링크 (홈은 로고 클릭으로 이동
 ] as const;
 
 export function Navbar() {
+  const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [mobileUserMenuOpen, setMobileUserMenuOpen] = useState(false);
   const [user, setUser] = useState<{ id: string; email: string; nickname: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const mobileUserMenuRef = useRef<HTMLDivElement>(null);
 
   const closeMobile = useCallback(() => setMobileOpen(false), []);
 
-  // 닉네임 드롭다운: 바깥 클릭 시 닫기
+  // 닉네임 드롭다운: 바깥 클릭 시 닫기 (데스크톱)
   useEffect(() => {
     if (!userMenuOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
@@ -46,6 +51,18 @@ export function Navbar() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [userMenuOpen]);
+
+  // 모바일 프로필 드롭다운: 바깥 클릭 시 닫기
+  useEffect(() => {
+    if (!mobileUserMenuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (mobileUserMenuRef.current && !mobileUserMenuRef.current.contains(e.target as Node)) {
+        setMobileUserMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [mobileUserMenuOpen]);
 
   // 사용자 세션 확인
   useEffect(() => {
@@ -130,9 +147,9 @@ export function Navbar() {
 
   return (
     <>
-      <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <header className="sticky top-0 z-50 w-full min-h-14 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <nav
-          className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8"
+          className="mx-auto flex h-14 min-h-14 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8"
           aria-label="메인 네비게이션"
         >
           {/* 좌측: 로고 */}
@@ -143,31 +160,36 @@ export function Navbar() {
               className="flex items-center gap-2 font-semibold text-foreground transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-sm"
               onClick={closeMobile}
             >
-              {/* 로고 이미지 - 네비게이션 바 높이를 거의 다 활용 (h-14 = 56px, 여기서는 h-13 = 52px 사용) */}
               <Image
-                src="/images/logo1.png"
+                src="/images/logo3.png"
                 alt="보팅맨 로고"
-                width={52}
-                height={52}
-                className="h-12 w-auto object-contain"
-                style={{ height: '42px' }}
+                width={160}
+                height={56}
+                className="h-14 w-auto object-contain"
                 priority
               />
-              <span className="text-2xl font-bold">VOTING MAN</span>
             </Link>
           </div>
 
-          {/* 우측: 데스크톱 메뉴 + 로그인/회원가입 */}
-          <div className="hidden md:flex md:items-center md:gap-6">
-            {NAV_LINKS.map(({ href, label }) => (
-              <Link
-                key={href}
-                href={href}
-                className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-sm"
-              >
-                {label}
-              </Link>
-            ))}
+          {/* 우측: 데스크톱 메뉴 (524px 초과에서만 표시) */}
+          <div className="hidden nav:flex nav:items-center nav:gap-6">
+            {NAV_LINKS.map(({ href, label }) => {
+              const isActive = pathname === href || pathname.startsWith(href + "/");
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className={cn(
+                    "rounded-sm px-2 py-1 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                    isActive
+                      ? "text-foreground bg-muted/50"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {label}
+                </Link>
+              );
+            })}
             <div className="flex items-center gap-2 border-l border-border pl-4">
               {/* 디버그 텍스트 제거 */}
               {isLoading ? (
@@ -187,7 +209,7 @@ export function Navbar() {
                       <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", userMenuOpen && "rotate-180")} />
                     </button>
                     {userMenuOpen && (
-                      <div className="absolute right-0 top-full z-50 mt-1.5 min-w-[180px] rounded-lg border border-border bg-popover py-1 shadow-md">
+                      <div className="absolute right-0 top-full z-[100] mt-1.5 min-w-[180px] rounded-lg border border-border bg-popover py-1 shadow-md">
                         <Link
                           href="/profile/stats"
                           className="flex items-center gap-2 px-3 py-2 text-sm text-foreground transition-colors hover:bg-muted"
@@ -237,13 +259,13 @@ export function Navbar() {
                   <Link href="/login">
                     <span className="inline-flex items-center justify-center gap-1.5 rounded-lg border-2 border-[#3b82f6] bg-[#3b82f6]/10 px-3 py-2 text-sm font-semibold text-[#3b82f6] transition-colors hover:bg-[#3b82f6]/20">
                       <LogIn className="h-4 w-4 shrink-0" />
-                      <span>1초 로그인</span>
+                      <span>로그인</span>
                     </span>
                   </Link>
                   <Link href="/signup">
                     <span className="inline-flex items-center justify-center gap-1.5 rounded-lg border-2 border-[#fbbf24] bg-[#fbbf24]/15 px-3 py-2 text-sm font-semibold text-[#fbbf24] transition-colors hover:bg-[#fbbf24]/25">
                       <UserPlus className="h-4 w-4 shrink-0" />
-                      <span>3초 회원가입</span>
+                      <span>회원가입</span>
                       <span className="hidden rounded bg-[#fbbf24]/20 px-1.5 py-0.5 text-xs font-medium sm:inline">+10,000 VTC</span>
                     </span>
                   </Link>
@@ -252,12 +274,12 @@ export function Navbar() {
             </div>
           </div>
 
-          {/* 모바일: 햄버거 버튼 */}
+          {/* 모바일: 햄버거 버튼 (524px 이하) */}
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            className="md:hidden"
+            className="nav:hidden"
             onClick={() => setMobileOpen((o) => !o)}
             aria-expanded={mobileOpen}
             aria-controls="mobile-menu"
@@ -267,13 +289,13 @@ export function Navbar() {
           </Button>
         </nav>
 
-        {/* 모바일 메뉴 패널 */}
+        {/* 모바일 메뉴 패널 (524px 이하) */}
         <div
           id="mobile-menu"
           role="dialog"
           aria-label="모바일 메뉴"
           className={cn(
-            "md:hidden overflow-hidden border-t border-border transition-all duration-200 ease-out",
+            "nav:hidden overflow-hidden border-t border-border transition-all duration-200 ease-out",
             mobileOpen ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
           )}
         >
@@ -283,14 +305,55 @@ export function Navbar() {
                 <div className="h-9 w-full animate-pulse rounded bg-muted" />
               ) : user ? (
                 <>
-                  <Link
-                    href="/profile"
-                    className="flex flex-1 items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted/50"
-                    onClick={closeMobile}
-                  >
-                    <User className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    <span className="truncate">{user.nickname}</span>
-                  </Link>
+                  <div className="relative flex flex-1" ref={mobileUserMenuRef}>
+                    <button
+                      type="button"
+                      onClick={() => setMobileUserMenuOpen((o) => !o)}
+                      className="flex w-full items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted/50"
+                      aria-expanded={mobileUserMenuOpen}
+                      aria-haspopup="true"
+                    >
+                      <User className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className="truncate">{user.nickname}</span>
+                      <ChevronDown className={cn("ml-auto h-4 w-4 shrink-0 text-muted-foreground transition-transform", mobileUserMenuOpen && "rotate-180")} />
+                    </button>
+                    {mobileUserMenuOpen && (
+                      <div className="absolute left-0 right-0 top-full z-50 mt-1 rounded-lg border border-border bg-popover py-1 shadow-md">
+                        <Link
+                          href="/profile/stats"
+                          className="flex items-center gap-2 px-3 py-2 text-sm text-foreground transition-colors hover:bg-muted"
+                          onClick={() => { setMobileUserMenuOpen(false); closeMobile(); }}
+                        >
+                          <Trophy className="h-4 w-4 shrink-0" />
+                          전적 및 승률 조회
+                        </Link>
+                        <Link
+                          href="/profile"
+                          className="flex items-center gap-2 px-3 py-2 text-sm text-foreground transition-colors hover:bg-muted"
+                          onClick={() => { setMobileUserMenuOpen(false); closeMobile(); }}
+                        >
+                          <UserCircle className="h-4 w-4 shrink-0" />
+                          개인 정보 조회
+                        </Link>
+                        <Link
+                          href="/profile/edit"
+                          className="flex items-center gap-2 px-3 py-2 text-sm text-foreground transition-colors hover:bg-muted"
+                          onClick={() => { setMobileUserMenuOpen(false); closeMobile(); }}
+                        >
+                          <Pencil className="h-4 w-4 shrink-0" />
+                          개인정보 수정
+                        </Link>
+                        <Link
+                          href="/account/leave"
+                          className="flex items-center gap-2 px-3 py-2 text-sm text-foreground transition-colors hover:bg-muted"
+                          onClick={() => { setMobileUserMenuOpen(false); closeMobile(); }}
+                        >
+                          <UserX className="h-4 w-4 shrink-0" />
+                          회원탈퇴
+                        </Link>
+                      </div>
+                    )}
+                  </div>
                   <button
                     type="button"
                     onClick={handleLogout}
@@ -305,39 +368,37 @@ export function Navbar() {
                   <Link href="/login" className="flex-1" onClick={closeMobile}>
                     <span className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-[#3b82f6] bg-[#3b82f6]/10 py-2.5 text-sm font-semibold text-[#3b82f6]">
                       <LogIn className="h-4 w-4 shrink-0" />
-                      1초 로그인
+                      로그인
                     </span>
                   </Link>
                   <Link href="/signup" className="flex-1" onClick={closeMobile}>
                     <span className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-[#fbbf24] bg-[#fbbf24]/15 py-2.5 text-sm font-semibold text-[#fbbf24]">
                       <UserPlus className="h-4 w-4 shrink-0" />
-                      3초 회원가입
+                      회원가입
                       <span className="rounded bg-[#fbbf24]/20 px-1.5 py-0.5 text-xs font-medium">10,000 VTC</span>
                     </span>
                   </Link>
                 </>
               )}
             </div>
-            {user && (
-              <Link
-                href="/profile/stats"
-                className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                onClick={closeMobile}
-              >
-                <Trophy className="h-4 w-4 shrink-0" />
-                전적 및 승률 조회
-              </Link>
-            )}
-            {NAV_LINKS.map(({ href, label }) => (
-              <Link
-                key={href}
-                href={href}
-                className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:text-foreground focus-visible:outline-none"
-                onClick={closeMobile}
-              >
-                {label}
-              </Link>
-            ))}
+            {NAV_LINKS.map(({ href, label }) => {
+              const isActive = pathname === href || pathname.startsWith(href + "/");
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className={cn(
+                    "rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none",
+                    isActive
+                      ? "bg-muted text-foreground"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )}
+                  onClick={closeMobile}
+                >
+                  {label}
+                </Link>
+              );
+            })}
           </div>
         </div>
       </header>

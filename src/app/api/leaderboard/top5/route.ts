@@ -1,6 +1,6 @@
 /**
- * 보팅맨 통합 랭킹 TOP5 + 유저당 최다배팅 시장 1개 포지션
- * - user_season_stats.market = 'all' 기준 통합 MMR TOP5
+ * 보팅맨 통합 랭킹 TOP30 + 유저당 최다배팅 시장 1개 포지션
+ * - user_season_stats.market = 'all' 기준 통합 MMR TOP30
  * - 각 유저별 "가장 많이 배팅한 시장" 1개만 표시 (시장명 + 롱/숏 + 배팅 VTC)
  * - 쿼리: ?section= 무시 (통합만 반환). 하위 호환용 section 파라미터는 받지만 사용하지 않음.
  */
@@ -8,6 +8,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/lib/supabase/server";
 import { getCurrentSeasonId } from "@/lib/constants/seasons";
+import { getCumulativeWinRatesByUserIds } from "@/lib/stats/cumulative-win-rate";
 import { getOrCreateTodayPollByMarket } from "@/lib/sentiment/poll-server";
 import { MARKET_LABEL } from "@/lib/constants/sentiment-markets";
 import type { SentimentMarket } from "@/lib/constants/sentiment-markets";
@@ -43,21 +44,30 @@ export type LeaderboardTop5Response = {
   top5: LeaderboardTop5Item[];
 };
 
-const ALL_MARKETS: SentimentMarket[] = ["btc", "ndq", "sp500", "kospi", "kosdaq"];
+const ALL_MARKETS: SentimentMarket[] = [
+  "btc_1d",
+  "btc_4h",
+  "btc_1h",
+  "btc_15m",
+  "ndq",
+  "sp500",
+  "kospi",
+  "kosdaq",
+];
 
 export async function GET() {
   try {
     const admin = createSupabaseAdmin();
     const seasonId = getCurrentSeasonId();
 
-    // 1) 통합 랭킹: market='all' 기준 MMR TOP5
+    // 1) 통합 랭킹: market='all' 기준 MMR TOP30
     const { data: statsRows, error: statsError } = await admin
       .from("user_season_stats")
-      .select("user_id, mmr, season_win_count, season_total_count")
+      .select("user_id, mmr")
       .eq("market", "all")
       .eq("season_id", seasonId)
       .order("mmr", { ascending: false })
-      .limit(5);
+      .limit(30);
 
     if (statsError) {
       console.error("Leaderboard top5 user_season_stats error:", statsError);
@@ -76,7 +86,10 @@ export async function GET() {
 
     const userIds = statsRows.map((r) => r.user_id);
 
-    // 2) 닉네임·보팅코인 잔액
+    // 2) 누적 승률 (전적·승률 조회와 동일: sentiment_votes + 정산된 polls 기반)
+    const winRateByUser = await getCumulativeWinRatesByUserIds(userIds);
+
+    // 3) 닉네임·보팅코인 잔액
     const { data: usersRows, error: usersError } = await admin
       .from("users")
       .select("user_id, nickname, voting_coin_balance")
@@ -101,7 +114,7 @@ export async function GET() {
       ])
     );
 
-    // 3) 오늘 폴 ID 목록 (전체 시장)
+    // 4) 오늘 폴 ID 목록 (전체 시장)
     const pollIdsByMarket: Record<string, string> = {};
     for (const m of ALL_MARKETS) {
       const { poll } = await getOrCreateTodayPollByMarket(m);
@@ -109,7 +122,7 @@ export async function GET() {
     }
     const pollIds = Object.values(pollIdsByMarket);
 
-    // 4) TOP5 유저들의 오늘 투표 (poll_id, user_id, choice, bet_amount, market)
+    // 5) TOP30 유저들의 오늘 투표 (poll_id, user_id, choice, bet_amount, market)
     const { data: votesRows, error: votesError } = await admin
       .from("sentiment_votes")
       .select("poll_id, user_id, choice, bet_amount, market")
@@ -161,7 +174,7 @@ export async function GET() {
       }
     }
 
-    // 5) 유저별 최다배팅 시장 1개 → primary_position
+    // 6) 유저별 최다배팅 시장 1개 → primary_position
     function getPrimaryPosition(userId: string): PrimaryPosition | null {
       const byMarket = betByUserAndMarket.get(userId);
       if (!byMarket || byMarket.size === 0) return null;
@@ -180,13 +193,10 @@ export async function GET() {
       return { market: bestMarket, market_label: label, choice: bestChoice, bet_amount: bestBet };
     }
 
-    // 6) TOP5 배열 조립
+    // 7) TOP30 배열 조립
     const top5: LeaderboardTop5Item[] = statsRows.map((row, index) => {
       const u = userMap.get(row.user_id);
-      const win_rate =
-        (row.season_total_count ?? 0) > 0
-          ? (row.season_win_count ?? 0) / (row.season_total_count ?? 1)
-          : 0;
+      const win_rate = winRateByUser.get(row.user_id) ?? 0;
       const positions = positionsByUserAndMarket.get(row.user_id) ?? {};
       const primary_position = getPrimaryPosition(row.user_id);
       return {
@@ -195,7 +205,7 @@ export async function GET() {
         nickname: u?.nickname ?? "알 수 없음",
         mmr: Number(row.mmr ?? 0),
         voting_coin_balance: u?.voting_coin_balance ?? 0,
-        win_rate: Math.round(win_rate * 10000) / 100,
+        win_rate,
         positions,
         primary_position,
       };

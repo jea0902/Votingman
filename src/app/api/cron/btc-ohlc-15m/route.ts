@@ -1,15 +1,13 @@
 /**
- * 매일 KST 00:01에 실행되는 크론: btc_ohlc 테이블에 OHLC 수집
+ * 15분마다 실행: btc_15m 최근 마감 캔들 수집
+ * - 15:45 KST부터 15분봉 수집 (KST 00, 15, 30, 45분 마감마다)
  *
- * - Binance API로 15m, 1h, 4h, 1d, 1W, 1M, 12M 봉 데이터 수집
- * - btc_ohlc 테이블에 upsert
- * - 정산(settlePoll)은 별도: sentiment_polls + btc_ohlc 조인하여 open/close 사용
- *
- * 호출: Vercel Cron 또는 외부 스케줄러가 GET 요청. 인증: Authorization: Bearer <CRON_SECRET>
+ * GET /api/cron/btc-ohlc-15m
+ * 인증: Authorization: Bearer <CRON_SECRET> 또는 x-cron-secret
  */
 
 import { NextResponse } from "next/server";
-import { fetchAllMarketsOhlc } from "@/lib/binance/btc-klines";
+import { fetchKlinesKstAligned } from "@/lib/binance/btc-klines";
 import { upsertBtcOhlcBatch } from "@/lib/btc-ohlc/repository";
 
 function isAuthorized(request: Request): boolean {
@@ -32,20 +30,20 @@ export async function GET(request: Request) {
   }
 
   try {
-    const rows = await fetchAllMarketsOhlc();
+    const rows = await fetchKlinesKstAligned("btc_15m", 8);
     const { inserted, errors } = await upsertBtcOhlcBatch(rows);
 
     return NextResponse.json({
       success: true,
       data: {
-        message: "btc_ohlc 수집 완료",
+        message: "btc_15m 수집 완료",
         total_fetched: rows.length,
         upserted: inserted,
         errors,
       },
     });
   } catch (e) {
-    console.error("[cron/btc-ohlc-daily] error:", e);
+    console.error("[cron/btc-ohlc-15m] error:", e);
     return NextResponse.json(
       { success: false, error: String(e) },
       { status: 500 }

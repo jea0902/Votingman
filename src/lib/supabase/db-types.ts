@@ -221,14 +221,12 @@ export type PostListResponse = {
 // 인간 지표 (데일리 투표)
 // =========================================
 
-/** sentiment_polls: 일별 투표 마스터 (KST poll_date, 시장별 폴) */
+/** sentiment_polls: 캔들별 투표 마스터 (market + candle_start_at unique, poll_date는 조회용) */
 export type SentimentPollRow = {
   id: string;
   poll_date: string;
   market: string | null;
-  price_open: number | null;
-  price_close: number | null;
-  change_pct: number | null;
+  candle_start_at: string;
   long_count: number;
   short_count: number;
   long_coin_total: number;

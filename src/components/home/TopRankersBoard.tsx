@@ -1,14 +1,15 @@
 "use client";
 
 /**
- * 실시간 비트멕스 상위 랭커 포지션 현황판
+ * 바이낸스 선물 랭커 TOP3 실시간 포지션
  *
  * 설계 의도:
  * - 사이드바 하단에 배치, 롱/숏 비율·수익률 시각화
- * - 8단계: 외부 API/자체 집계 연동 예정. 현재는 샘플 데이터 표시.
+ * - 바이낸스 공식 API에는 리더보드 엔드포인트가 없음. 서드파티 API 또는 스크래핑 필요.
+ *   - 현재는 샘플 데이터 표시.
  */
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 interface RankerItem {
@@ -19,13 +20,11 @@ interface RankerItem {
   pnlPercent: number;
 }
 
-/** 외부 API 연동 전까지 샘플 데이터 (UI 미리보기용) */
+/** 외부 API 연동 전까지 샘플 데이터 (UI 미리보기용). 바이낸스 API 리더보드 미제공 → 서드파티 필요 */
 const SAMPLE_RANKERS: RankerItem[] = [
   { rank: 1, name: "trader_alpha", position: "long", symbol: "BTCUSDT", pnlPercent: 12.4 },
   { rank: 2, name: "whale_42", position: "short", symbol: "ETHUSDT", pnlPercent: 8.7 },
   { rank: 3, name: "crypto_bull", position: "long", symbol: "BTCUSDT", pnlPercent: 6.2 },
-  { rank: 4, name: "bear_market", position: "short", symbol: "BTCUSDT", pnlPercent: 5.1 },
-  { rank: 5, name: "hodl_master", position: "long", symbol: "ETHUSDT", pnlPercent: 4.3 },
 ];
 
 function PnlBadge({ pnl }: { pnl: number }) {
@@ -42,65 +41,53 @@ function PnlBadge({ pnl }: { pnl: number }) {
   );
 }
 
-export function TopRankersBoard({ className }: { className?: string }) {
-  const longCount = SAMPLE_RANKERS.filter((r) => r.position === "long").length;
-  const longPct = Math.round((longCount / SAMPLE_RANKERS.length) * 100);
-  const shortPct = 100 - longPct;
+function RankerCard({ ranker }: { ranker: RankerItem }) {
+  return (
+    <div className="min-w-0 overflow-hidden rounded-lg border border-border bg-muted/30 p-3">
+      <div className="mb-2 flex min-w-0 items-center gap-2">
+        <span
+          className={cn(
+            "shrink-0 text-xs font-medium tabular-nums",
+            ranker.rank === 1 && "text-amber-400",
+            ranker.rank === 2 && "text-slate-400",
+            ranker.rank === 3 && "text-amber-700",
+            ranker.rank > 3 && "text-muted-foreground"
+          )}
+        >
+          {ranker.rank}위
+        </span>
+        <span className="min-w-0 truncate text-sm font-semibold text-foreground">{ranker.name}</span>
+      </div>
+      <div className="mt-1 flex min-w-0 items-center justify-between gap-1">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className="truncate text-xs text-muted-foreground">{ranker.symbol}</span>
+          <span
+            className={cn(
+              "shrink-0 rounded px-1.5 py-0.5 text-center text-xs font-bold",
+              ranker.position === "long"
+                ? "bg-chart-2/20 text-chart-2"
+                : "bg-chart-4/20 text-chart-4"
+            )}
+          >
+            {ranker.position === "long" ? "LONG" : "SHORT"}
+          </span>
+        </div>
+        <PnlBadge pnl={ranker.pnlPercent} />
+      </div>
+    </div>
+  );
+}
 
+export function TopRankersBoard({ className }: { className?: string }) {
   return (
     <Card className={cn("border-border bg-card", className)}>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">비트멕스 리더보드 TOP5 랭커 실시간 포지션</CardTitle>
-        <CardDescription className="text-xs text-muted-foreground">
-          롱/숏 비율 및 수익률 · 외부 API 연동 예정 (현재 샘플)
-        </CardDescription>
+        <CardTitle className="text-base">바이낸스 선물 랭커 TOP3 - 실시간 포지션</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="mb-3 flex gap-2 rounded-md border border-border bg-muted/30 p-2 text-center text-xs">
-          <span className="flex-1 rounded bg-chart-2/20 px-2 py-1 font-medium text-chart-2">
-            롱 {longPct}%
-          </span>
-          <span className="flex-1 rounded bg-chart-4/20 px-2 py-1 font-medium text-chart-4">
-            숏 {shortPct}%
-          </span>
-        </div>
-        {/* 컬럼 헤더: 순위 | 닉네임 | 포지션 | 종목 | 수익률 */}
-        <div className="mb-1 grid grid-cols-[auto_1fr_3.5rem_3.75rem_3.75rem] items-center gap-2 px-1.5 text-xs font-medium text-muted-foreground">
-          <span className="text-right">순위</span>
-          <span className="min-w-0 overflow-hidden text-ellipsis">닉네임</span>
-          <span className="text-center">포지션</span>
-          <span className="text-center">종목</span>
-          <span className="text-right">수익률</span>
-        </div>
-        <div className="space-y-2">
+        <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {SAMPLE_RANKERS.map((r) => (
-            <div
-              key={r.rank}
-              className="grid grid-cols-[auto_1fr_3.5rem_3.75rem_3.75rem] items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm"
-            >
-              <span className="shrink-0 text-right font-medium text-muted-foreground tabular-nums">
-                {r.rank}위
-              </span>
-              <span className="min-w-0 overflow-hidden text-ellipsis font-medium text-foreground">
-                {r.name}
-              </span>
-              <span
-                className={cn(
-                  "shrink-0 rounded px-1.5 py-0.5 text-center text-xs font-medium",
-                  r.position === "long"
-                    ? "bg-chart-2/20 text-chart-2"
-                    : "bg-chart-4/20 text-chart-4"
-                )}
-              >
-                {r.position === "long" ? "롱" : "숏"}
-              </span>
-              <span className="shrink-0 text-center text-xs text-muted-foreground">
-                {r.symbol}
-              </span>
-              <span className="shrink-0 text-right">
-                <PnlBadge pnl={r.pnlPercent} />
-              </span>
-            </div>
+            <RankerCard key={r.rank} ranker={r} />
           ))}
         </div>
       </CardContent>

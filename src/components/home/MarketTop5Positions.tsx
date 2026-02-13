@@ -1,30 +1,34 @@
 "use client";
 
 /**
- * 보팅맨 통합 TOP5 랭커 실시간 포지션
- * - 통합 MMR TOP5 한 개만 노출
+ * 보팅맨 통합 TOP30 랭커 실시간 포지션
+ * - 통합 MMR TOP30 노출 (리더보드 페이지)
  * - 유저당 1개 시장만 표시: 해당 유저가 가장 많이 배팅한 시장 + 롱/숏 + 배팅 VTC
  */
 
 import { useEffect, useState } from "react";
+import { Medal } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { getCurrentSeasonId } from "@/lib/constants/seasons";
 import type { LeaderboardTop5Item, LeaderboardTop5Response } from "@/app/api/leaderboard/top5/route";
 
 type PositionRow = {
   rank: number;
   nickname: string;
+  winRate: number;
   choice: "long" | "short";
   betAmount: number;
   marketLabel: string;
 };
 
-function toPositionRows(top5: LeaderboardTop5Item[]): PositionRow[] {
-  return top5.map((item) => {
+function toPositionRows(items: LeaderboardTop5Item[]): PositionRow[] {
+  return items.map((item) => {
     const pp = item.primary_position;
     return {
       rank: item.rank,
       nickname: item.nickname,
+      winRate: item.win_rate,
       choice: pp?.choice ?? "long",
       betAmount: pp?.bet_amount ?? 0,
       marketLabel: pp?.market_label ?? "-",
@@ -34,31 +38,49 @@ function toPositionRows(top5: LeaderboardTop5Item[]): PositionRow[] {
 
 function PositionsSection({ rows }: { rows: PositionRow[] }) {
   return (
-    <section className="space-y-2">
-      <div className="grid grid-cols-[auto_1fr_4rem_8rem] gap-2 px-3 pb-1.5 text-xs font-medium text-muted-foreground">
-        <span className="text-right">순위</span>
-        <span className="min-w-0 overflow-hidden text-ellipsis">닉네임</span>
-        <span className="text-center">포지션</span>
-        <span className="text-right">시장 · 배팅 VTC</span>
+    <section className="w-fit min-w-full space-y-2">
+      <div className="grid grid-cols-[3rem_7rem_5rem_4rem_4.5rem_7rem] justify-items-start gap-2 px-3 pb-1.5 text-xs font-medium text-muted-foreground">
+        <span className="text-left">순위</span>
+        <span className="mr-2 min-w-0 overflow-hidden text-ellipsis text-left">닉네임</span>
+        <span className="text-left">시장</span>
+        <span>포지션</span>
+        <span className="justify-self-end text-right">누적 승률</span>
+        <span className="justify-self-end text-right">배팅 VTC</span>
       </div>
       <div className="space-y-2">
         {rows.map((row) => (
           <div
             key={row.rank}
-            className="grid min-w-0 grid-cols-[auto_1fr_4rem_8rem] items-center gap-2 overflow-hidden rounded-md border border-border bg-muted/30 px-3 py-2 text-sm"
+            className="grid min-w-0 grid-cols-[3rem_7rem_5rem_4rem_4.5rem_7rem] items-center justify-items-start gap-2 overflow-hidden rounded-md border border-border bg-muted/30 px-3 py-2 text-sm"
           >
-            <span className="shrink-0 text-right font-medium text-muted-foreground tabular-nums">
+            <span className="flex shrink-0 items-center gap-1 text-left font-medium text-muted-foreground tabular-nums">
+              {row.rank <= 3 && (
+                <Medal
+                  className={cn(
+                    "h-3.5 w-3.5 shrink-0",
+                    row.rank === 1 && "text-amber-400",
+                    row.rank === 2 && "text-slate-400",
+                    row.rank === 3 && "text-amber-700"
+                  )}
+                />
+              )}
               {row.rank}위
             </span>
             <span
-              className="min-w-0 overflow-hidden text-ellipsis font-medium text-foreground"
+              className="mr-2 min-w-0 overflow-hidden text-ellipsis font-medium text-foreground"
               title={row.nickname}
             >
-              {row.nickname.length > 5 ? `${row.nickname.slice(0, 5)}…` : row.nickname}
+              {row.nickname.length > 10 ? `${row.nickname.slice(0, 10)}…` : row.nickname}
+            </span>
+            <span
+              className="min-w-0 shrink-0 overflow-hidden text-ellipsis text-left text-xs text-muted-foreground"
+              title={row.marketLabel}
+            >
+              {row.betAmount > 0 ? row.marketLabel : "-"}
             </span>
             <span
               className={cn(
-                "shrink-0 rounded px-1.5 py-0.5 text-center text-xs font-bold",
+                "shrink-0 justify-self-start rounded px-1.5 py-0.5 text-center text-xs font-bold",
                 row.betAmount === 0 && "bg-muted text-muted-foreground",
                 row.betAmount > 0 && row.choice === "long" && "bg-emerald-500/20 text-emerald-500",
                 row.betAmount > 0 && row.choice === "short" && "bg-rose-500/20 text-rose-500"
@@ -66,8 +88,11 @@ function PositionsSection({ rows }: { rows: PositionRow[] }) {
             >
               {row.betAmount === 0 ? "-" : row.choice === "long" ? "롱" : "숏"}
             </span>
-            <span className="shrink-0 text-right text-xs tabular-nums text-muted-foreground">
-              {row.betAmount === 0 ? "-" : `${row.marketLabel} ${row.betAmount.toLocaleString()} VTC`}
+            <span className="shrink-0 justify-self-end text-right text-xs font-semibold tabular-nums text-red-500">
+              {typeof row.winRate === "number" ? `${row.winRate}%` : "-"}
+            </span>
+            <span className="shrink-0 justify-self-end text-right text-xs tabular-nums text-muted-foreground">
+              {row.betAmount === 0 ? "-" : `${row.betAmount.toLocaleString()} VTC`}
             </span>
           </div>
         ))}
@@ -83,8 +108,12 @@ export function MarketTop5Positions({ className }: { className?: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    setError(null);
-    setIsLoading(true);
+    queueMicrotask(() => {
+      if (!cancelled) {
+        setError(null);
+        setIsLoading(true);
+      }
+    });
     fetch("/api/leaderboard/top5")
       .then((res) => res.json())
       .then((json) => {
@@ -113,16 +142,19 @@ export function MarketTop5Positions({ className }: { className?: string }) {
     <Card className={cn("overflow-hidden border-border bg-card", className)}>
       <CardHeader className="pb-2">
         <CardTitle className="truncate text-base">
-          보팅맨 TOP5 랭커 실시간 포지션
+          보팅맨 TOP 30 랭커 - 실시간 포지션
         </CardTitle>
         <p className="truncate text-xs text-muted-foreground">
-          통합 랭킹 TOP5 · 유저당 최다배팅 시장 1개
+          {(() => {
+            const [year, quarter] = getCurrentSeasonId().split("-").map(Number);
+            return `${year}년 시즌 ${quarter} · 통합 랭킹 TOP30`;
+          })()}
         </p>
       </CardHeader>
       <CardContent className="overflow-hidden space-y-4">
         {isLoading && (
           <div className="space-y-2 py-2">
-            {[1, 2, 3, 4, 5].map((i) => (
+            {Array.from({ length: 30 }, (_, i) => (
               <div key={i} className="h-10 animate-pulse rounded-md bg-muted/50" />
             ))}
           </div>
@@ -134,7 +166,7 @@ export function MarketTop5Positions({ className }: { className?: string }) {
           </div>
         )}
 
-        {!isLoading && !error && data && data.top5.length === 0 && (
+        {!isLoading && !error && data && (!data.top5 || data.top5.length === 0) && (
           <p className="py-4 text-center text-sm text-muted-foreground">
             아직 랭커가 없습니다.
           </p>

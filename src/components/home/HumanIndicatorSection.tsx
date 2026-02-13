@@ -8,7 +8,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { MARKET_SECTIONS, SENTIMENT_MARKETS } from "@/lib/constants/sentiment-markets";
+import { ACTIVE_MARKETS, MARKET_SECTIONS } from "@/lib/constants/sentiment-markets";
 import { MarketVoteCardCompact } from "./MarketVoteCardCompact";
 import type { SentimentMarket } from "@/lib/constants/sentiment-markets";
 import type { PollData } from "./MarketVoteCard";
@@ -52,8 +52,8 @@ export function HumanIndicatorSection({ activeTab }: Props = {}) {
   }, [fetchPolls]);
 
   const section = activeTab != null ? MARKET_SECTIONS[TAB_TO_SECTION_INDEX[activeTab]] : null;
-  const marketsToShow = section?.markets ?? (SENTIMENT_MARKETS as unknown as SentimentMarket[]);
-  const heading = section?.sectionLabel ?? "예측 배팅";
+  const marketsToShow = section?.markets ?? ([...ACTIVE_MARKETS] as SentimentMarket[]);
+  const heading = section?.sectionLabel ?? "예측 투표";
 
   return (
     <div className="space-y-8" aria-labelledby="human-indicator-heading">

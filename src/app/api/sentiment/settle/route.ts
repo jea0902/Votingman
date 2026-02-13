@@ -3,7 +3,7 @@
  * 명세: docs/votingman-implementation-phases.md 3단계
  *
  * POST /api/sentiment/settle
- * body: { poll_date?: "YYYY-MM-DD", market?: "btc" } (생략 시 어제 KST, btc)
+ * body: { poll_date?: "YYYY-MM-DD", market?: "btc_1d" } (생략 시 어제 KST, btc_1d)
  *
  * - 이미 정산된 폴은 재실행하지 않음
  * - btc 시장: 시가/종가 없으면 Binance에서 조회 후 반영 후 정산
@@ -12,6 +12,9 @@
 import { NextResponse } from "next/server";
 import { settlePoll } from "@/lib/sentiment/settlement-service";
 import { getTodayKstDateString } from "@/lib/binance/btc-kst";
+import { refreshMarketSeason } from "@/lib/tier/tier-service";
+import { getCurrentSeasonId } from "@/lib/constants/seasons";
+import { TIER_MARKET_ALL } from "@/lib/tier/constants";
 
 const POLL_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -37,13 +40,19 @@ export async function POST(request: Request) {
         pollDateParam && POLL_DATE_REGEX.test(pollDateParam)
           ? pollDateParam
           : getYesterdayKst();
-      market = body?.market === "btc" ? "btc" : "btc";
+      market = body?.market ?? "btc_1d";
     } catch {
       poll_date = getYesterdayKst();
-      market = "btc";
+      market = "btc_1d";
     }
 
     const result = await settlePoll(poll_date, market);
+
+    // 정산 성공 시 user_season_stats(누적 승률·MMR) 갱신
+    if (result.status === "settled" || result.status === "one_side_refund" || result.status === "draw_refund") {
+      const seasonId = getCurrentSeasonId();
+      await refreshMarketSeason(TIER_MARKET_ALL, seasonId);
+    }
 
     if (result.error && result.status === "already_settled") {
       return NextResponse.json(

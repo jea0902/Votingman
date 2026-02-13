@@ -1,16 +1,22 @@
 /**
- * 비트코인 시가·종가 과거 날짜 일괄 반영 (백필)
+ * 비트코인 OHLC 과거 날짜 일괄 수집 (백필)
+ * - 오늘 이전 데이터를 btc_ohlc에 채울 때 사용
  *
  * POST /api/cron/btc-ohlc-backfill
- * body: { "poll_dates": ["2025-02-04", "2025-02-05", "2025-02-06"] }
+ * body: {
+ *   "poll_dates": ["2025-02-04", "2025-02-05"],
+ *   "markets"?: ["btc_1d", "btc_4h", "btc_1h", "btc_15m"]  // 생략 시 전체
+ * }
  * 인증: Authorization: Bearer <CRON_SECRET> 또는 x-cron-secret
  */
 
 import { NextResponse } from "next/server";
+import { fetchOhlcForPollDate } from "@/lib/binance/btc-klines";
+import { upsertBtcOhlcBatch } from "@/lib/btc-ohlc/repository";
 import { getOrCreatePollByDateAndMarket } from "@/lib/sentiment/poll-server";
-import { updateBtcOhlcForPoll } from "@/lib/sentiment/settlement-service";
 
 const POLL_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const BACKFILL_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m"] as const;
 
 function isAuthorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET;
@@ -36,13 +42,17 @@ export async function POST(request: Request) {
     const raw = body?.poll_dates;
     const poll_dates: string[] = Array.isArray(raw)
       ? raw
-          // 1) 문자열만 남기고
           .filter((d: unknown): d is string => typeof d === "string")
-          // 2) 앞뒤 공백 제거 후
           .map((d: string) => d.trim())
-          // 3) YYYY-MM-DD 형식인 것만 사용
           .filter((d: string) => POLL_DATE_REGEX.test(d))
       : [];
+
+    const marketsRaw = body?.markets;
+    const markets: string[] = Array.isArray(marketsRaw)
+      ? marketsRaw.filter((m: unknown) =>
+          BACKFILL_MARKETS.includes(m as (typeof BACKFILL_MARKETS)[number])
+        )
+      : [...BACKFILL_MARKETS];
 
     if (poll_dates.length === 0) {
       return NextResponse.json(
@@ -59,20 +69,28 @@ export async function POST(request: Request) {
 
     const results: {
       poll_date: string;
-      price_open: number | null;
-      price_close: number | null;
-      poll_created: boolean;
+      market: string;
+      upserted: number;
+      poll_created?: boolean;
     }[] = [];
+    let totalUpserted = 0;
 
     for (const pollDate of poll_dates) {
-      const { poll, created } = await getOrCreatePollByDateAndMarket(pollDate, "btc");
-      const ohlc = await updateBtcOhlcForPoll(pollDate, poll.id);
-      results.push({
-        poll_date: pollDate,
-        price_open: ohlc.price_open,
-        price_close: ohlc.price_close,
-        poll_created: created,
-      });
+      const created = await getOrCreatePollByDateAndMarket(pollDate, "btc_1d")
+        .then((r) => r.created)
+        .catch(() => false);
+
+      for (const market of markets) {
+        const rows = await fetchOhlcForPollDate(market, pollDate);
+        const { inserted } = await upsertBtcOhlcBatch(rows);
+        totalUpserted += inserted;
+        results.push({
+          poll_date: pollDate,
+          market,
+          upserted: inserted,
+          poll_created: market === "btc_1d" ? created : undefined,
+        });
+      }
     }
 
     return NextResponse.json({
@@ -80,6 +98,7 @@ export async function POST(request: Request) {
       data: {
         message: "BTC OHLC backfill completed",
         count: results.length,
+        total_upserted: totalUpserted,
         results,
       },
     });

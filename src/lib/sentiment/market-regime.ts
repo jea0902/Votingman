@@ -104,7 +104,7 @@ export type MarketRegimeResult = {
  * btc 시장의 현재 시장세 및 과거 같은 장세일 때 롱/숏 당첨률 계산
  */
 export async function computeMarketRegime(market: string): Promise<MarketRegimeResult> {
-  if (market !== "btc") {
+  if (market !== "btc_1d") {
     return {
       market,
       currentRegime: null,
@@ -147,7 +147,7 @@ export async function computeMarketRegime(market: string): Promise<MarketRegimeR
   });
 
   return {
-    market: "btc",
+    market: "btc_1d",
     currentRegime: latest?.regime ?? null,
     nDayReturnPct: latest?.nDayReturnPct ?? null,
     pastStats,

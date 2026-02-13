@@ -1,14 +1,14 @@
 /**
- * 비트코인 폴 시가·종가 DB 반영 (Binance 조회 후 sentiment_polls 업데이트)
- * - 정산 전 시가/종가가 null인 폴을 채울 때 사용
+ * 비트코인 OHLC 수집 후 btc_ohlc에 반영
+ * - Binance에서 조회 후 btc_ohlc upsert (종가끼리 비교 정산용)
  *
  * POST /api/sentiment/poll/ohlc
- * body: { poll_date: "YYYY-MM-DD", market?: "btc" } (market 생략 시 btc)
+ * body: { poll_date: "YYYY-MM-DD", market?: "btc_1d" }
  */
 
 import { NextResponse } from "next/server";
-import { createSupabaseAdmin } from "@/lib/supabase/server";
-import { updateBtcOhlcForPoll } from "@/lib/sentiment/settlement-service";
+import { fetchOhlcForPollDate } from "@/lib/binance/btc-klines";
+import { upsertBtcOhlcBatch } from "@/lib/btc-ohlc/repository";
 
 const POLL_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -16,7 +16,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
     const pollDate = body?.poll_date;
-    const market = body?.market === "btc" ? "btc" : "btc";
+    const market = body?.market ?? "btc_1d";
 
     if (!pollDate || !POLL_DATE_REGEX.test(pollDate)) {
       return NextResponse.json(
@@ -31,41 +31,26 @@ export async function POST(request: Request) {
       );
     }
 
-    if (market !== "btc") {
+    const btcMarkets = ["btc_1d", "btc_4h", "btc_1h", "btc_15m"];
+    if (!btcMarkets.includes(market)) {
       return NextResponse.json(
         {
           success: false,
           error: {
             code: "VALIDATION_ERROR",
-            message: "현재 비트코인(btc) 시장만 시가/종가 반영을 지원합니다.",
+            message: "btc_1d, btc_4h, btc_1h, btc_15m 시장만 지원합니다.",
           },
         },
         { status: 400 }
       );
     }
 
-    const admin = createSupabaseAdmin();
-    const { data: poll } = await admin
-      .from("sentiment_polls")
-      .select("id")
-      .eq("poll_date", pollDate)
-      .eq("market", market)
-      .maybeSingle();
+    const rows = await fetchOhlcForPollDate(market, pollDate);
+    const { inserted } = await upsertBtcOhlcBatch(rows);
 
-    if (!poll) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: "NOT_FOUND",
-            message: "해당 날짜/시장의 폴이 없습니다.",
-          },
-        },
-        { status: 404 }
-      );
-    }
-
-    const { price_open, price_close } = await updateBtcOhlcForPoll(pollDate, poll.id);
+    const first = rows[0];
+    const price_open = first?.open ?? null;
+    const price_close = first?.close ?? null;
 
     return NextResponse.json({
       success: true,
@@ -74,6 +59,7 @@ export async function POST(request: Request) {
         market,
         price_open,
         price_close,
+        upserted: inserted,
       },
     });
   } catch (e) {

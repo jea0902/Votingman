@@ -1,14 +1,15 @@
 /**
- * 서버 전용: 오늘(KST) sentiment_polls 행 조회 또는 생성
- * - GET poll API, POST vote API에서 공통 사용
- * - 시장별 폴: btc(비트코인), ndq/sp500(미국), kospi/kosdaq(한국)
+ * 서버 전용: sentiment_polls 행 조회 또는 생성
+ * - (market, candle_start_at) 기준. poll_date는 조회 편의용
+ * - btc 시장: btc_ohlc에서 open/close 조회 (종가끼리 비교 정산)
  */
 
 import { createSupabaseAdmin } from "@/lib/supabase/server";
+import { getTodayKstDateString } from "@/lib/binance/btc-kst";
 import {
-  fetchBtcOpenCloseKst,
-  getTodayKstDateString,
-} from "@/lib/binance/btc-kst";
+  getBtc1dCandleStartAt,
+  getCurrentCandleStartAt,
+} from "@/lib/btc-ohlc/candle-utils";
 import type { SentimentPollRow } from "@/lib/supabase/db-types";
 import type { SentimentMarket } from "@/lib/constants/sentiment-markets";
 import { isSentimentMarket } from "@/lib/constants/sentiment-markets";
@@ -18,87 +19,40 @@ export type TodayPollResult = {
   created: boolean;
 };
 
+const BTC_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m"] as const;
+
 /**
- * 오늘(KST) poll_date + market에 해당하는 행을 조회. 없으면 생성 후 반환.
- * btc: Binance로 시가 조회. 그 외 시장: open/close는 null(추후 데이터 연동).
+ * 오늘(KST) 현재 진행 중인 캔들에 해당하는 폴 조회/생성
+ * btc_1d: 오늘 00:00 캔들. btc_4h/1h/15m: 현재 진행 중인 캔들
+ * ndq/sp500/kospi/kosdaq: 오늘 00:00 기준 (일봉)
  */
 export async function getOrCreateTodayPollByMarket(
   market: string
 ): Promise<TodayPollResult> {
-  const m: SentimentMarket = isSentimentMarket(market) ? market : "btc";
-  const admin = createSupabaseAdmin();
+  const m: SentimentMarket = isSentimentMarket(market) ? market : "btc_1d";
   const today = getTodayKstDateString();
-
-  const { data: existing } = await admin
-    .from("sentiment_polls")
-    .select("*")
-    .eq("poll_date", today)
-    .eq("market", m)
-    .maybeSingle();
-
-  if (existing) {
-    return {
-      poll: existing as SentimentPollRow,
-      created: false,
-    };
-  }
-
-  let openValue: number | null = null;
-  if (m === "btc") {
-    const { btc_open } = await fetchBtcOpenCloseKst(today);
-    openValue = btc_open != null ? Math.round(btc_open * 100) / 100 : null;
-  }
-
-  const { data: inserted, error } = await admin
-    .from("sentiment_polls")
-    .insert({
-      poll_date: today,
-      market: m,
-      price_open: openValue,
-      price_close: null,
-      long_count: 0,
-      short_count: 0,
-      long_coin_total: 0,
-      short_coin_total: 0,
-    })
-    .select()
-    .single();
-
-  if (error) throw error;
-  return {
-    poll: inserted as SentimentPollRow,
-    created: true,
-  };
+  const candleStartAt = BTC_MARKETS.includes(m as (typeof BTC_MARKETS)[number])
+    ? getCurrentCandleStartAt(m)
+    : getBtc1dCandleStartAt(today); // ndq 등: 일봉 기준
+  return getOrCreatePollByMarketAndCandleStartAt(m, candleStartAt, today);
 }
 
 /**
- * 오늘 비트코인 폴만 조회/생성. 기존 호환용.
+ * (market, candle_start_at) 기준 폴 조회/생성
  */
-export async function getOrCreateTodayPoll(): Promise<TodayPollResult> {
-  return getOrCreateTodayPollByMarket("btc");
-}
-
-const POLL_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
-
-/**
- * 특정 poll_date + market에 해당하는 폴 행 조회. 없으면 생성 후 반환.
- * 크론 등에서 투표 유무와 무관하게 "그날 그 시장" 행을 만들 때 사용.
- */
-export async function getOrCreatePollByDateAndMarket(
-  pollDate: string,
-  market: string
-): Promise<{ poll: SentimentPollRow; created: boolean }> {
-  if (!POLL_DATE_REGEX.test(pollDate)) {
-    throw new Error("poll_date must be YYYY-MM-DD");
-  }
-  const m: SentimentMarket = isSentimentMarket(market) ? market : "btc";
+export async function getOrCreatePollByMarketAndCandleStartAt(
+  market: SentimentMarket,
+  candleStartAt: string,
+  pollDate?: string
+): Promise<TodayPollResult> {
   const admin = createSupabaseAdmin();
+  const date = pollDate != null ? pollDate : pollDateFromCandleStartAt(candleStartAt);
 
   const { data: existing } = await admin
     .from("sentiment_polls")
     .select("*")
-    .eq("poll_date", pollDate)
-    .eq("market", m)
+    .eq("market", market)
+    .eq("candle_start_at", candleStartAt)
     .maybeSingle();
 
   if (existing) {
@@ -108,10 +62,9 @@ export async function getOrCreatePollByDateAndMarket(
   const { data: inserted, error } = await admin
     .from("sentiment_polls")
     .insert({
-      poll_date: pollDate,
-      market: m,
-      price_open: null,
-      price_close: null,
+      poll_date: date,
+      market,
+      candle_start_at: candleStartAt,
       long_count: 0,
       short_count: 0,
       long_coin_total: 0,
@@ -122,4 +75,52 @@ export async function getOrCreatePollByDateAndMarket(
 
   if (error) throw error;
   return { poll: inserted as SentimentPollRow, created: true };
+}
+
+function pollDateFromCandleStartAt(candleStartAt: string): string {
+  const d = new Date(candleStartAt);
+  const kstMs = d.getTime() + 9 * 60 * 60 * 1000;
+  const kst = new Date(kstMs);
+  const y = kst.getUTCFullYear();
+  const m = String(kst.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(kst.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
+}
+
+/**
+ * 오늘 비트코인 폴만 조회/생성. 기존 호환용.
+ */
+export async function getOrCreateTodayPoll(): Promise<TodayPollResult> {
+  return getOrCreateTodayPollByMarket("btc_1d");
+}
+
+const POLL_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * 특정 poll_date + market에 해당하는 폴(들) 조회/생성.
+ * btc_1d: 1개. btc_4h: 6개, btc_1h: 24개, btc_15m: 96개
+ */
+export async function getOrCreatePollByDateAndMarket(
+  pollDate: string,
+  market: string
+): Promise<{ poll: SentimentPollRow; created: boolean }> {
+  if (!POLL_DATE_REGEX.test(pollDate)) {
+    throw new Error("poll_date must be YYYY-MM-DD");
+  }
+  const m: SentimentMarket = isSentimentMarket(market) ? market : "btc_1d";
+
+  const { getCandlesForPollDate } = await import("@/lib/btc-ohlc/candle-utils");
+  const candleStartAts = getCandlesForPollDate(m, pollDate);
+  if (candleStartAts.length === 0) {
+    throw new Error(`Unsupported market: ${market}`);
+  }
+
+  // btc_1d만 호출 시 첫 번째(유일한) 캔들 사용
+  const candleStartAt = candleStartAts[0];
+  const result = await getOrCreatePollByMarketAndCandleStartAt(
+    m,
+    candleStartAt,
+    pollDate
+  );
+  return result;
 }

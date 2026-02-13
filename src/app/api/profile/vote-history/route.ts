@@ -10,7 +10,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/lib/supabase/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getOhlcByMarketAndCandleStart } from "@/lib/btc-ohlc/repository";
 import { MARKET_LABEL } from "@/lib/constants/sentiment-markets";
+
+const BTC_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m"] as const;
 
 export type VoteHistoryRow = {
   /** 예측 대상일 (poll_date) */
@@ -75,7 +78,7 @@ export async function GET(request: NextRequest) {
 
     let pollsQuery = admin
       .from("sentiment_polls")
-      .select("id, poll_date, market, price_open, price_close, change_pct, settled_at")
+      .select("id, poll_date, market, candle_start_at, settled_at")
       .in("id", pollIds)
       .not("settled_at", "is", null);
 
@@ -136,8 +139,23 @@ export async function GET(request: NextRequest) {
     // 1차: 결과·누적승률 계산 및 net 변동 수집
     const nets: number[] = [];
     for (const { vote, poll, payout_amount } of joined) {
-      const open = poll.price_open != null ? Number(poll.price_open) : null;
-      const close = poll.price_close != null ? Number(poll.price_close) : null;
+      let open: number | null = null;
+      let close: number | null = null;
+      const market = poll.market ?? "";
+      const candleStartAt =
+        "candle_start_at" in poll && typeof poll.candle_start_at === "string"
+          ? poll.candle_start_at
+          : null;
+      if (
+        candleStartAt &&
+        BTC_MARKETS.includes(market as (typeof BTC_MARKETS)[number])
+      ) {
+        const ohlc = await getOhlcByMarketAndCandleStart(market, candleStartAt);
+        if (ohlc) {
+          open = ohlc.open;
+          close = ohlc.close;
+        }
+      }
 
       let result: "win" | "loss" | "refund" = "refund";
       if (open == null || close == null) {
@@ -168,7 +186,10 @@ export async function GET(request: NextRequest) {
         bet_amount: bet,
         price_open: open,
         price_close: close,
-        change_pct: poll.change_pct != null ? Number(poll.change_pct) : null,
+        change_pct:
+          open != null && close != null && open > 0
+            ? Math.round((close - open) / open * 10000) / 10000
+            : null,
         result,
         payout_amount,
         cumulative_win_rate_pct,

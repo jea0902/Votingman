@@ -12,8 +12,8 @@ import { isSentimentMarket } from "@/lib/constants/sentiment-markets";
 
 export async function GET(request: NextRequest) {
   try {
-    const marketParam = request.nextUrl.searchParams.get("market") ?? "btc";
-    const market = isSentimentMarket(marketParam) ? marketParam : "btc";
+    const marketParam = request.nextUrl.searchParams.get("market") ?? "btc_1d";
+    const market = isSentimentMarket(marketParam) ? marketParam : "btc_1d";
 
     const result = await computeMarketRegime(market);
 

@@ -34,7 +34,7 @@ function getCloseMinutes(market: SentimentMarket): number {
  * market 미지정 시 비트코인(20:30) 기준. 클라이언트·서버 공용.
  */
 export function isVotingOpenKST(market?: string): boolean {
-  const m: SentimentMarket = market && isSentimentMarket(market) ? market : "btc";
+  const m: SentimentMarket = market && isSentimentMarket(market) ? market : "btc_1d";
   const mins = getKSTMinutesSinceMidnight();
   const closeAt = getCloseMinutes(m);
   return mins < closeAt;
@@ -42,7 +42,7 @@ export function isVotingOpenKST(market?: string): boolean {
 
 /** 마감 시각 라벨 (표기용). market 미지정 시 비트코인 기준. */
 export function getVotingCloseLabel(market?: string): string {
-  const m: SentimentMarket = market && isSentimentMarket(market) ? market : "btc";
+  const m: SentimentMarket = market && isSentimentMarket(market) ? market : "btc_1d";
   const { hour, minute } = MARKET_CLOSE_KST[m];
   const h = String(hour).padStart(2, "0");
   const min = String(minute).padStart(2, "0");
@@ -56,7 +56,7 @@ export const VOTING_CLOSE_LABEL = "투표 마감 시간 20:30";
  * 해당 시장 마감 시각(한국 시간)까지 남은 밀리초. 마감 후면 0 반환.
  */
 export function getMillisUntilClose(market?: string): number {
-  const m: SentimentMarket = market && isSentimentMarket(market) ? market : "btc";
+  const m: SentimentMarket = market && isSentimentMarket(market) ? market : "btc_1d";
   const utcMs = Date.now();
   const kstOffset = 9 * 60 * 60 * 1000;
   const kst = new Date(utcMs + kstOffset);

@@ -8,10 +8,24 @@
  */
 
 import { createSupabaseAdmin } from "@/lib/supabase/server";
-import { fetchBtcOpenCloseKst } from "@/lib/binance/btc-kst";
+import { getBtc1dCandleStartAt } from "@/lib/btc-ohlc/candle-utils";
+import { getOhlcByMarketAndCandleStart } from "@/lib/btc-ohlc/repository";
 import type { SentimentPollRow } from "@/lib/supabase/db-types";
 
 const POLL_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+/** btc_ohlc에서 종가끼리 비교 정산용 가격 조회 (reference_close vs settlement_close) */
+export async function getSettlementPricesFromOhlc(
+  market: string,
+  candleStartAt: string
+): Promise<{ reference_close: number; settlement_close: number } | null> {
+  const row = await getOhlcByMarketAndCandleStart(market, candleStartAt);
+  if (!row) return null;
+  return {
+    reference_close: row.reference_close,
+    settlement_close: row.settlement_close,
+  };
+}
 
 export type SettlementResult = {
   poll_id: string;
@@ -28,41 +42,20 @@ export type SettlementResult = {
 };
 
 /**
- * 비트코인 폴의 시가·종가를 Binance에서 가져와 DB에 반영 (소수점 둘째자리까지)
+ * @deprecated sentiment_polls에 price_open/close가 제거됨. btc_ohlc에서 조회 사용.
  */
 export async function updateBtcOhlcForPoll(
-  pollDate: string,
-  pollId: string
+  _pollDate: string,
+  _pollId: string
 ): Promise<{ price_open: number | null; price_close: number | null }> {
-  if (!POLL_DATE_REGEX.test(pollDate)) {
-    throw new Error("poll_date must be YYYY-MM-DD");
-  }
-  const result = await fetchBtcOpenCloseKst(pollDate);
-  const price_open =
-    result.btc_open != null ? Math.round(result.btc_open * 100) / 100 : null;
-  const price_close =
-    result.btc_close != null ? Math.round(result.btc_close * 100) / 100 : null;
-
-  const admin = createSupabaseAdmin();
-  const updates: { price_open?: number | null; price_close?: number | null; change_pct?: number | null } = {};
-  if (price_open != null) updates.price_open = price_open;
-  if (price_close != null) updates.price_close = price_close;
-  if (price_open != null && price_close != null && price_open > 0) {
-    updates.change_pct = Math.round((price_close - price_open) / price_open * 10000) / 10000;
-  }
-  if (Object.keys(updates).length > 0) {
-    await admin
-      .from("sentiment_polls")
-      .update(updates)
-      .eq("id", pollId);
-  }
-  return { price_open, price_close };
+  return { price_open: null, price_close: null };
 }
 
 /**
  * 단일 폴 정산 실행
  * - poll_date: YYYY-MM-DD (KST 기준)
- * - market: btc 등. btc인 경우 시가/종가 없으면 Binance에서 조회 후 반영 시도
+ * - market: btc_1d, btc_4h, btc_1h, btc_15m
+ * - 정산: btc_ohlc에서 종가끼리 비교 (reference_close vs settlement_close)
  */
 export async function settlePoll(
   pollDate: string,
@@ -82,11 +75,25 @@ export async function settlePoll(
 
   const admin = createSupabaseAdmin();
 
+  // btc_1d: poll_date로 candle_start_at 유일. 4h/1h/15m은 candle_start_at 별도 지정 필요
+  if (market !== "btc_1d") {
+    return {
+      poll_id: "",
+      poll_date: pollDate,
+      market,
+      status: "already_settled",
+      participant_count: 0,
+      winner_side: null,
+      error: `정산은 btc_1d만 지원합니다. (${market}은 candle_start_at 직접 지정 API 추가 예정)`,
+    };
+  }
+  const candleStartAt = getBtc1dCandleStartAt(pollDate);
+
   const { data: poll, error: pollError } = await admin
     .from("sentiment_polls")
     .select("*")
-    .eq("poll_date", pollDate)
     .eq("market", market)
+    .eq("candle_start_at", candleStartAt)
     .maybeSingle();
 
   if (pollError || !poll) {
@@ -115,14 +122,10 @@ export async function settlePoll(
     };
   }
 
-  // btc 시장이면 시가/종가 없을 때 Binance에서 조회 후 반영
-  let price_open = pollRow.price_open != null ? Number(pollRow.price_open) : null;
-  let price_close = pollRow.price_close != null ? Number(pollRow.price_close) : null;
-  if (market === "btc" && (price_open == null || price_close == null)) {
-    const updated = await updateBtcOhlcForPoll(pollDate, pollId);
-    price_open = updated.price_open ?? price_open;
-    price_close = updated.price_close ?? price_close;
-  }
+  // btc_ohlc에서 종가끼리 비교용 가격 조회
+  const ohlcPrices = await getSettlementPricesFromOhlc(market, candleStartAt);
+  const reference_close = ohlcPrices?.reference_close ?? null;
+  const settlement_close = ohlcPrices?.settlement_close ?? null;
 
   const longCoinTotal = Number(pollRow.long_coin_total ?? 0);
   const shortCoinTotal = Number(pollRow.short_coin_total ?? 0);
@@ -213,7 +216,8 @@ export async function settlePoll(
   }
 
   // 현재 비트코인 시장만 정산 지원 (시가/종가 DB·수집이 btc만 구현됨)
-  if (market !== "btc") {
+  const btcMarketsSettle = ["btc_1d", "btc_4h", "btc_1h", "btc_15m"];
+  if (!btcMarketsSettle.includes(market)) {
     return {
       poll_id: pollId,
       poll_date: pollDate,
@@ -224,7 +228,7 @@ export async function settlePoll(
       error: "현재 비트코인(btc) 시장만 정산을 지원합니다.",
     };
   }
-  if (price_open == null || price_close == null) {
+  if (reference_close == null || settlement_close == null) {
     return {
       poll_id: pollId,
       poll_date: pollDate,
@@ -232,12 +236,12 @@ export async function settlePoll(
       status: "already_settled",
       participant_count: participantCount,
       winner_side: null,
-      error: "비트코인 종가가 아직 없습니다. 다음날 KST 00:00 이후 다시 시도하세요.",
+      error: "btc_ohlc에 해당 캔들이 없습니다. 크론 수집 후 다시 시도하세요.",
     };
   }
 
-  // 시가 == 종가(동일가): 당첨자 없음, 전원 원금 환불
-  if (price_open === price_close) {
+  // reference_close == settlement_close(동일가): 당첨자 없음, 전원 원금 환불
+  if (reference_close === settlement_close) {
     for (const v of votes ?? []) {
       if (!v.user_id) continue;
       const refund = Number(v.bet_amount ?? 0);
@@ -268,7 +272,8 @@ export async function settlePoll(
     };
   }
 
-  const winnerSide: "long" | "short" = price_close > price_open ? "long" : "short";
+  const winnerSide: "long" | "short" =
+    settlement_close > reference_close ? "long" : "short";
   const loserPool = winnerSide === "long" ? shortCoinTotal : longCoinTotal;
   const winnerTotalBet = winnerSide === "long" ? longCoinTotal : shortCoinTotal;
   const winnerVotes = (votes ?? []).filter((v) => v.choice === winnerSide);

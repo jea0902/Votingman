@@ -32,8 +32,8 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json().catch(() => ({}));
-    const marketParam = body?.market ?? "btc";
-    const market = isSentimentMarket(marketParam) ? marketParam : "btc";
+    const marketParam = body?.market ?? "btc_1d";
+    const market = isSentimentMarket(marketParam) ? marketParam : "btc_1d";
 
     if (!isVotingOpenKST(market)) {
       return NextResponse.json(

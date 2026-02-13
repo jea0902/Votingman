@@ -8,7 +8,10 @@ import { NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/lib/supabase/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrCreateTodayPollByMarket } from "@/lib/sentiment/poll-server";
+import { getOhlcByMarketAndCandleStart } from "@/lib/btc-ohlc/repository";
 import { SENTIMENT_MARKETS } from "@/lib/constants/sentiment-markets";
+
+const BTC_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m"] as const;
 
 export async function GET() {
   try {
@@ -63,12 +66,29 @@ export async function GET() {
         .eq("poll_id", poll.id)
         .gt("bet_amount", 0);
 
+      let price_open: number | null = null;
+      let price_close: number | null = null;
+      const candleStartAt =
+        "candle_start_at" in poll && typeof poll.candle_start_at === "string"
+          ? poll.candle_start_at
+          : null;
+      if (
+        candleStartAt &&
+        BTC_MARKETS.includes(market as (typeof BTC_MARKETS)[number])
+      ) {
+        const ohlc = await getOhlcByMarketAndCandleStart(market, candleStartAt);
+        if (ohlc) {
+          price_open = ohlc.open;
+          price_close = ohlc.close;
+        }
+      }
+
       pollsByMarket[market] = {
         market: poll.market ?? market,
         poll_id: poll.id,
         poll_date: poll.poll_date,
-        price_open: poll.price_open,
-        price_close: poll.price_close,
+        price_open,
+        price_close,
         long_count: poll.long_count ?? 0,
         short_count: poll.short_count ?? 0,
         total_count: (poll.long_count ?? 0) + (poll.short_count ?? 0),

@@ -8,13 +8,22 @@
 import type { SentimentMarket } from "@/lib/constants/sentiment-markets";
 
 const RULES_BY_MARKET: Record<SentimentMarket, string> = {
-  btc:
+  btc_1d:
     "한국 시간 오늘 00:00 시가 대비 다음날 00:00 시가(종가)와 비교하여 정산됩니다. " +
     "시가와 종가는 Binance BTC/USDT 1시간 봉 기준으로 산정됩니다. " +
     "투표 마감은 당일 20:30이며, 결과는 다음날 00:01에 정산됩니다.\n\n" +
     "당첨 규칙: 종가 > 시가이면 UP(롱) 당첨, 종가 < 시가이면 DOWN(숏) 당첨, 종가 = 시가이면 무효(전액 환불).\n\n" +
     "정배·역배(파리뮤추얼): 정배는 승률이 높은 쪽에 배팅하여 낮은 배당을 받는 것이고, 역배는 승률이 낮은 언더독에 배팅하여 적중 시 높은 배당을 받는 것입니다. " +
     "총 풀은 당첨자들이 본인 배팅 비율대로 분배받으며, 탈락 측은 배팅금을 돌려받지 못합니다.",
+  btc_4h:
+    "한국 시간 00:00, 04:00, 08:00, 12:00, 16:00, 20:00 기준 4시간 봉으로 정산됩니다. " +
+    "시가·종가는 Binance BTC/USDT 1시간 봉 집계 기준입니다. 투표 마감 20:30, 결과는 봉 마감 후 정산됩니다.",
+  btc_1h:
+    "한국 시간 매시 00분 기준 1시간 봉으로 정산됩니다. " +
+    "시가·종가는 Binance BTC/USDT 1시간 봉 기준입니다. 투표 마감 20:30, 결과는 봉 마감 후 정산됩니다.",
+  btc_15m:
+    "한국 시간 00, 15, 30, 45분 기준 15분 봉으로 정산됩니다. " +
+    "시가·종가는 Binance BTC/USDT 15분 봉 기준입니다. 투표 마감 20:30, 결과는 봉 마감 후 정산됩니다.",
   ndq:
     "한국 시간 오늘 00:00 시가 대비 다음날 00:00 시가(종가)와 비교하여 정산됩니다. " +
     "투표 마감은 당일 03:30이며, 결과는 다음날 00:01에 정산됩니다.\n\n" +
@@ -46,7 +55,7 @@ type Props = {
 };
 
 export function PollRulesContent({ market }: Props) {
-  const rules = RULES_BY_MARKET[market] ?? RULES_BY_MARKET.btc;
+  const rules = RULES_BY_MARKET[market] ?? RULES_BY_MARKET.btc_1d;
 
   return (
     <div className="rounded-lg border border-border bg-muted/20 p-4">

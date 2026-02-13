@@ -1,0 +1,44 @@
+"use client";
+
+/**
+ * 홈 메인 콘텐츠 (로그인 시 노출)
+ *
+ * - UserInfoCard, HumanIndicatorSection, L3 플레이스홀더
+ */
+
+import { HumanIndicatorSection, InfluencerPositions, TopRankersBoard } from "@/components/home";
+
+export function HomeContent() {
+  return (
+    <div className="relative w-full">
+      <div
+        className="pointer-events-none absolute inset-0 -z-10"
+        aria-hidden
+      >
+        <div className="absolute left-1/2 top-0 h-[300px] w-[800px] -translate-x-1/2 rounded-full bg-[radial-gradient(ellipse_80%_50%_at_50%_0%,rgba(59,130,246,0.08),transparent)]" />
+      </div>
+
+      <div className="mx-auto flex w-[80%] max-w-7xl flex-col gap-8 px-4 sm:px-6">
+        <div className="min-w-0">
+          <div className="mb-4 flex min-h-[8vh] flex-col justify-center py-4 text-center">
+            <h1 className="mb-2 text-2xl font-bold tracking-tight text-[#3b82f6] sm:text-3xl lg:text-4xl">
+              예측 시장 플랫폼
+            </h1>
+            <p className="text-base font-medium text-[#fbbf24] sm:text-lg lg:text-xl">
+              말이 아닌 돈으로 예측하는 진짜 시장의 방향
+            </p>
+          </div>
+        </div>
+        <div className="min-w-0 w-full">
+          <div className="w-full space-y-6">
+            <div className="space-y-6">
+              <InfluencerPositions />
+              <TopRankersBoard />
+              <HumanIndicatorSection />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

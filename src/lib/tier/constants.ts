@@ -8,7 +8,10 @@ import type { TierMarket } from "@/lib/supabase/db-types";
 
 /** sentiment 시장 → 티어 시장 그룹 (btc | us | kr) */
 export const SENTIMENT_TO_TIER_MARKET: Record<SentimentMarket, TierMarket> = {
-  btc: "btc",
+  btc_1d: "btc",
+  btc_4h: "btc",
+  btc_1h: "btc",
+  btc_15m: "btc",
   ndq: "us",
   sp500: "us",
   kospi: "kr",

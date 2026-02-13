@@ -87,7 +87,7 @@ export function MarketVoteCard({ market, poll, user, onUpdate }: Props) {
 
   /** btc 시장만 시장세 API 연동 (6단계: 시장세 + 과거 시각화) */
   useEffect(() => {
-    if (market !== "btc") return;
+    if (market !== "btc_1d") return;
     let cancelled = false;
     fetch(`/api/sentiment/market-regime?market=btc`)
       .then((res) => res.json())
@@ -231,7 +231,7 @@ export function MarketVoteCard({ market, poll, user, onUpdate }: Props) {
         </span>
       </div>
 
-      {market === "btc" && regimeData && (
+      {market === "btc_1d" && regimeData && (
         <div className="mb-4 rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
           {regimeData.currentRegime && (
             <p className="text-xs font-medium text-foreground">

@@ -11,14 +11,16 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import {
   isVotingOpenKST,
   getVotingCloseLabel,
 } from "@/lib/utils/sentiment-vote";
 import {
   MARKET_LABEL,
-  SENTIMENT_MARKETS,
+  ACTIVE_MARKETS,
   isSentimentMarket,
+  normalizeToDbMarket,
 } from "@/lib/constants/sentiment-markets";
 import { createClient } from "@/lib/supabase/client";
 import { BtcChart } from "@/components/predict/BtcChart";
@@ -37,7 +39,10 @@ function stringifyBet(n: number): string {
 
 /** 시장별 카드 제목 */
 const CARD_TITLE: Record<string, string> = {
-  btc: "비트코인 1일동안 상승/하락",
+  btc_1d: "[1일 후] 비트코인 상승/하락",
+  btc_4h: "[4시간 후] 비트코인 상승/하락",
+  btc_1h: "[1시간 후] 비트코인 상승/하락",
+  btc_15m: "[15분 후] 비트코인 상승/하락",
   ndq: "나스닥100 상승/하락",
   sp500: "S&P 500 상승/하락",
   kospi: "코스피 상승/하락",
@@ -47,7 +52,7 @@ const CARD_TITLE: Record<string, string> = {
 export default function PredictMarketPage() {
   const params = useParams();
   const marketParam = typeof params?.market === "string" ? params.market : "";
-  const market = isSentimentMarket(marketParam) ? marketParam : "btc";
+  const market = normalizeToDbMarket(marketParam || "btc_1d");
 
   const [poll, setPoll] = useState<(PollData & { price_open?: number; price_close?: number }) | null>(null);
   const [user, setUser] = useState<{
@@ -111,9 +116,10 @@ export default function PredictMarketPage() {
     }
   }, [market]);
 
-  /** btc 현재가 조회 (Binance 공개 API) */
+  /** btc 계열 현재가 조회 (Binance 공개 API) */
+  const isBtcMarket = ["btc_1d", "btc_4h", "btc_1h", "btc_15m"].includes(market);
   useEffect(() => {
-    if (market !== "btc") return;
+    if (!isBtcMarket) return;
     let cancelled = false;
     fetch("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT")
       .then((res) => res.json())
@@ -138,7 +144,7 @@ export default function PredictMarketPage() {
       cancelled = true;
       clearInterval(id);
     };
-  }, [market]);
+  }, [isBtcMarket]);
 
   useEffect(() => {
     fetchPoll();
@@ -260,16 +266,39 @@ export default function PredictMarketPage() {
     }
   };
 
-  const relatedMarkets = SENTIMENT_MARKETS.filter((m) => m !== market);
+  const relatedMarkets = ACTIVE_MARKETS.filter((m) => m !== market);
+
+  const timeframeLabels: Record<string, string> = {
+    btc_1d: "1D",
+    btc_4h: "4H",
+    btc_1h: "1H",
+    btc_15m: "15m",
+  };
+  const isBtcMarketHeader = ["btc_1d", "btc_4h", "btc_1h", "btc_15m"].includes(market);
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">
       <header className="mb-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-center gap-2">
-            <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/20 text-xl font-bold text-amber-500">
-              {market.toUpperCase()}
-            </span>
+            {isBtcMarketHeader ? (
+              <div className="flex h-10 shrink-0 items-center gap-2 rounded-lg bg-amber-500/20 px-2.5">
+                <Image
+                  src="https://assets.coingecko.com/coins/images/1/small/bitcoin.png"
+                  alt=""
+                  width={28}
+                  height={28}
+                  className="shrink-0"
+                />
+                <span className="text-sm font-bold text-amber-500">
+                  {timeframeLabels[market] ?? market}
+                </span>
+              </div>
+            ) : (
+              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/20 text-xl font-bold text-amber-500">
+                {market.toUpperCase()}
+              </span>
+            )}
             <div>
               <h1 className="text-xl font-bold text-foreground">{title}</h1>
               <p className="text-sm text-muted-foreground">{closeLabel}</p>
@@ -310,7 +339,7 @@ export default function PredictMarketPage() {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })}`
-                  : market === "btc"
+                  : isBtcMarket
                     ? "불러오는 중…"
                     : "—"}
               </p>
@@ -318,7 +347,7 @@ export default function PredictMarketPage() {
           </div>
 
           <div className="rounded-lg border border-border bg-card overflow-hidden">
-            {market === "btc" ? (
+            {isBtcMarket ? (
               <BtcChart targetPrice={priceToBeat} className="min-h-[400px]" />
             ) : (
               <div className="flex h-[500px] items-center justify-center rounded-lg border-border bg-muted/20">

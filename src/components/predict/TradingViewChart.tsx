@@ -11,7 +11,10 @@ import type { SentimentMarket } from "@/lib/constants/sentiment-markets";
 
 /** 시장별 TradingView 심볼 */
 const TV_SYMBOL: Record<SentimentMarket, string> = {
-  btc: "BINANCE:BTCUSDT",
+  btc_1d: "BINANCE:BTCUSDT",
+  btc_4h: "BINANCE:BTCUSDT",
+  btc_1h: "BINANCE:BTCUSDT",
+  btc_15m: "BINANCE:BTCUSDT",
   ndq: "TVC:NDX",
   sp500: "TVC:SPX",
   kospi: "KRX:KOSPI",
@@ -37,7 +40,7 @@ type Props = {
 };
 
 export function TradingViewChart({ market, className }: Props) {
-  const symbol = TV_SYMBOL[market] ?? TV_SYMBOL.btc;
+  const symbol = TV_SYMBOL[market] ?? TV_SYMBOL.btc_1d;
 
   return (
     <div

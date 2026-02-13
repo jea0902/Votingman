@@ -26,7 +26,7 @@ export function MarketContextContent({ market }: Props) {
   const [data, setData] = useState<RegimeData | null>(null);
 
   useEffect(() => {
-    if (market !== "btc") return;
+    if (market !== "btc_1d") return;
     let cancelled = false;
     fetch(`/api/sentiment/market-regime?market=btc`)
       .then((res) => res.json())
@@ -46,7 +46,7 @@ export function MarketContextContent({ market }: Props) {
     };
   }, [market]);
 
-  if (market !== "btc") {
+  if (market !== "btc_1d") {
     return (
       <div className="rounded-lg border border-border bg-muted/20 p-4">
         <h4 className="mb-2 text-sm font-semibold text-foreground">

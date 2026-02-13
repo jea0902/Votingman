@@ -7,6 +7,7 @@
  */
 
 import Link from "next/link";
+import Image from "next/image";
 import { useMemo } from "react";
 import { isVotingOpenKST } from "@/lib/utils/sentiment-vote";
 import { MARKET_LABEL } from "@/lib/constants/sentiment-markets";
@@ -15,16 +16,32 @@ import type { PollData } from "./MarketVoteCard";
 
 /** 시장별 카드 제목 (상승/하락 예측) */
 const CARD_TITLE: Record<string, string> = {
-  btc: "비트코인 1일동안 상승/하락",
+  btc_1d: "[1일 후] 비트코인 상승/하락",
+  btc_4h: "[4시간 후] 비트코인 상승/하락",
+  btc_1h: "[1시간 후] 비트코인 상승/하락",
+  btc_15m: "[15분 후] 비트코인 상승/하락",
   ndq: "나스닥100 상승/하락",
   sp500: "S&P 500 상승/하락",
   kospi: "코스피 상승/하락",
   kosdaq: "코스닥 상승/하락",
 };
 
-/** 시장별 아이콘 라벨 (텍스트) */
+/** btc 계열 시간봉 라벨 */
+const TIMEFRAME_LABEL: Record<string, string> = {
+  btc_1d: "1D",
+  btc_4h: "4H",
+  btc_1h: "1H",
+  btc_15m: "15m",
+};
+
+/** btc 계열 여부 */
+const BTC_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m"] as const;
+function isBtcMarket(m: string): m is (typeof BTC_MARKETS)[number] {
+  return BTC_MARKETS.includes(m as (typeof BTC_MARKETS)[number]);
+}
+
+/** 시장별 아이콘 라벨 (ndq 등 비btc용) */
 const MARKET_ICON: Record<string, string> = {
-  btc: "₿",
   ndq: "NDQ",
   sp500: "SPX",
   kospi: "KOSPI",
@@ -67,21 +84,40 @@ export function MarketVoteCardCompact({ market, poll }: Props) {
   const detailHref = `/predict/${market}`;
   const title = CARD_TITLE[market] ?? `${MARKET_LABEL[market]} 상승/하락`;
   const icon = MARKET_ICON[market] ?? market.toUpperCase();
+  const timeframeLabel = isBtcMarket(market) ? TIMEFRAME_LABEL[market] : null;
 
   return (
-    <Link
-      href={detailHref}
-      className="block rounded-xl border border-gray-500/40 bg-card/50 p-4 shadow-sm backdrop-blur-sm transition-colors hover:border-gray-500/70 hover:bg-card/70 sm:p-5"
+    <div
+      className="rounded-xl border border-gray-500/40 bg-card/50 p-4 shadow-sm backdrop-blur-sm transition-colors hover:border-gray-500/70 hover:bg-card/70 sm:p-5"
       aria-labelledby={`compact-${market}`}
     >
-      <div className="mb-3 flex items-center justify-between">
+      <Link href={detailHref} className="block mb-3">
+        <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span
-            className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500/20 text-lg font-bold text-amber-500"
-            aria-hidden
-          >
-            {icon}
-          </span>
+          {isBtcMarket(market) ? (
+            <div
+              className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-amber-500/20 px-2"
+              aria-hidden
+            >
+              <Image
+                src="https://assets.coingecko.com/coins/images/1/small/bitcoin.png"
+                alt=""
+                width={24}
+                height={24}
+                className="shrink-0"
+              />
+              <span className="text-xs font-bold text-amber-500">
+                {timeframeLabel}
+              </span>
+            </div>
+          ) : (
+            <span
+              className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500/20 text-lg font-bold text-amber-500"
+              aria-hidden
+            >
+              {icon}
+            </span>
+          )}
           <h3
             id={`compact-${market}`}
             className="text-sm font-semibold text-foreground"
@@ -95,6 +131,7 @@ export function MarketVoteCardCompact({ market, poll }: Props) {
           </span>
         </div>
       </div>
+      </Link>
 
       <div className="mb-4 flex h-2 overflow-hidden rounded-full bg-muted">
         <div
@@ -110,7 +147,6 @@ export function MarketVoteCardCompact({ market, poll }: Props) {
       <div className="grid grid-cols-2 gap-3">
         <Link
           href={`${detailHref}?choice=long`}
-          onClick={(e) => e.stopPropagation()}
           className="flex min-h-[52px] flex-col items-center justify-center rounded-xl border-2 border-emerald-500/60 bg-emerald-500/10 py-4 text-emerald-400 transition-all hover:border-emerald-400 hover:bg-emerald-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
         >
           <span className="text-2xl font-bold sm:text-3xl">Up</span>
@@ -118,7 +154,6 @@ export function MarketVoteCardCompact({ market, poll }: Props) {
         </Link>
         <Link
           href={`${detailHref}?choice=short`}
-          onClick={(e) => e.stopPropagation()}
           className="flex min-h-[52px] flex-col items-center justify-center rounded-xl border-2 border-rose-500/60 bg-rose-500/10 py-4 text-rose-400 transition-all hover:border-rose-400 hover:bg-rose-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
         >
           <span className="text-2xl font-bold sm:text-3xl">Down</span>
@@ -137,6 +172,6 @@ export function MarketVoteCardCompact({ market, poll }: Props) {
         </span>
         <span>{totalCoin.toLocaleString()} VTC · {participantCount}명 참여</span>
       </div>
-    </Link>
+    </div>
   );
 }

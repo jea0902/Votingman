@@ -82,6 +82,18 @@ export async function fetchBtcOpenCloseKst(
   };
 }
 
+/** 어제 날짜를 KST 기준 YYYY-MM-DD로 반환 */
+export function getYesterdayKstDateString(): string {
+  const today = getTodayKstDateString();
+  const [y, m, d] = today.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  date.setDate(date.getDate() - 1);
+  const yy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
+}
+
 /** 오늘 날짜를 KST 기준 YYYY-MM-DD로 반환 */
 export function getTodayKstDateString(): string {
   const now = new Date();
