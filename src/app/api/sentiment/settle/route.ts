@@ -3,10 +3,11 @@
  * 명세: docs/votingman-implementation-phases.md 3단계
  *
  * POST /api/sentiment/settle
- * body: { poll_date?: "YYYY-MM-DD", market?: "btc_1d" } (생략 시 어제 KST, btc_1d)
+ * body: { poll_date?: "YYYY-MM-DD", market?: "btc_1d", candle_start_at?: "ISO" }
+ * - btc_1d: poll_date만 있으면 됨 (생략 시 어제 KST)
+ * - btc_4h, btc_1h, btc_15m: candle_start_at 필수 (마감된 캔들 시각)
  *
  * - 이미 정산된 폴은 재실행하지 않음
- * - btc 시장: 시가/종가 없으면 Binance에서 조회 후 반영 후 정산
  */
 
 import { NextResponse } from "next/server";
@@ -33,6 +34,7 @@ export async function POST(request: Request) {
   try {
     let poll_date: string;
     let market: string;
+    let candle_start_at: string | undefined;
     try {
       const body = await request.json().catch(() => ({}));
       const pollDateParam = body?.poll_date ?? null;
@@ -41,12 +43,17 @@ export async function POST(request: Request) {
           ? pollDateParam
           : getYesterdayKst();
       market = body?.market ?? "btc_1d";
+      candle_start_at =
+        typeof body?.candle_start_at === "string" && body.candle_start_at
+          ? body.candle_start_at
+          : undefined;
     } catch {
       poll_date = getYesterdayKst();
       market = "btc_1d";
+      candle_start_at = undefined;
     }
 
-    const result = await settlePoll(poll_date, market);
+    const result = await settlePoll(poll_date, market, candle_start_at);
 
     // 정산 성공 시 user_season_stats(누적 승률·MMR) 갱신
     if (result.status === "settled" || result.status === "one_side_refund" || result.status === "draw_refund") {
