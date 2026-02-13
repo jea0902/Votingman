@@ -12,7 +12,10 @@ import {
 } from "@/lib/btc-ohlc/candle-utils";
 import { getYesterdayKstDateString } from "@/lib/binance/btc-kst";
 
-const BINANCE_KLINES = "https://api.binance.com/api/v3/klines";
+/** 공개 시세 전용 엔드포인트 사용 (451 지역 제한 완화). 없으면 기본 api.binance.com */
+const BINANCE_BASE =
+  process.env.BINANCE_API_BASE_URL || "https://data-api.binance.vision";
+const BINANCE_KLINES = `${BINANCE_BASE}/api/v3/klines`;
 const SYMBOL = "BTCUSDT";
 
 /** btc_ohlc.market → Binance interval (12M 제외) */
