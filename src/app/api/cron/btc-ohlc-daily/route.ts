@@ -1,16 +1,29 @@
 /**
- * 매일 KST 00:01에 실행되는 크론: btc_ohlc 테이블에 OHLC 수집
+ * 매일 KST 00:01에 실행: 1d·1W·1M·12M 수집 + 해당 날만 정산
  *
- * - Binance API로 15m, 1h, 4h, 1d, 1W, 1M, 12M 봉 데이터 수집
- * - btc_ohlc 테이블에 upsert
- * - 정산(settlePoll)은 별도: sentiment_polls + btc_ohlc 조인하여 open/close 사용
+ * 수집: 1d 매일 / 1W 월요일만 / 1M 매월 1일만 / 12M 매년 1월 1일만
+ * 정산: 1d 매일 / 1W 월요일만 / 1M 1일만 / 12M 1월 1일만 (수집과 동일한 날)
  *
- * 호출: Vercel Cron 또는 외부 스케줄러가 GET 요청. 인증: Authorization: Bearer <CRON_SECRET>
+ * Vercel cron: "1 15 * * *" = 15:01 UTC = KST 00:01
+ * 인증: Authorization: Bearer <CRON_SECRET> 또는 x-cron-secret
  */
 
 import { NextResponse } from "next/server";
-import { fetchAllMarketsOhlc } from "@/lib/binance/btc-klines";
+import { fetchOhlcForDailyCron } from "@/lib/binance/btc-klines";
+import {
+  getYesterdayKstDateString,
+  getLastMonday00KstIso,
+  getLastMonthFirst00KstIso,
+  getLastJan100KstIso,
+  isTodayMondayKst,
+  isTodayFirstOfMonthKst,
+  isTodayJan1Kst,
+} from "@/lib/binance/btc-kst";
 import { upsertBtcOhlcBatch } from "@/lib/btc-ohlc/repository";
+import { settlePoll } from "@/lib/sentiment/settlement-service";
+import { refreshMarketSeason } from "@/lib/tier/tier-service";
+import { getCurrentSeasonId } from "@/lib/constants/seasons";
+import { TIER_MARKET_ALL } from "@/lib/tier/constants";
 
 function isAuthorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET;
@@ -32,16 +45,47 @@ export async function GET(request: Request) {
   }
 
   try {
-    const rows = await fetchAllMarketsOhlc();
+    const rows = await fetchOhlcForDailyCron();
     const { inserted, errors } = await upsertBtcOhlcBatch(rows);
+
+    const yesterday = getYesterdayKstDateString();
+    const settleResults: Record<string, Awaited<ReturnType<typeof settlePoll>>> = {};
+
+    // 1d: 매일 정산
+    settleResults.btc_1d = await settlePoll(yesterday, "btc_1d");
+
+    // 1W: 월요일만 정산 (방금 마감된 주봉)
+    if (isTodayMondayKst()) {
+      settleResults.btc_1W = await settlePoll("", "btc_1W", getLastMonday00KstIso());
+    }
+    // 1M: 매월 1일만 정산 (방금 마감된 월봉)
+    if (isTodayFirstOfMonthKst()) {
+      settleResults.btc_1M = await settlePoll("", "btc_1M", getLastMonthFirst00KstIso());
+    }
+    // 12M: 매년 1월 1일만 정산 (방금 마감된 연봉)
+    if (isTodayJan1Kst()) {
+      settleResults.btc_12M = await settlePoll("", "btc_12M", getLastJan100KstIso());
+    }
+
+    const anySettled = Object.values(settleResults).some(
+      (r) =>
+        r.status === "settled" ||
+        r.status === "one_side_refund" ||
+        r.status === "draw_refund"
+    );
+    if (anySettled) {
+      const seasonId = getCurrentSeasonId();
+      await refreshMarketSeason(TIER_MARKET_ALL, seasonId);
+    }
 
     return NextResponse.json({
       success: true,
       data: {
-        message: "btc_ohlc 수집 완료",
+        message: "btc_ohlc 수집 및 정산 완료",
         total_fetched: rows.length,
         upserted: inserted,
         errors,
+        settle: settleResults,
       },
     });
   } catch (e) {

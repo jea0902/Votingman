@@ -1,16 +1,23 @@
 /**
  * Binance 공개 API Klines - 다중 interval 지원
  *
- * btc_ohlc 테이블용: 15m, 1h, 4h, 1d, 1w, 1M, 12M(커스텀)
- * KST 00:00 기준 정렬: btc_1d, btc_4h, btc_1h, btc_15m (fetchKlinesKstAligned)
- * btc_1W, btc_1M, 12M: UTC 정렬 유지
+ * btc_ohlc 테이블용: 15m, 1h, 4h, 1d, 1W, 1M, 12M
+ * KST 00:00 기준: btc_1d, btc_4h, btc_1h, btc_15m, btc_1W, btc_1M, btc_12M (명세: docs/btc-ohlc-1w-1m-12m-spec.md)
  */
 
 import {
   getCandlesForPollDate,
   getRecentCandleStartAts,
 } from "@/lib/btc-ohlc/candle-utils";
-import { getYesterdayKstDateString } from "@/lib/binance/btc-kst";
+import {
+  getYesterdayKstDateString,
+  getLastMonday00KstIso,
+  getLastMonthFirst00KstIso,
+  getLastJan100KstIso,
+  isTodayMondayKst,
+  isTodayFirstOfMonthKst,
+  isTodayJan1Kst,
+} from "@/lib/binance/btc-kst";
 
 /** 공개 시세 전용 엔드포인트 사용 (451 지역 제한 완화). 없으면 기본 api.binance.com */
 const BINANCE_BASE =
@@ -257,8 +264,71 @@ export async function fetchKlinesKstAligned(
 }
 
 /**
- * 12M(12개월) 커스텀: 1d 캔들 기반, 12개월 전 ~ 현재
- * candle_start_at = 12개월 전 첫 1d 캔들 시작 시각
+ * 1h 캔들 배열을 하나의 OHLC로 집계 (시가=첫봉 시가, 종가=마지막봉 종가, 고가/저가=max/min)
+ */
+function aggregate1hToOhlc(rows: BtcOhlcRow[], market: string): BtcOhlcRow | null {
+  if (rows.length === 0) return null;
+  const first = rows[0];
+  const last = rows[rows.length - 1];
+  return {
+    market,
+    candle_start_at: first.candle_start_at,
+    open: first.open,
+    close: last.close,
+    high: Math.round(Math.max(...rows.map((r) => r.high)) * 100) / 100,
+    low: Math.round(Math.min(...rows.map((r) => r.low)) * 100) / 100,
+  };
+}
+
+/**
+ * 1W 봉: 월요일 00:00 KST 기준 7일치 1h 집계 (명세: docs/btc-ohlc-1w-1m-12m-spec.md)
+ */
+export async function fetchBtc1wKstAligned(): Promise<BtcOhlcRow | null> {
+  const startIso = getLastMonday00KstIso();
+  const startMs = new Date(startIso).getTime();
+  const rows = await fetchKlines("1h", startMs, 168); // 7 * 24
+  return aggregate1hToOhlc(rows, "btc_1W");
+}
+
+/**
+ * 1M 봉: 매월 1일 00:00 KST 기준 해당 월 1h 집계 (명세: docs/btc-ohlc-1w-1m-12m-spec.md)
+ */
+export async function fetchBtc1mKstAligned(): Promise<BtcOhlcRow | null> {
+  const startIso = getLastMonthFirst00KstIso();
+  const startMs = new Date(startIso).getTime();
+  const kst = new Date(startMs + 9 * 60 * 60 * 1000);
+  const y = kst.getUTCFullYear();
+  const m = kst.getUTCMonth() + 1;
+  const daysInMonth = new Date(y, m - 1, 0).getDate(); // m은 1-12
+  const hours = daysInMonth * 24;
+  const rows = await fetchKlines("1h", startMs, Math.min(hours, 1000));
+  return aggregate1hToOhlc(rows, "btc_1M");
+}
+
+/**
+ * 12M 봉: 매년 1월 1일 00:00 KST 기준 12개월 1h 집계 (명세: docs/btc-ohlc-1w-1m-12m-spec.md)
+ */
+export async function fetchBtc12mKstAligned(): Promise<BtcOhlcRow | null> {
+  const startIso = getLastJan100KstIso();
+  const startMs = new Date(startIso).getTime();
+  const HOURS_12M = 365 * 24;
+  const allRows: BtcOhlcRow[] = [];
+  let nextMs = startMs;
+  const batchSize = 1000;
+  while (allRows.length < HOURS_12M) {
+    const batch = await fetchKlines("1h", nextMs, batchSize);
+    if (batch.length === 0) break;
+    allRows.push(...batch);
+    if (batch.length < batchSize) break;
+    nextMs = new Date(batch[batch.length - 1].candle_start_at).getTime() + 60 * 60 * 1000;
+  }
+  const rows = allRows.slice(0, HOURS_12M);
+  return aggregate1hToOhlc(rows, "btc_12M");
+}
+
+/**
+ * 12M(12개월) 커스텀: 1d 캔들 기반, 12개월 전 ~ 현재 (UTC 기준, 레거시)
+ * @deprecated KST 00:00 기준은 fetchBtc12mKstAligned 사용
  */
 export async function fetch12MCandle(): Promise<BtcOhlcRow | null> {
   const now = Date.now();
@@ -284,6 +354,7 @@ export async function fetch12MCandle(): Promise<BtcOhlcRow | null> {
  * 모든 market(12M 포함) 최신 캔들 수집
  * KST 정렬(btc_1d~15m): 어제 poll_date 기준 1/6/24/96개 수집 (종가끼리 비교 정산용)
  * UTC 정렬(btc_1W, 1M, 12M): 기존 방식
+ * (15m/1h/4h는 각각 전용 cron에서 수집하는 것이 권장됨)
  */
 export async function fetchAllMarketsOhlc(): Promise<BtcOhlcRow[]> {
   const yesterday = getYesterdayKstDateString();
@@ -307,4 +378,28 @@ export async function fetchAllMarketsOhlc(): Promise<BtcOhlcRow[]> {
   if (candle12M) all.push(candle12M);
 
   return all;
+}
+
+/**
+ * Vercel daily cron 전용: 1d + (해당 날만) 1W + 1M + 12M 수집 (KST 00:00 기준)
+ * - 1d: 매일 수집
+ * - 1W: 월요일만 수집 (방금 마감된 주봉)
+ * - 1M: 매월 1일만 수집 (방금 마감된 월봉)
+ * - 12M: 매년 1월 1일만 수집 (방금 마감된 연봉)
+ * 명세: docs/btc-ohlc-1w-1m-12m-spec.md
+ */
+export async function fetchOhlcForDailyCron(): Promise<BtcOhlcRow[]> {
+  const yesterday = getYesterdayKstDateString();
+  const dayResults = await fetchOhlcForPollDate("btc_1d", yesterday);
+
+  const promises: Promise<BtcOhlcRow | null>[] = [];
+  if (isTodayMondayKst()) promises.push(fetchBtc1wKstAligned());
+  if (isTodayFirstOfMonthKst()) promises.push(fetchBtc1mKstAligned());
+  if (isTodayJan1Kst()) promises.push(fetchBtc12mKstAligned());
+
+  const extra = await Promise.all(promises);
+  return [
+    ...dayResults,
+    ...extra.filter((r): r is BtcOhlcRow => r != null),
+  ];
 }

@@ -105,3 +105,82 @@ export function getTodayKstDateString(): string {
   const d = String(kst.getUTCDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
 }
+
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+
+/** KST (y,m,d) 00:00:00 의 UTC ms (해당일 00:00 KST = 전일 15:00 UTC) */
+function kst00ToUtcMs(y: number, m: number, d: number): number {
+  return Date.UTC(y, m - 1, d, 0, 0, 0, 0) - KST_OFFSET_MS;
+}
+
+/**
+ * 지난 주 월요일 00:00 KST 시각 (UTC ISO).
+ * 방금 마감된 주봉 = 이 월요일 00:00 KST에 시작한 7일 봉.
+ */
+export function getLastMonday00KstIso(): string {
+  const now = new Date();
+  const kstMs = now.getTime() + KST_OFFSET_MS;
+  const kst = new Date(kstMs);
+  const dayOfWeek = kst.getUTCDay(); // 0=일, 1=월, ..., 6=토
+  const daysToThisMonday = dayOfWeek === 0 ? 7 : dayOfWeek; // 일요일이면 7일 전이 월요일
+  const lastMondayKstMs = kstMs - (daysToThisMonday + 7) * 24 * 60 * 60 * 1000;
+  const lastMon = new Date(lastMondayKstMs);
+  const ly = lastMon.getUTCFullYear();
+  const lm = lastMon.getUTCMonth() + 1;
+  const ld = lastMon.getUTCDate();
+  const lastMondayMs = kst00ToUtcMs(ly, lm, ld);
+  return new Date(lastMondayMs).toISOString();
+}
+
+/**
+ * 지난 달 1일 00:00 KST 시각 (UTC ISO).
+ * 방금 마감된 월봉 = 이날 00:00 KST에 시작한 해당 월 봉.
+ */
+export function getLastMonthFirst00KstIso(): string {
+  const now = new Date();
+  const kstMs = now.getTime() + KST_OFFSET_MS;
+  const kst = new Date(kstMs);
+  let y = kst.getUTCFullYear();
+  let m = kst.getUTCMonth() + 1; // 1-12
+  m -= 1;
+  if (m < 1) {
+    m += 12;
+    y -= 1;
+  }
+  const ms = kst00ToUtcMs(y, m, 1);
+  return new Date(ms).toISOString();
+}
+
+/**
+ * 전년 1월 1일 00:00 KST 시각 (UTC ISO).
+ * 방금 마감된 연봉 = 이날 00:00 KST에 시작한 12개월 봉.
+ */
+export function getLastJan100KstIso(): string {
+  const now = new Date();
+  const kstMs = now.getTime() + KST_OFFSET_MS;
+  const kst = new Date(kstMs);
+  const y = kst.getUTCFullYear() - 1;
+  const ms = kst00ToUtcMs(y, 1, 1);
+  return new Date(ms).toISOString();
+}
+
+/** 오늘(KST)이 월요일인지 (1W 수집/정산은 월요일만) */
+export function isTodayMondayKst(): boolean {
+  const kstMs = Date.now() + KST_OFFSET_MS;
+  const kst = new Date(kstMs);
+  return kst.getUTCDay() === 1;
+}
+
+/** 오늘(KST)이 매월 1일인지 (1M 수집/정산은 1일만) */
+export function isTodayFirstOfMonthKst(): boolean {
+  const kstMs = Date.now() + KST_OFFSET_MS;
+  const kst = new Date(kstMs);
+  return kst.getUTCDate() === 1;
+}
+
+/** 오늘(KST)이 1월 1일인지 (12M 수집/정산은 1월 1일만) */
+export function isTodayJan1Kst(): boolean {
+  const kstMs = Date.now() + KST_OFFSET_MS;
+  const kst = new Date(kstMs);
+  return kst.getUTCMonth() === 0 && kst.getUTCDate() === 1;
+}

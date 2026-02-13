@@ -51,32 +51,48 @@ export async function updateBtcOhlcForPoll(
   return { price_open: null, price_close: null };
 }
 
+const BTC_MARKETS_SETTLE = [
+  "btc_1d",
+  "btc_4h",
+  "btc_1h",
+  "btc_15m",
+  "btc_1W",
+  "btc_1M",
+  "btc_12M",
+] as const;
+
+/** candle_start_at(UTC ISO) → poll_date YYYY-MM-DD (KST) */
+function candleStartAtToPollDateKst(candleStartAt: string): string {
+  const d = new Date(candleStartAt);
+  const kstMs = d.getTime() + 9 * 60 * 60 * 1000;
+  const kst = new Date(kstMs);
+  const y = kst.getUTCFullYear();
+  const m = String(kst.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(kst.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 /**
  * 단일 폴 정산 실행
- * - poll_date: YYYY-MM-DD (KST 기준)
- * - market: btc_1d, btc_4h, btc_1h, btc_15m
+ * - poll_date: YYYY-MM-DD (KST). btc_1d일 때만 필수(또는 candle_start_at으로 대체).
+ * - market: btc_1d, btc_4h, btc_1h, btc_15m, btc_1W, btc_1M, btc_12M
+ * - candle_start_at: 4h/1h/15m일 때 필수. btc_1d일 때 생략 시 poll_date로 유도.
  * - 정산: btc_ohlc에서 종가끼리 비교 (reference_close vs settlement_close)
  */
 export async function settlePoll(
   pollDate: string,
-  market: string
+  market: string,
+  candleStartAtParam?: string
 ): Promise<SettlementResult> {
-  if (!POLL_DATE_REGEX.test(pollDate)) {
-    return {
-      poll_id: "",
-      poll_date: pollDate,
-      market,
-      status: "already_settled",
-      participant_count: 0,
-      winner_side: null,
-      error: "poll_date must be YYYY-MM-DD",
-    };
-  }
-
   const admin = createSupabaseAdmin();
 
-  // btc_1d: poll_date로 candle_start_at 유일. 4h/1h/15m은 candle_start_at 별도 지정 필요
-  if (market !== "btc_1d") {
+  const candleStartAt: string | null =
+    candleStartAtParam ??
+    (market === "btc_1d" && POLL_DATE_REGEX.test(pollDate)
+      ? getBtc1dCandleStartAt(pollDate)
+      : null);
+
+  if (!candleStartAt) {
     return {
       poll_id: "",
       poll_date: pollDate,
@@ -84,10 +100,28 @@ export async function settlePoll(
       status: "already_settled",
       participant_count: 0,
       winner_side: null,
-      error: `정산은 btc_1d만 지원합니다. (${market}은 candle_start_at 직접 지정 API 추가 예정)`,
+      error:
+        market === "btc_1d"
+          ? "poll_date must be YYYY-MM-DD"
+          : `${market} 정산 시 candle_start_at(ISO)을 넘겨주세요.`,
     };
   }
-  const candleStartAt = getBtc1dCandleStartAt(pollDate);
+
+  const pollDateForResponse = POLL_DATE_REGEX.test(pollDate)
+    ? pollDate
+    : candleStartAtToPollDateKst(candleStartAt);
+
+  if (!BTC_MARKETS_SETTLE.includes(market as (typeof BTC_MARKETS_SETTLE)[number])) {
+    return {
+      poll_id: "",
+      poll_date: pollDateForResponse,
+      market,
+      status: "already_settled",
+      participant_count: 0,
+      winner_side: null,
+      error: "지원 market: btc_1d, btc_4h, btc_1h, btc_15m, btc_1W, btc_1M, btc_12M",
+    };
+  }
 
   const { data: poll, error: pollError } = await admin
     .from("sentiment_polls")
@@ -99,7 +133,7 @@ export async function settlePoll(
   if (pollError || !poll) {
     return {
       poll_id: "",
-      poll_date: pollDate,
+      poll_date: pollDateForResponse,
       market,
       status: "already_settled",
       participant_count: 0,
@@ -114,7 +148,7 @@ export async function settlePoll(
   if (pollRow.settled_at) {
     return {
       poll_id: pollId,
-      poll_date: pollDate,
+      poll_date: pollDateForResponse,
       market: pollRow.market ?? market,
       status: "already_settled",
       participant_count: 0,
@@ -163,7 +197,7 @@ export async function settlePoll(
       .eq("id", pollId);
     return {
       poll_id: pollId,
-      poll_date: pollDate,
+      poll_date: pollDateForResponse,
       market: pollRow.market ?? market,
       status: "invalid_refund",
       participant_count: participantCount,
@@ -206,7 +240,7 @@ export async function settlePoll(
       .eq("id", pollId);
     return {
       poll_id: pollId,
-      poll_date: pollDate,
+      poll_date: pollDateForResponse,
       market: pollRow.market ?? market,
       status: "one_side_refund",
       participant_count: participantCount,
@@ -215,23 +249,10 @@ export async function settlePoll(
     };
   }
 
-  // 현재 비트코인 시장만 정산 지원 (시가/종가 DB·수집이 btc만 구현됨)
-  const btcMarketsSettle = ["btc_1d", "btc_4h", "btc_1h", "btc_15m"];
-  if (!btcMarketsSettle.includes(market)) {
-    return {
-      poll_id: pollId,
-      poll_date: pollDate,
-      market: pollRow.market ?? market,
-      status: "already_settled",
-      participant_count: participantCount,
-      winner_side: null,
-      error: "현재 비트코인(btc) 시장만 정산을 지원합니다.",
-    };
-  }
   if (reference_close == null || settlement_close == null) {
     return {
       poll_id: pollId,
-      poll_date: pollDate,
+      poll_date: pollDateForResponse,
       market: pollRow.market ?? market,
       status: "already_settled",
       participant_count: participantCount,
@@ -263,7 +284,7 @@ export async function settlePoll(
       .eq("id", pollId);
     return {
       poll_id: pollId,
-      poll_date: pollDate,
+      poll_date: pollDateForResponse,
       market: pollRow.market ?? market,
       status: "draw_refund",
       participant_count: participantCount,
@@ -313,7 +334,7 @@ export async function settlePoll(
 
   return {
     poll_id: pollId,
-    poll_date: pollDate,
+    poll_date: pollDateForResponse,
     market: pollRow.market ?? market,
     status: "settled",
     participant_count: participantCount,
