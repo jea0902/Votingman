@@ -35,7 +35,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const rows = await fetchKlinesKstAligned("btc_15m", 8);
+    const rows = await fetchKlinesKstAligned("btc_15m", 1);
     const { inserted, errors } = await upsertBtcOhlcBatch(rows);
 
     let settle = null;
