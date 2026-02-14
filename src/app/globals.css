@@ -2,20 +2,55 @@
  * 전역 스타일 및 테마
  *
  * 설계 의도:
- * - X(트위터) 스타일 Deep Dark Mode 고정 (순수 흑배경, 은은한 그레이 텍스트)
+ * - 기본: 라이트 모드. 다크 모드는 html.dark (localStorage로 유지)
  * - shadcn/ui CSS 변수와 Tailwind @theme 연동
- * - 커스터마이징 용이하도록 변수 기반 구성
  */
 
 @import "tailwindcss";
 
 /* --------------------------------------------------------------------------
- * Deep Dark Mode (X/Twitter 스타일)
- * - 배경: #000000 | 카드/서페이스: #16181c | 테두리: #2f3336
- * - 전경: #e7e9ea | 뮤트: #71767b
+ * 라이트 모드 (기본)
  * -------------------------------------------------------------------------- */
 :root {
   --radius: 0.5rem;
+  --background: #ffffff;
+  --foreground: #0a0a0a;
+  --card: #f5f5f5;
+  --card-foreground: #0a0a0a;
+  --popover: #ffffff;
+  --popover-foreground: #0a0a0a;
+  --primary: #0a0a0a;
+  --primary-foreground: #fafafa;
+  --secondary: #f5f5f5;
+  --secondary-foreground: #0a0a0a;
+  --muted: #f5f5f5;
+  --muted-foreground: #737373;
+  --accent: #1d9bf0;
+  --accent-foreground: #ffffff;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: #e5e5e5;
+  --input: #e5e5e5;
+  --ring: #1d9bf0;
+  --chart-1: #1d9bf0;
+  --chart-2: #00ba7c;
+  --chart-3: #ff7a00;
+  --chart-4: #f4212e;
+  --chart-5: #7856ff;
+  --sidebar: #fafafa;
+  --sidebar-foreground: #0a0a0a;
+  --sidebar-primary: #1d9bf0;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f5f5f5;
+  --sidebar-accent-foreground: #0a0a0a;
+  --sidebar-border: #e5e5e5;
+  --sidebar-ring: #1d9bf0;
+}
+
+/* --------------------------------------------------------------------------
+ * 다크 모드 (html.dark, X/Twitter 스타일)
+ * -------------------------------------------------------------------------- */
+html.dark {
   --background: #000000;
   --foreground: #e7e9ea;
   --card: #16181c;
@@ -100,34 +135,30 @@ body {
 }
 
 /* --------------------------------------------------------------------------
- * 다크 테마 스크롤바
- * - 모달 및 전체 페이지에 어울리는 어두운 스크롤바
+ * 스크롤바 (라이트/다크 공통)
  * -------------------------------------------------------------------------- */
-
-/* Webkit 브라우저 (Chrome, Safari, Edge) */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #16181c;
+  background: var(--muted);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #3f4347;
+  background: var(--border);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #5a5f65;
+  background: var(--muted-foreground);
 }
 
-/* Firefox */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #3f4347 #16181c;
+  scrollbar-color: var(--border) var(--muted);
 }
 
 /* --------------------------------------------------------------------------

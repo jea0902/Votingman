@@ -13,7 +13,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Menu, X, LogIn, UserPlus, LogOut, User, ChevronDown, UserCircle, Pencil, UserX, Trophy } from "lucide-react";
+import { Menu, X, LogIn, UserPlus, LogOut, User, ChevronDown, UserCircle, Pencil, UserX, Trophy, Sun, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
@@ -121,6 +121,12 @@ export function Navbar() {
     loadUser();
   }, []);
 
+  // 테마 토글 (localStorage + html.dark)
+  const toggleTheme = useCallback(() => {
+    const isDark = document.documentElement.classList.toggle("dark");
+    localStorage.setItem("theme", isDark ? "dark" : "light");
+  }, []);
+
   // 로그아웃 핸들러
   const handleLogout = async () => {
     try {
@@ -191,7 +197,6 @@ export function Navbar() {
               );
             })}
             <div className="flex items-center gap-2 border-l border-border pl-4">
-              {/* 디버그 텍스트 제거 */}
               {isLoading ? (
                 <div className="h-8 w-20 animate-pulse rounded bg-muted" />
               ) : user ? (
@@ -271,6 +276,16 @@ export function Navbar() {
                   </Link>
                 </>
               )}
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="rounded-lg border border-border bg-muted/30 p-2 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label="다크 모드로 전환"
+                title="다크 / 라이트 모드 전환"
+              >
+                <Sun className="h-4 w-4 dark:hidden" aria-hidden />
+                <Moon className="h-4 w-4 hidden dark:block" aria-hidden />
+              </button>
             </div>
           </div>
 
@@ -300,7 +315,7 @@ export function Navbar() {
           )}
         >
           <div className="flex flex-col gap-1 px-4 py-3">
-            <div className="mb-2 flex gap-2">
+            <div className="mb-2 flex gap-2 items-center">
               {isLoading ? (
                 <div className="h-9 w-full animate-pulse rounded bg-muted" />
               ) : user ? (
@@ -380,6 +395,16 @@ export function Navbar() {
                   </Link>
                 </>
               )}
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="rounded-lg border border-border bg-muted/30 p-2 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground shrink-0"
+                aria-label="다크 모드로 전환"
+                title="다크 / 라이트 모드 전환"
+              >
+                <Sun className="h-4 w-4 dark:hidden" aria-hidden />
+                <Moon className="h-4 w-4 hidden dark:block" aria-hidden />
+              </button>
             </div>
             {NAV_LINKS.map(({ href, label }) => {
               const isActive = pathname === href || pathname.startsWith(href + "/");

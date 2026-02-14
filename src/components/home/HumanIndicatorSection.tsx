@@ -34,7 +34,10 @@ export function HumanIndicatorSection({ activeTab }: Props = {}) {
 
   const fetchPolls = useCallback(async () => {
     try {
-      const res = await fetch("/api/sentiment/polls");
+      const res = await fetch("/api/sentiment/polls", {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
+      });
       const json = await res.json();
       if (json?.success && json?.data) {
         setPolls(json.data as PollsData);
@@ -45,10 +48,9 @@ export function HumanIndicatorSection({ activeTab }: Props = {}) {
   }, []);
 
   useEffect(() => {
-    const id = setTimeout(() => {
-      fetchPolls();
-    }, 0);
-    return () => clearTimeout(id);
+    fetchPolls();
+    const interval = setInterval(fetchPolls, 5000);
+    return () => clearInterval(interval);
   }, [fetchPolls]);
 
   const section = activeTab != null ? MARKET_SECTIONS[TAB_TO_SECTION_INDEX[activeTab]] : null;
