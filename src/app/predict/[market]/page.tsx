@@ -380,6 +380,16 @@ export default function PredictMarketPage() {
 
         {/* 2) 배팅 박스 (모바일: 차트 바로 아래, lg: 오른쪽) */}
         <div className="order-2 space-y-6">
+          {!voteOpen && mounted && (
+            <div className="rounded-xl border-2 border-amber-500/40 bg-amber-500/10 p-4 text-center">
+              <p className="text-base font-semibold text-amber-500">
+                이 투표는 마감되었습니다.
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {getNextOpenTimeKstString(market)}부터 다시 투표할 수 있습니다.
+              </p>
+            </div>
+          )}
           <div className="rounded-xl border border-border bg-card p-5">
             <p className="mb-4 text-sm font-medium text-foreground">
               잔액 :{" "}
