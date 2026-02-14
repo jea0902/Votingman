@@ -9,7 +9,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useMemo } from "react";
-import { isVotingOpenKST } from "@/lib/utils/sentiment-vote";
+import { isVotingOpenKST, getCloseTimeKstString, getNextOpenTimeKstString } from "@/lib/utils/sentiment-vote";
 import { MARKET_LABEL } from "@/lib/constants/sentiment-markets";
 import type { SentimentMarket } from "@/lib/constants/sentiment-markets";
 import type { PollData } from "./MarketVoteCard";
@@ -132,6 +132,12 @@ export function MarketVoteCardCompact({ market, poll }: Props) {
         </div>
       </div>
       </Link>
+
+      <p className="mb-3 text-xs text-muted-foreground">
+        {voteOpen
+          ? getCloseTimeKstString(market)
+          : `${getNextOpenTimeKstString(market)} 다시 투표 가능`}
+      </p>
 
       <div className="mb-4 flex h-2 overflow-hidden rounded-full bg-muted">
         <div

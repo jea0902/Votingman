@@ -131,6 +131,13 @@ export async function settlePoll(
     .maybeSingle();
 
   if (pollError || !poll) {
+    const errMsg = pollError?.message ?? "폴을 찾을 수 없습니다.";
+    console.error("[settlement] poll not found", {
+      market,
+      candleStartAt,
+      pollDateForResponse,
+      error: errMsg,
+    });
     return {
       poll_id: "",
       poll_date: pollDateForResponse,
@@ -138,7 +145,7 @@ export async function settlePoll(
       status: "already_settled",
       participant_count: 0,
       winner_side: null,
-      error: pollError?.message ?? "폴을 찾을 수 없습니다.",
+      error: errMsg,
     };
   }
 
@@ -250,6 +257,12 @@ export async function settlePoll(
   }
 
   if (reference_close == null || settlement_close == null) {
+    console.error("[settlement] btc_ohlc row missing", {
+      poll_id: pollId,
+      market: pollRow.market ?? market,
+      candleStartAt,
+      participant_count: participantCount,
+    });
     return {
       poll_id: pollId,
       poll_date: pollDateForResponse,

@@ -10,6 +10,7 @@ import { createSupabaseAdmin } from "@/lib/supabase/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrCreateTodayPollByMarket } from "@/lib/sentiment/poll-server";
 import { getOhlcByMarketAndCandleStart } from "@/lib/btc-ohlc/repository";
+import { fetchOpenPriceForCandle } from "@/lib/binance/btc-klines";
 import { isSentimentMarket } from "@/lib/constants/sentiment-markets";
 
 const BTC_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m"] as const;
@@ -36,6 +37,16 @@ export async function GET(request: NextRequest) {
       if (ohlc) {
         price_open = ohlc.open;
         price_close = ohlc.close;
+      } else {
+        try {
+          const openFromBinance = await fetchOpenPriceForCandle(
+            market,
+            candleStartAt
+          );
+          if (openFromBinance != null) price_open = openFromBinance;
+        } catch (e) {
+          console.error("[sentiment/poll] fetchOpenPriceForCandle error:", e);
+        }
       }
     }
 

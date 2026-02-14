@@ -3,12 +3,20 @@
 /**
  * 시장별 투표 카드 1개 (롱/숏 + 보팅코인 배팅)
  * HumanIndicatorSection에서 비트코인|미국주식|한국주식 섹션별로 사용
+ * - 투표 시 "파이널앤서" 확인 팝업, 확정 후 수정·취소 불가
  */
 
 import { useState, useMemo, useEffect } from "react";
-import { isVotingOpenKST, getVotingCloseLabel } from "@/lib/utils/sentiment-vote";
+import { isVotingOpenKST, getCloseTimeKstString, getNextOpenTimeKstString } from "@/lib/utils/sentiment-vote";
 import { MARKET_LABEL } from "@/lib/constants/sentiment-markets";
 import type { SentimentMarket } from "@/lib/constants/sentiment-markets";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 /** 시장별 투표 질문 문구 */
 const POLL_QUESTION: Record<string, string> = {
@@ -75,11 +83,15 @@ type Props = {
   onUpdate: (opts?: { new_balance?: number }) => void | Promise<void>;
 };
 
+const FINAL_ANSWER_LINE1 = "투표는 한번하면, 절대 번복할 수 없습니다.";
+const FINAL_ANSWER_LINE2 = "확정하시겠습니까? 파이널앤서?";
+
 export function MarketVoteCard({ market, poll, user, onUpdate }: Props) {
   const [voteLoading, setVoteLoading] = useState(false);
-  const [cancelLoading, setCancelLoading] = useState(false);
   const [voteError, setVoteError] = useState<string | null>(null);
   const [regimeData, setRegimeData] = useState<MarketRegimeData>(null);
+  /** 확인 팝업: 롱/숏 클릭 시 확정 전 물어봄 */
+  const [confirmingChoice, setConfirmingChoice] = useState<"long" | "short" | null>(null);
   /** 입력란 자유 입력용 (빈 문자열 가능). 제출 시에만 최소 10코인 검사 */
   const [betAmountInput, setBetAmountInput] = useState(stringifyBet(MIN_BET));
 
@@ -104,9 +116,8 @@ export function MarketVoteCard({ market, poll, user, onUpdate }: Props) {
       .catch(() => {});
     return () => { cancelled = true; };
   }, [market]);
-  const closeLabel = getVotingCloseLabel(market);
-
   const {
+
     longPct,
     shortPct,
     coinLabel,
@@ -146,25 +157,31 @@ export function MarketVoteCard({ market, poll, user, onUpdate }: Props) {
   }, [poll]);
 
   const balance = user?.voting_coin_balance ?? 0;
-  const availableBalance = balance + myBetAmount;
+  const isAdditionalMode = myBetAmount > 0 && vote !== null;
+  const availableBalance = isAdditionalMode ? balance : balance + myBetAmount;
   const canBet = availableBalance >= MIN_BET;
   const maxBet = Math.max(0, Math.floor(availableBalance));
   const betNum = parseInt(betAmountInput, 10) || 0;
   const effectiveBet = betNum >= MIN_BET ? Math.min(maxBet, betNum) : 0;
   const canSubmitBet = canBet && effectiveBet >= MIN_BET;
+  const canSubmitAdditional = isAdditionalMode && balance >= MIN_BET && effectiveBet >= MIN_BET && effectiveBet <= balance;
+  const canSubmitForChoice = (choice: "long" | "short") =>
+    isAdditionalMode ? choice === vote && canSubmitAdditional : canSubmitBet;
   const showMinBetWarning = betAmountInput.trim() !== "" && betNum < MIN_BET;
   const canVote = voteOpen && !!user;
 
   const handleVote = async (choice: "long" | "short") => {
-    if (!canVote || !canSubmitBet) return;
-    if (vote === choice && myBetAmount === effectiveBet) return;
+    const totalBet = isAdditionalMode && choice === vote ? myBetAmount + effectiveBet : effectiveBet;
+    if (!canVote || !canSubmitForChoice(choice)) return;
+    if (vote === choice && myBetAmount === totalBet) return;
     setVoteError(null);
     setVoteLoading(true);
+    setConfirmingChoice(null);
     try {
       const res = await fetch("/api/sentiment/vote", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ market, choice, bet_amount: effectiveBet }),
+        body: JSON.stringify({ market, choice, bet_amount: totalBet }),
       });
       const json = await res.json();
       if (!json?.success) {
@@ -182,30 +199,10 @@ export function MarketVoteCard({ market, poll, user, onUpdate }: Props) {
     }
   };
 
-  const handleCancel = async () => {
-    if (!canVote || myBetAmount <= 0) return;
-    setVoteError(null);
-    setCancelLoading(true);
-    try {
-      const res = await fetch("/api/sentiment/vote/cancel", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ market }),
-      });
-      const json = await res.json();
-      if (!json?.success) {
-        setVoteError(json?.error?.message ?? "취소에 실패했습니다.");
-        return;
-      }
-      const newBalance = json?.data?.new_balance;
-      await onUpdate(
-        typeof newBalance === "number" ? { new_balance: newBalance } : undefined
-      );
-    } catch {
-      setVoteError("취소 요청에 실패했습니다.");
-    } finally {
-      setCancelLoading(false);
-    }
+  const onVoteButtonClick = (choice: "long" | "short") => {
+    if (!canVote || !canSubmitForChoice(choice)) return;
+    if (myBetAmount > 0 && choice !== vote) return;
+    setConfirmingChoice(choice);
   };
 
   const question = POLL_QUESTION[market] ?? MARKET_LABEL[market];
@@ -222,12 +219,12 @@ export function MarketVoteCard({ market, poll, user, onUpdate }: Props) {
         {question}
       </h3>
 
-      <div className="mb-3 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
-        <span className="text-muted-foreground">
-          {closeLabel}
-          {!voteOpen && (
-            <span className="ml-1.5 font-medium text-amber-500">· 오늘 투표 마감</span>
-          )}
+      <div className="mb-3 flex flex-col gap-0.5 text-sm text-muted-foreground">
+        <span className="font-medium">{voteOpen ? "라이브" : "마감"}</span>
+        <span className="text-xs">
+          {voteOpen
+            ? getCloseTimeKstString(market)
+            : `${getNextOpenTimeKstString(market)} 다시 투표 가능`}
         </span>
       </div>
 
@@ -270,15 +267,11 @@ export function MarketVoteCard({ market, poll, user, onUpdate }: Props) {
         <p className="mt-0.5 text-xs text-muted-foreground">{participantLabel}</p>
       </div>
 
-      {voteOpen && (
-        <p className="mb-3 text-center text-xs text-muted-foreground">
-          마감 전까지 수정 및 취소 가능합니다.
-        </p>
-      )}
-
       {canVote && (
         <div className="mb-4">
-          <p className="mb-2 text-sm font-medium text-foreground">몇 VTC 걸까요?</p>
+          <p className="mb-2 text-sm font-medium text-foreground">
+            {isAdditionalMode ? "추가할 VTC" : "몇 VTC 걸까요?"}
+          </p>
           <div className="flex flex-wrap gap-2">
             {PERCENT_BUTTONS.map((pct) => {
               const valueForPct = Math.max(MIN_BET, Math.min(maxBet, Math.floor((availableBalance * pct) / 100)));
@@ -311,7 +304,11 @@ export function MarketVoteCard({ market, poll, user, onUpdate }: Props) {
               className="h-9 w-24 rounded-lg border border-border bg-background px-2 text-sm tabular-nums"
             />
             <span className="text-xs text-muted-foreground">
-              VTC (잔액 : <span className="font-semibold text-amber-500">{balance.toLocaleString()} VTC</span>)
+              VTC (잔액 : <span className="font-semibold text-amber-500">{balance.toLocaleString()} VTC</span>
+              {isAdditionalMode && (
+                <> · 기존 배팅 <span className="font-semibold">{myBetAmount.toLocaleString()} VTC</span></>
+              )}
+              )
             </span>
           </div>
           {showMinBetWarning && (
@@ -331,8 +328,8 @@ export function MarketVoteCard({ market, poll, user, onUpdate }: Props) {
       <div className="grid grid-cols-2 gap-4">
         <button
           type="button"
-          onClick={() => handleVote("long")}
-          disabled={!canVote || !canSubmitBet || voteLoading}
+          onClick={() => onVoteButtonClick("long")}
+          disabled={!canVote || voteLoading || (myBetAmount > 0 && vote === "short") || !canSubmitForChoice("long")}
           className={`flex min-h-[52px] flex-col items-center justify-center rounded-xl border-2 py-4 text-emerald-400 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.98] disabled:pointer-events-none disabled:opacity-60 ${
             vote === "long"
               ? "border-emerald-400 bg-emerald-500/25 shadow-md"
@@ -345,8 +342,8 @@ export function MarketVoteCard({ market, poll, user, onUpdate }: Props) {
         </button>
         <button
           type="button"
-          onClick={() => handleVote("short")}
-          disabled={!canVote || !canSubmitBet || voteLoading}
+          onClick={() => onVoteButtonClick("short")}
+          disabled={!canVote || voteLoading || (myBetAmount > 0 && vote === "long") || !canSubmitForChoice("short")}
           className={`flex min-h-[52px] flex-col items-center justify-center rounded-xl border-2 py-4 text-rose-400 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.98] disabled:pointer-events-none disabled:opacity-60 ${
             vote === "short"
               ? "border-rose-400 bg-rose-500/25 shadow-md"
@@ -360,22 +357,39 @@ export function MarketVoteCard({ market, poll, user, onUpdate }: Props) {
       </div>
 
       {canVote && myBetAmount > 0 && (
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
-          <span className="text-sm text-muted-foreground">
-            {vote === "long" ? "롱" : "숏"}에{" "}
-            <span className="font-medium text-foreground">{myBetAmount.toLocaleString()} VTC</span>
-            을 배팅하셨습니다. 행운을 빕니다.
-          </span>
-          <button
-            type="button"
-            onClick={handleCancel}
-            disabled={cancelLoading}
-            className="rounded-lg border border-amber-500/60 bg-amber-500/10 px-3 py-1.5 text-sm font-medium text-amber-400 hover:bg-amber-500/20 disabled:opacity-60"
-          >
-            {cancelLoading ? "처리 중…" : "투표 취소 버튼"}
-          </button>
-        </div>
+        <p className="mt-4 text-center text-sm text-muted-foreground">
+          {vote === "long" ? "롱" : "숏"}에{" "}
+          <span className="font-medium text-foreground">{myBetAmount.toLocaleString()} VTC</span>
+          배팅 중. 확정 후 선택 변경·취소 불가. 같은 선택으로 추가 배팅 가능.
+        </p>
       )}
+
+      <Dialog open={confirmingChoice !== null} onOpenChange={(open) => !open && setConfirmingChoice(null)}>
+        <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle>투표 확정</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm font-medium text-red-500">{FINAL_ANSWER_LINE1}</p>
+          <p className="text-sm font-medium text-white">{FINAL_ANSWER_LINE2}</p>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <button
+              type="button"
+              onClick={() => setConfirmingChoice(null)}
+              className="rounded-lg border border-border bg-muted/50 px-4 py-2 text-sm font-medium hover:bg-muted"
+            >
+              돌아가기
+            </button>
+            <button
+              type="button"
+              onClick={() => confirmingChoice && handleVote(confirmingChoice)}
+              disabled={voteLoading}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+            >
+              {voteLoading ? "처리 중…" : "확정 (파이널앤서)"}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

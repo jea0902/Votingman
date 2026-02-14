@@ -14,7 +14,8 @@ import Link from "next/link";
 import Image from "next/image";
 import {
   isVotingOpenKST,
-  getVotingCloseLabel,
+  getCloseTimeKstString,
+  getNextOpenTimeKstString,
 } from "@/lib/utils/sentiment-vote";
 import {
   MARKET_LABEL,
@@ -27,11 +28,23 @@ import { BtcChart } from "@/components/predict/BtcChart";
 import { PollRulesContent } from "@/components/predict/PollRulesContent";
 import { MarketContextContent } from "@/components/predict/MarketContextContent";
 import { CountdownTimer } from "@/components/predict/CountdownTimer";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import type { SentimentMarket } from "@/lib/constants/sentiment-markets";
 import type { PollData } from "@/components/home/MarketVoteCard";
 
 const PERCENT_BUTTONS = [10, 25, 50, 75, 100] as const;
 const MIN_BET = 10;
+const FINAL_ANSWER_LINE1 = "투표는 한번하면, 절대 번복할 수 없습니다.";
+const FINAL_ANSWER_LINE2 = "확정하시겠습니까?";
+
+/** 하이드레이션 방지: 서버/클라이언트 동일 출력용 고정 로케일 */
+const FIXED_LOCALE = "ko-KR";
 
 function stringifyBet(n: number): string {
   return n > 0 ? String(n) : "";
@@ -62,12 +75,16 @@ export default function PredictMarketPage() {
   const [activeTab, setActiveTab] = useState<"rules" | "context">("rules");
   const [betAmountInput, setBetAmountInput] = useState(stringifyBet(MIN_BET));
   const [voteLoading, setVoteLoading] = useState(false);
-  const [cancelLoading, setCancelLoading] = useState(false);
   const [voteError, setVoteError] = useState<string | null>(null);
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
+  const [confirmingChoice, setConfirmingChoice] = useState<"long" | "short" | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const voteOpen = useMemo(() => isVotingOpenKST(market), [market]);
-  const closeLabel = getVotingCloseLabel(market);
   const title = CARD_TITLE[market] ?? `${MARKET_LABEL[market]} 상승/하락`;
 
   const refetchUser = useCallback(async () => {
@@ -193,12 +210,20 @@ export default function PredictMarketPage() {
   const myBetAmount =
     poll?.my_vote && poll.my_vote.bet_amount > 0 ? poll.my_vote.bet_amount : 0;
   const vote = poll?.my_vote && poll.my_vote.bet_amount > 0 ? poll.my_vote.choice : null;
-  const availableBalance = balance + myBetAmount;
+  const isAdditionalMode = myBetAmount > 0 && vote !== null;
+  const availableBalance = isAdditionalMode ? balance : balance + myBetAmount;
   const maxBet = Math.max(0, Math.floor(availableBalance));
   const betNum = parseInt(betAmountInput, 10) || 0;
   const effectiveBet =
     betNum >= MIN_BET ? Math.min(maxBet, betNum) : 0;
   const canSubmitBet = availableBalance >= MIN_BET && effectiveBet >= MIN_BET;
+  const canSubmitAdditional =
+    isAdditionalMode &&
+    balance >= MIN_BET &&
+    effectiveBet >= MIN_BET &&
+    effectiveBet <= balance;
+  const canSubmitForChoice = (choice: "long" | "short") =>
+    isAdditionalMode ? choice === vote && canSubmitAdditional : canSubmitBet;
   const canVote = voteOpen && !!user;
   const longPct =
     poll && (poll.long_coin_total ?? 0) + (poll.short_coin_total ?? 0) > 0
@@ -210,10 +235,13 @@ export default function PredictMarketPage() {
       : 50;
 
   const handleVote = async (choice: "long" | "short") => {
-    if (!canVote || !canSubmitBet) return;
-    if (vote === choice && myBetAmount === effectiveBet) return;
+    const totalBet =
+      isAdditionalMode && choice === vote ? myBetAmount + effectiveBet : effectiveBet;
+    if (!canVote || !canSubmitForChoice(choice)) return;
+    if (vote === choice && myBetAmount === totalBet) return;
     setVoteError(null);
     setVoteLoading(true);
+    setConfirmingChoice(null);
     try {
       const res = await fetch("/api/sentiment/vote", {
         method: "POST",
@@ -221,7 +249,7 @@ export default function PredictMarketPage() {
         body: JSON.stringify({
           market,
           choice,
-          bet_amount: effectiveBet,
+          bet_amount: totalBet,
         }),
       });
       const json = await res.json();
@@ -240,30 +268,10 @@ export default function PredictMarketPage() {
     }
   };
 
-  const handleCancel = async () => {
-    if (!canVote || myBetAmount <= 0) return;
-    setVoteError(null);
-    setCancelLoading(true);
-    try {
-      const res = await fetch("/api/sentiment/vote/cancel", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ market }),
-      });
-      const json = await res.json();
-      if (!json?.success) {
-        setVoteError(json?.error?.message ?? "취소에 실패했습니다.");
-        return;
-      }
-      const newBalance = json?.data?.new_balance;
-      await refetch(
-        typeof newBalance === "number" ? { new_balance: newBalance } : undefined
-      );
-    } catch {
-      setVoteError("취소 요청에 실패했습니다.");
-    } finally {
-      setCancelLoading(false);
-    }
+  const onVoteButtonClick = (choice: "long" | "short") => {
+    if (!canVote || !canSubmitForChoice(choice)) return;
+    if (myBetAmount > 0 && choice !== vote) return;
+    setConfirmingChoice(choice);
   };
 
   const relatedMarkets = ACTIVE_MARKETS.filter((m) => m !== market);
@@ -299,9 +307,15 @@ export default function PredictMarketPage() {
                 {market.toUpperCase()}
               </span>
             )}
-            <div>
+            <div className="flex flex-col gap-0.5">
               <h1 className="text-xl font-bold text-foreground">{title}</h1>
-              <p className="text-sm text-muted-foreground">{closeLabel}</p>
+              <p className="text-xs text-muted-foreground" suppressHydrationWarning>
+                {mounted
+                  ? voteOpen
+                    ? getCloseTimeKstString(market)
+                    : `${getNextOpenTimeKstString(market)} 다시 투표 가능`
+                  : "\u00A0"}
+              </p>
             </div>
           </div>
           {voteOpen && (
@@ -314,7 +328,8 @@ export default function PredictMarketPage() {
       </header>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-6">
+        {/* 1) 가격 + 차트 (모바일: 맨 위, lg: 왼쪽 상단) */}
+        <div className="order-1 space-y-6 lg:col-span-2">
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             <div className="rounded-lg border border-border bg-card p-4">
               <p className="text-xs font-medium uppercase text-muted-foreground">
@@ -322,7 +337,7 @@ export default function PredictMarketPage() {
               </p>
               <p className="mt-1 text-lg font-bold text-foreground">
                 {priceToBeat != null
-                  ? `$${priceToBeat.toLocaleString(undefined, {
+                  ? `$${priceToBeat.toLocaleString(FIXED_LOCALE, {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })}`
@@ -335,7 +350,7 @@ export default function PredictMarketPage() {
               </p>
               <p className="mt-1 text-lg font-bold text-amber-500">
                 {currentPrice != null
-                  ? `$${currentPrice.toLocaleString(undefined, {
+                  ? `$${currentPrice.toLocaleString(FIXED_LOCALE, {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })}`
@@ -348,7 +363,11 @@ export default function PredictMarketPage() {
 
           <div className="rounded-lg border border-border bg-card overflow-hidden">
             {isBtcMarket ? (
-              <BtcChart targetPrice={priceToBeat} className="min-h-[400px]" />
+              <BtcChart
+                targetPrice={priceToBeat}
+                defaultInterval="1m"
+                className="min-h-[400px]"
+              />
             ) : (
               <div className="flex h-[500px] items-center justify-center rounded-lg border-border bg-muted/20">
                 <p className="text-sm text-muted-foreground">
@@ -357,53 +376,28 @@ export default function PredictMarketPage() {
               </div>
             )}
           </div>
-
-          <div>
-            <div className="mb-2 flex gap-2 border-b border-border">
-              <button
-                type="button"
-                onClick={() => setActiveTab("rules")}
-                className={`px-4 py-2 text-sm font-medium transition-colors ${
-                  activeTab === "rules"
-                    ? "border-b-2 border-primary text-primary"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Rules
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("context")}
-                className={`px-4 py-2 text-sm font-medium transition-colors ${
-                  activeTab === "context"
-                    ? "border-b-2 border-primary text-primary"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Market Context
-              </button>
-            </div>
-            {activeTab === "rules" && <PollRulesContent market={market} />}
-            {activeTab === "context" && (
-              <MarketContextContent market={market} />
-            )}
-          </div>
         </div>
 
-        <div className="space-y-6">
+        {/* 2) 배팅 박스 (모바일: 차트 바로 아래, lg: 오른쪽) */}
+        <div className="order-2 space-y-6">
           <div className="rounded-xl border border-border bg-card p-5">
             <p className="mb-4 text-sm font-medium text-foreground">
               잔액 :{" "}
               <span className="font-semibold text-amber-500">
-                {(user?.voting_coin_balance ?? 0).toLocaleString()} VTC
+                {(user?.voting_coin_balance ?? 0).toLocaleString(FIXED_LOCALE)} VTC
               </span>
             </p>
 
             <div className="mb-4 grid grid-cols-2 gap-3">
               <button
                 type="button"
-                onClick={() => handleVote("long")}
-                disabled={!canVote || !canSubmitBet || voteLoading}
+                onClick={() => onVoteButtonClick("long")}
+                disabled={
+                  !canVote ||
+                  voteLoading ||
+                  (myBetAmount > 0 && vote === "short") ||
+                  !canSubmitForChoice("long")
+                }
                 className={`flex min-h-[56px] flex-col items-center justify-center rounded-xl border-2 py-4 text-emerald-400 transition-all disabled:pointer-events-none disabled:opacity-60 ${
                   vote === "long"
                     ? "border-emerald-400 bg-emerald-500/25"
@@ -417,8 +411,13 @@ export default function PredictMarketPage() {
               </button>
               <button
                 type="button"
-                onClick={() => handleVote("short")}
-                disabled={!canVote || !canSubmitBet || voteLoading}
+                onClick={() => onVoteButtonClick("short")}
+                disabled={
+                  !canVote ||
+                  voteLoading ||
+                  (myBetAmount > 0 && vote === "long") ||
+                  !canSubmitForChoice("short")
+                }
                 className={`flex min-h-[56px] flex-col items-center justify-center rounded-xl border-2 py-4 text-rose-400 transition-all disabled:pointer-events-none disabled:opacity-60 ${
                   vote === "short"
                     ? "border-rose-400 bg-rose-500/25"
@@ -435,7 +434,7 @@ export default function PredictMarketPage() {
             {canVote && (
               <>
                 <p className="mb-2 text-sm font-medium text-foreground">
-                  Amount (VTC)
+                  {isAdditionalMode ? "추가할 VTC" : "Amount (VTC)"}
                 </p>
                 <div className="mb-3 flex flex-wrap gap-2">
                   {PERCENT_BUTTONS.map((pct) => {
@@ -495,22 +494,70 @@ export default function PredictMarketPage() {
             )}
 
             {canVote && myBetAmount > 0 && (
-              <div className="mt-4 flex flex-col items-center gap-2">
-                <span className="text-sm text-muted-foreground">
-                  {vote === "long" ? "롱" : "숏"} {myBetAmount.toLocaleString()}{" "}
-                  VTC 배팅 중
-                </span>
-                <button
-                  type="button"
-                  onClick={handleCancel}
-                  disabled={cancelLoading}
-                  className="rounded-lg border border-amber-500/60 bg-amber-500/10 px-3 py-1.5 text-sm font-medium text-amber-400 hover:bg-amber-500/20"
-                >
-                  {cancelLoading ? "처리 중…" : "취소"}
-                </button>
-              </div>
+              <p className="mt-4 whitespace-pre-line text-center text-sm text-muted-foreground">
+                {`${vote === "long" ? "롱" : "숏"} ${myBetAmount.toLocaleString(FIXED_LOCALE)} VTC 투표 확정.\n추가 투표는 같은 선택으로만 가능`}
+              </p>
             )}
+
+            <Dialog open={confirmingChoice !== null} onOpenChange={(open) => !open && setConfirmingChoice(null)}>
+              <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()}>
+                <DialogHeader>
+                  <DialogTitle>투표 확정</DialogTitle>
+                </DialogHeader>
+                <p className="text-sm font-medium text-red-500">{FINAL_ANSWER_LINE1}</p>
+                <p className="text-sm font-medium text-white">{FINAL_ANSWER_LINE2}</p>
+                <DialogFooter className="gap-2 sm:gap-0">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingChoice(null)}
+                    className="rounded-lg border border-border bg-muted/50 px-4 py-2 text-sm font-medium hover:bg-muted"
+                  >
+                    돌아가기
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => confirmingChoice && handleVote(confirmingChoice)}
+                    disabled={voteLoading}
+                    className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+                  >
+                    {voteLoading ? "처리 중…" : "확정"}
+                  </button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
+        </div>
+
+        {/* 3) Rules / Market Context (모바일: 맨 아래, lg: 왼쪽 하단) */}
+        <div className="order-3 space-y-6 lg:col-span-2">
+          <div className="mb-2 flex gap-2 border-b border-border">
+            <button
+              type="button"
+              onClick={() => setActiveTab("rules")}
+              className={`px-4 py-2 text-sm font-medium transition-colors ${
+                activeTab === "rules"
+                  ? "border-b-2 border-primary text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Rules
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("context")}
+              className={`px-4 py-2 text-sm font-medium transition-colors ${
+                activeTab === "context"
+                  ? "border-b-2 border-primary text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Market Context
+            </button>
+          </div>
+          {activeTab === "rules" && <PollRulesContent market={market} />}
+          {activeTab === "context" && (
+            <MarketContextContent market={market} />
+          )}
         </div>
       </div>
 

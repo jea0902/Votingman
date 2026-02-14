@@ -27,7 +27,7 @@ export function Footer() {
             보팅맨
           </Link>
           <p className="text-xs text-muted-foreground">
-            © {new Date().getFullYear()} 보팅맨(Votingman). 투명한 재무 데이터 기반 투자 전략.
+            © {new Date().getFullYear()} 보팅맨(Votingman) - 100% 검증된 대한민국 리얼 트레이더들의 플랫폼
           </p>
         </div>
 
