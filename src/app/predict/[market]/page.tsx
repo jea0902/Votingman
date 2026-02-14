@@ -493,8 +493,8 @@ export default function PredictMarketPage() {
               </p>
             )}
 
-            {canVote && myBetAmount > 0 && (
-              <p className="mt-4 whitespace-pre-line text-center text-sm text-muted-foreground">
+            {myBetAmount > 0 && vote && (
+              <p className="mt-4 whitespace-pre-line text-center text-sm font-semibold text-amber-500">
                 {`${vote === "long" ? "롱" : "숏"} ${myBetAmount.toLocaleString(FIXED_LOCALE)} VTC 투표 확정.\n추가 투표는 같은 선택으로만 가능`}
               </p>
             )}
@@ -525,6 +525,37 @@ export default function PredictMarketPage() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+          </div>
+
+          {/* 배팅 현황: UP/DOWN 각각 배팅된 VTC */}
+          <div className="rounded-xl border border-border bg-card p-4">
+            <p className="mb-3 text-sm font-medium text-muted-foreground">
+              이 투표지 배팅 현황
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-medium text-emerald-400/90">UP (롱)</p>
+                  <span className="text-xs tabular-nums text-emerald-400/80">
+                    {(poll?.long_count ?? 0).toLocaleString(FIXED_LOCALE)}명
+                  </span>
+                </div>
+                <p className="mt-1 text-lg font-bold tabular-nums text-emerald-400">
+                  {(poll?.long_coin_total ?? 0).toLocaleString(FIXED_LOCALE)} VTC
+                </p>
+              </div>
+              <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-medium text-rose-400/90">DOWN (숏)</p>
+                  <span className="text-xs tabular-nums text-rose-400/80">
+                    {(poll?.short_count ?? 0).toLocaleString(FIXED_LOCALE)}명
+                  </span>
+                </div>
+                <p className="mt-1 text-lg font-bold tabular-nums text-rose-400">
+                  {(poll?.short_coin_total ?? 0).toLocaleString(FIXED_LOCALE)} VTC
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 
