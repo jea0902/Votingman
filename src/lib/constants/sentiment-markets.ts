@@ -29,7 +29,7 @@ export function normalizeToDbMarket(market: string): SentimentMarket {
 }
 export type ActiveMarket = (typeof ACTIVE_MARKETS)[number];
 
-/** 시장별 마감 시각 (KST) — 시(0–23), 분(0–59). 4h/1h/15m은 20:30 통일 (추후 롤링 마감 적용 예정) */
+/** 시장별 마감 시각 (KST) — 시(0–23), 분(0–59). 4h/1h/15m은 롤링 마감(현재 봉 시작+주기 절반)이라 이 값은 미사용 */
 export const MARKET_CLOSE_KST: Record<SentimentMarket, { hour: number; minute: number }> = {
   btc_1d: { hour: 20, minute: 30 },
   btc_4h: { hour: 20, minute: 30 },

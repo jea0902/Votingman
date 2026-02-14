@@ -1,17 +1,36 @@
 /**
  * GET /api/sentiment/btc-klines
- * Binance 1분봉 OHLC 데이터 프록시 (클라이언트 CORS 회피용)
+ * Binance OHLC 데이터 프록시 (클라이언트 CORS 회피용)
+ * 쿼리: interval=1m | 15m | 1h | 4h | 1d (기본 1d)
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-export async function GET() {
+const ALLOWED_INTERVALS = ["1m", "15m", "1h", "4h", "1d"] as const;
+
+export async function GET(request: NextRequest) {
   try {
-    const res = await fetch(
-      "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=200"
-    );
+    const { searchParams } = new URL(request.url);
+    const intervalParam = searchParams.get("interval") ?? "1d";
+    const interval = ALLOWED_INTERVALS.includes(intervalParam as (typeof ALLOWED_INTERVALS)[number])
+      ? intervalParam
+      : "1d";
+    const limit = Math.min(1000, Math.max(50, parseInt(searchParams.get("limit") ?? "200", 10) || 200));
+    const endTimeParam = searchParams.get("endTime");
+    const endTime = endTimeParam ? parseInt(endTimeParam, 10) : undefined;
+
+    const baseUrl = process.env.BINANCE_API_BASE_URL || "https://data-api.binance.vision";
+    const url = new URL(`${baseUrl}/api/v3/klines`);
+    url.searchParams.set("symbol", "BTCUSDT");
+    url.searchParams.set("interval", interval);
+    url.searchParams.set("limit", String(limit));
+    if (endTime != null && Number.isFinite(endTime)) {
+      url.searchParams.set("endTime", String(endTime));
+    }
+    const res = await fetch(url.toString());
     if (!res.ok) {
-      throw new Error(`Binance API ${res.status}`);
+      const text = await res.text();
+      throw new Error(`Binance API ${res.status}: ${text}`);
     }
     const data = (await res.json()) as unknown[];
     if (!Array.isArray(data)) {

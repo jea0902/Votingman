@@ -93,6 +93,23 @@ export async function fetchKlines(
 }
 
 /**
+ * 특정 봉의 시가(목표가)를 Binance에서 조회 (btc_ohlc에 없을 때 사용)
+ * @param market btc_15m, btc_1h, btc_4h, btc_1d 등
+ * @param candleStartAt 해당 봉 시작 시각 (UTC ISO)
+ */
+export async function fetchOpenPriceForCandle(
+  market: string,
+  candleStartAt: string
+): Promise<number | null> {
+  const interval = MARKET_TO_INTERVAL[market];
+  if (!interval) return null;
+  const startTimeMs = new Date(candleStartAt).getTime();
+  const rows = await fetchKlines(interval, startTimeMs, 1);
+  const first = rows[0];
+  return first && Number.isFinite(first.open) ? first.open : null;
+}
+
+/**
  * market에 해당하는 최근 마감된 캔들 N개 조회 (UTC 정렬, 1W/1M용)
  * @param market btc_15m, btc_1h, btc_4h, btc_1d, btc_1W, btc_1M
  * @param limit 가져올 캔들 수

@@ -25,7 +25,7 @@ type Props = {
 };
 
 export function CountdownTimer({ market }: Props) {
-  const [ms, setMs] = useState(() => getMillisUntilClose(market));
+  const [ms, setMs] = useState<number | null>(null);
 
   useEffect(() => {
     const tick = () => setMs(getMillisUntilClose(market));
@@ -35,8 +35,8 @@ export function CountdownTimer({ market }: Props) {
   }, [market]);
 
   return (
-    <span className="font-mono font-semibold text-amber-500 tabular-nums">
-      {formatCountdown(ms)}
+    <span className="font-mono font-semibold text-amber-500 tabular-nums" suppressHydrationWarning>
+      {ms === null ? "—" : formatCountdown(ms)}
     </span>
   );
 }

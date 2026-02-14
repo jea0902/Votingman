@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
           success: false,
           error: {
             code: "VOTING_CLOSED",
-            message: `해당 시장 투표 마감 시간(${getVotingCloseLabel(market)})이 지났습니다.`,
+            message: `해당 시장 투표 마감 시간이 지났습니다.\n(${getVotingCloseLabel(market)})`,
           },
         },
         { status: 400 }
@@ -73,6 +73,18 @@ export async function POST(request: NextRequest) {
     }
 
     const refundAmount = Number(existingVote.bet_amount ?? 0);
+    if (refundAmount > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "VOTE_FINAL",
+            message: "확정된 투표는 취소할 수 없습니다.",
+          },
+        },
+        { status: 400 }
+      );
+    }
     if (refundAmount <= 0) {
       return NextResponse.json({
         success: true,
