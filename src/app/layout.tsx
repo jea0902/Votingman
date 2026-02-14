@@ -3,7 +3,7 @@
  *
  * 설계 의도:
  * - 전역 폰트(Geist), 메타데이터, Navbar + Main + Footer 구조
- * - 테마: 기본 라이트, localStorage에 따라 html.dark 적용 (첫 페인트 전 스크립트로 설정)
+ * - 테마: 기본 다크, localStorage에 'light'일 때만 라이트. (첫 페인트 전 스크립트로 설정)
  */
 
 import type { Metadata } from "next";
@@ -31,8 +31,8 @@ export const metadata: Metadata = {
 const THEME_SCRIPT = `
 (function(){
   var t = localStorage.getItem('theme');
-  if (t === 'dark') document.documentElement.classList.add('dark');
-  else document.documentElement.classList.remove('dark');
+  if (t === 'light') document.documentElement.classList.remove('dark');
+  else document.documentElement.classList.add('dark');
 })();
 `;
 
