@@ -92,10 +92,19 @@ export async function fetchKlines(
     .filter((r): r is BtcOhlcRow => r != null);
 }
 
+/** 봉 주기(ms) - 이전 봉 종가 fallback용 */
+const CANDLE_PERIOD_MS: Record<string, number> = {
+  btc_15m: 15 * 60 * 1000,
+  btc_1h: 60 * 60 * 1000,
+  btc_4h: 4 * 60 * 60 * 1000,
+  btc_1d: 24 * 60 * 60 * 1000,
+};
+
 /**
  * 특정 봉의 시가(목표가)를 Binance에서 조회 (btc_ohlc에 없을 때 사용)
  * @param market btc_15m, btc_1h, btc_4h, btc_1d 등
  * @param candleStartAt 해당 봉 시작 시각 (UTC ISO)
+ * 진행 중인 봉은 Binance가 비어 반환할 수 있어, 실패 시 이전 봉 종가(= 현재 봉 시가)로 fallback
  */
 export async function fetchOpenPriceForCandle(
   market: string,
@@ -106,7 +115,17 @@ export async function fetchOpenPriceForCandle(
   const startTimeMs = new Date(candleStartAt).getTime();
   const rows = await fetchKlines(interval, startTimeMs, 1);
   const first = rows[0];
-  return first && Number.isFinite(first.open) ? first.open : null;
+  if (first && Number.isFinite(first.open)) return first.open;
+
+  // 모든 시간봉: 현재 봉이 비어 오면 이전 봉 종가(= 현재 봉 시가)로 fallback
+  const periodMs = CANDLE_PERIOD_MS[market];
+  if (periodMs != null) {
+    const prevRows = await fetchKlines(interval, startTimeMs - periodMs, 1);
+    const prev = prevRows[0];
+    if (prev && Number.isFinite(prev.close)) return prev.close;
+  }
+
+  return null;
 }
 
 /**
