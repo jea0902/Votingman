@@ -28,7 +28,7 @@
 | 4 | 시장 탭 카드 | MarketTabCards (비트코인 \| 미국 주식 \| 한국 주식) |
 | 5 | 인간 지표(투표) + 플레이스홀더 | HumanIndicatorSection + SECTION_LABELS |
 | 6 | UserInfoCard | 시즌 랭크 / 로그인 유도 |
-| 7 | 보팅맨 TOP5 랭커 실시간 포지션 | MarketTop5Positions |
+| 7 | 보팅맨 TOP20 랭커 실시간 포지션 | MarketTop20Positions |
 
 - 블록 간 간격: `gap-8`.
 
@@ -36,7 +36,7 @@
 
 | 열 | 비중 | 내용 |
 |------|------|------|
-| **왼쪽** | 1fr (25%) | UserInfoCard + MarketTop5Positions. 상단 `pt-[20vh]`, 두 카드 사이 `gap-3`. sticky. |
+| **왼쪽** | 1fr (25%) | UserInfoCard + MarketTop20Positions. 상단 `pt-[20vh]`, 두 카드 사이 `gap-3`. sticky. |
 | **가운데** | 2fr (50%) | **한 개의 `<main>`** 안에서 `flex flex-col gap-4`: (1) 메인 문구 `min-h-[20vh] justify-end`, (2) MarketTabCards, (3) HumanIndicatorSection + 플레이스홀더. |
 | **오른쪽** | 1fr (25%) | **한 개의 `<aside>`** 안에서 `flex flex-col gap-4`: (1) InfluencerPositions, (2) TopRankersBoard. |
 
@@ -46,7 +46,7 @@
 
 | 구역 | 비중 | 설명 |
 |------|------|------|
-| **왼쪽** | 25% | UserInfoCard, 보팅맨 TOP5. 상단 20vh 패딩, 카드 간 gap-3. |
+| **왼쪽** | 25% | UserInfoCard, 보팅맨 TOP20. 상단 20vh 패딩, 카드 간 gap-3. |
 | **가운데(메인)** | 50% | 메인 문구(20vh) → 시장 탭 → 투표. flex로 붙여서 세로 간격 최소화. |
 | **오른쪽** | 25% | 코인 유튜버 포지션 → 비트멕스 리더보드. |
 

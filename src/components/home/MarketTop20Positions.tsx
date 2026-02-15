@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * 보팅맨 통합 TOP30 랭커 실시간 포지션
- * - 통합 MMR TOP30 노출 (리더보드 페이지)
+ * 보팅맨 통합 TOP20 랭커 실시간 포지션
+ * - 통합 MMR TOP20 노출 (리더보드 페이지)
  * - 유저당 1개 시장만 표시: 해당 유저가 가장 많이 배팅한 시장 + 롱/숏 + 배팅 VTC
  */
 
@@ -10,8 +10,7 @@ import { useEffect, useState } from "react";
 import { Medal } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { getCurrentSeasonId } from "@/lib/constants/seasons";
-import type { LeaderboardTop5Item, LeaderboardTop5Response } from "@/app/api/leaderboard/top5/route";
+import type { LeaderboardTop20Item, LeaderboardTop20Response } from "@/app/api/leaderboard/top20/route";
 
 type PositionRow = {
   rank: number;
@@ -22,7 +21,7 @@ type PositionRow = {
   marketLabel: string;
 };
 
-function toPositionRows(items: LeaderboardTop5Item[]): PositionRow[] {
+function toPositionRows(items: LeaderboardTop20Item[]): PositionRow[] {
   return items.map((item) => {
     const pp = item.primary_position;
     return {
@@ -89,10 +88,10 @@ function PositionsSection({ rows }: { rows: PositionRow[] }) {
               {row.betAmount === 0 ? "-" : row.choice === "long" ? "롱" : "숏"}
             </span>
             <span className="shrink-0 justify-self-end text-right text-xs font-semibold tabular-nums text-red-500">
-              {typeof row.winRate === "number" ? `${row.winRate}%` : "-"}
+              {typeof row.winRate === "number" ? `${Number(row.winRate).toFixed(2)}%` : "-"}
             </span>
             <span className="shrink-0 justify-self-end text-right text-xs tabular-nums text-muted-foreground">
-              {row.betAmount === 0 ? "-" : `${row.betAmount.toLocaleString()} VTC`}
+              {row.betAmount === 0 ? "-" : `${Number(row.betAmount).toFixed(2)} VTC`}
             </span>
           </div>
         ))}
@@ -101,8 +100,8 @@ function PositionsSection({ rows }: { rows: PositionRow[] }) {
   );
 }
 
-export function MarketTop5Positions({ className }: { className?: string }) {
-  const [data, setData] = useState<LeaderboardTop5Response | null>(null);
+export function MarketTop20Positions({ className }: { className?: string }) {
+  const [data, setData] = useState<LeaderboardTop20Response | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -114,7 +113,7 @@ export function MarketTop5Positions({ className }: { className?: string }) {
         setIsLoading(true);
       }
     });
-    fetch("/api/leaderboard/top5")
+    fetch("/api/leaderboard/top20")
       .then((res) => res.json())
       .then((json) => {
         if (cancelled) return;
@@ -127,7 +126,7 @@ export function MarketTop5Positions({ className }: { className?: string }) {
       .catch((err) => {
         if (!cancelled) {
           setError("네트워크 오류가 발생했습니다.");
-          console.error("Leaderboard top5 fetch error:", err);
+          console.error("Leaderboard top20 fetch error:", err);
         }
       })
       .finally(() => {
@@ -142,19 +141,16 @@ export function MarketTop5Positions({ className }: { className?: string }) {
     <Card className={cn("overflow-hidden border-border bg-card", className)}>
       <CardHeader className="pb-2">
         <CardTitle className="truncate text-base">
-          보팅맨 TOP 30 랭커 - 실시간 포지션
+          보팅맨 TOP 20 랭커 - 실시간 포지션 (현재 최다 배팅 포지션)
         </CardTitle>
-        <p className="truncate text-xs text-muted-foreground">
-          {(() => {
-            const [year, quarter] = getCurrentSeasonId().split("-").map(Number);
-            return `${year}년 시즌 ${quarter} · 통합 랭킹 TOP30`;
-          })()}
+        <p className="text-xs text-muted-foreground">
+          랭킹은 MMR 점수(보유 코인 수 × 누적 승률)에 따라 순위가 매겨짐
         </p>
       </CardHeader>
       <CardContent className="overflow-hidden space-y-4">
         {isLoading && (
           <div className="space-y-2 py-2">
-            {Array.from({ length: 30 }, (_, i) => (
+            {Array.from({ length: 20 }, (_, i) => (
               <div key={i} className="h-10 animate-pulse rounded-md bg-muted/50" />
             ))}
           </div>
@@ -166,14 +162,14 @@ export function MarketTop5Positions({ className }: { className?: string }) {
           </div>
         )}
 
-        {!isLoading && !error && data && (!data.top5 || data.top5.length === 0) && (
+        {!isLoading && !error && data && (!data.top20 || data.top20.length === 0) && (
           <p className="py-4 text-center text-sm text-muted-foreground">
             아직 랭커가 없습니다.
           </p>
         )}
 
-        {!isLoading && !error && data && data.top5.length > 0 && (
-          <PositionsSection rows={toPositionRows(data.top5)} />
+        {!isLoading && !error && data && data.top20.length > 0 && (
+          <PositionsSection rows={toPositionRows(data.top20)} />
         )}
       </CardContent>
     </Card>

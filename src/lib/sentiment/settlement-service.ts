@@ -4,10 +4,13 @@
  *
  * - 단독 참여(무효판): 참여 1명 이하 → 전액 환불, payout_history 없음
  * - 한쪽 쏠림: 롱만 or 숏만 → 전원 원금 환불, payout_history 당첨자만 payout_amount=0
- * - 정상: 패자 풀을 승자에게 베팅 비율 분배, 당첨자 잔액 += 원금 + 수령분
+ * - 정상: 패자 풀을 승자에게 베팅 비율 분배, 당첨자 잔액 += (원금 + 수령분) × (1 - 1% 수수료)
  */
 
 import { createSupabaseAdmin } from "@/lib/supabase/server";
+
+/** 승자 정산 금액(원금+수령분) 전체에 적용하는 수수료 비율 (0~1). 0.01 = 1% */
+const PAYOUT_FEE_RATE = 0.01;
 import { getBtc1dCandleStartAt } from "@/lib/btc-ohlc/candle-utils";
 import { getOhlcByMarketAndCandleStart } from "@/lib/btc-ohlc/repository";
 import type { SentimentPollRow } from "@/lib/supabase/db-types";
@@ -316,11 +319,13 @@ export async function settlePoll(
   for (const v of winnerVotes) {
     if (!v.user_id) continue;
     const bet = Number(v.bet_amount ?? 0);
-    const payout =
+    const payoutGross =
       winnerTotalBet > 0 ? (loserPool * bet) / winnerTotalBet : 0;
-    const payoutRounded = Math.round(payout * 100) / 100;
-    payoutTotal += payoutRounded;
-    const toAdd = bet + payoutRounded;
+    const totalGross = bet + payoutGross;
+    const totalAfterFee =
+      Math.round(totalGross * (1 - PAYOUT_FEE_RATE) * 100) / 100;
+    const payoutRecorded = totalAfterFee - bet;
+    payoutTotal += payoutRecorded;
     const { data: u } = await admin
       .from("users")
       .select("voting_coin_balance")
@@ -329,14 +334,14 @@ export async function settlePoll(
     const current = Number(u?.voting_coin_balance ?? 0);
     await admin
       .from("users")
-      .update({ voting_coin_balance: current + toAdd })
+      .update({ voting_coin_balance: current + totalAfterFee })
       .eq("user_id", v.user_id);
     await admin.from("payout_history").insert({
       poll_id: pollId,
       user_id: v.user_id,
       market: pollRow.market ?? market,
       bet_amount: bet,
-      payout_amount: payoutRounded,
+      payout_amount: payoutRecorded,
     });
   }
 

@@ -172,6 +172,9 @@ export async function GET(request: NextRequest) {
       const net = result === "win" ? payout_amount : result === "loss" ? -bet : 0;
       nets.push(net);
 
+      // 표시용 payout: 승리 시 실제 지급액, 패배 시 -배팅 코인 수, 무효 시 0
+      const displayPayout = result === "win" ? payout_amount : result === "loss" ? -bet : 0;
+
       if (result === "win") wins++;
       if (result === "win" || result === "loss") totalCounted++;
 
@@ -191,7 +194,7 @@ export async function GET(request: NextRequest) {
             ? Math.round((close - open) / open * 10000) / 10000
             : null,
         result,
-        payout_amount,
+        payout_amount: displayPayout,
         cumulative_win_rate_pct,
         balance_after: 0,
       });

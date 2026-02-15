@@ -1,6 +1,6 @@
 /**
- * POST /api/tier/refresh
- * 현재 시즌 통합 랭킹(market='all') MMR·티어 재계산 후 user_season_stats upsert.
+ * POST /api/rank/refresh
+ * 현재 시즌 통합 랭킹(market='all') MMR 재계산 후 user_stats upsert.
  * cron 또는 관리자용.
  */
 
@@ -19,13 +19,13 @@ export async function POST() {
       data: { season_id: seasonId, market: TIER_MARKET_ALL, rows_updated: updated },
     });
   } catch (error) {
-    console.error("Tier refresh error:", error);
+    console.error("Rank refresh error:", error);
     return NextResponse.json(
       {
         success: false,
         error: {
           code: "SERVER_ERROR",
-          message: "티어 갱신에 실패했습니다.",
+          message: "랭크 갱신에 실패했습니다.",
         },
       },
       { status: 500 }
