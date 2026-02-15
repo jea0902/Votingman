@@ -1,14 +1,14 @@
 /**
- * 보팅맨 통합 랭킹 TOP30 + 유저당 최다배팅 시장 1개 포지션
- * - user_season_stats.market = 'all' 기준 통합 MMR TOP30
+ * 보팅맨 통합 랭킹 TOP20 + 유저당 최다배팅 시장 1개 포지션
+ * - user_stats.market = 'all' 기준 MMR TOP20, 승률은 user_stats의 win_count/participation_count 사용
  * - 각 유저별 "가장 많이 배팅한 시장" 1개만 표시 (시장명 + 롱/숏 + 배팅 VTC)
  * - 쿼리: ?section= 무시 (통합만 반환). 하위 호환용 section 파라미터는 받지만 사용하지 않음.
  */
 
+const LEADERBOARD_TOP_N = 20;
+
 import { NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/lib/supabase/server";
-import { getCurrentSeasonId } from "@/lib/constants/seasons";
-import { getCumulativeWinRatesByUserIds } from "@/lib/stats/cumulative-win-rate";
 import { getOrCreateTodayPollByMarket } from "@/lib/sentiment/poll-server";
 import { MARKET_LABEL } from "@/lib/constants/sentiment-markets";
 import type { SentimentMarket } from "@/lib/constants/sentiment-markets";
@@ -26,7 +26,7 @@ export type LeaderboardPosition = {
   bet_amount: number;
 };
 
-export type LeaderboardTop5Item = {
+export type LeaderboardTop20Item = {
   rank: number;
   user_id: string;
   nickname: string;
@@ -39,9 +39,9 @@ export type LeaderboardTop5Item = {
   primary_position: PrimaryPosition | null;
 };
 
-export type LeaderboardTop5Response = {
+export type LeaderboardTop20Response = {
   section: "all";
-  top5: LeaderboardTop5Item[];
+  top20: LeaderboardTop20Item[];
 };
 
 const ALL_MARKETS: SentimentMarket[] = [
@@ -58,19 +58,17 @@ const ALL_MARKETS: SentimentMarket[] = [
 export async function GET() {
   try {
     const admin = createSupabaseAdmin();
-    const seasonId = getCurrentSeasonId();
 
-    // 1) 통합 랭킹: market='all' 기준 MMR TOP30
+    // 1) 통합 랭킹: user_stats market='all' 기준 MMR TOP20 (승률은 win_count/participation_count로 계산)
     const { data: statsRows, error: statsError } = await admin
-      .from("user_season_stats")
-      .select("user_id, mmr")
+      .from("user_stats")
+      .select("user_id, mmr, win_count, participation_count")
       .eq("market", "all")
-      .eq("season_id", seasonId)
       .order("mmr", { ascending: false })
-      .limit(30);
+      .limit(LEADERBOARD_TOP_N);
 
     if (statsError) {
-      console.error("Leaderboard top5 user_season_stats error:", statsError);
+      console.error("Leaderboard top20 user_stats error:", statsError);
       return NextResponse.json(
         { success: false, error: { code: "SERVER_ERROR", message: "리더보드를 불러오는데 실패했습니다." } },
         { status: 500 }
@@ -80,16 +78,13 @@ export async function GET() {
     if (!statsRows || statsRows.length === 0) {
       return NextResponse.json({
         success: true,
-        data: { section: "all", top5: [] } satisfies LeaderboardTop5Response,
+        data: { section: "all", top20: [] } satisfies LeaderboardTop20Response,
       });
     }
 
     const userIds = statsRows.map((r) => r.user_id);
 
-    // 2) 누적 승률 (전적·승률 조회와 동일: sentiment_votes + 정산된 polls 기반)
-    const winRateByUser = await getCumulativeWinRatesByUserIds(userIds);
-
-    // 3) 닉네임·보팅코인 잔액
+    // 2) 닉네임·보팅코인 잔액
     const { data: usersRows, error: usersError } = await admin
       .from("users")
       .select("user_id, nickname, voting_coin_balance")
@@ -97,7 +92,7 @@ export async function GET() {
       .is("deleted_at", null);
 
     if (usersError) {
-      console.error("Leaderboard top5 users error:", usersError);
+      console.error("Leaderboard top20 users error:", usersError);
       return NextResponse.json(
         { success: false, error: { code: "SERVER_ERROR", message: "리더보드를 불러오는데 실패했습니다." } },
         { status: 500 }
@@ -114,7 +109,7 @@ export async function GET() {
       ])
     );
 
-    // 4) 오늘 폴 ID 목록 (전체 시장)
+    // 3) 오늘 폴 ID 목록 (전체 시장)
     const pollIdsByMarket: Record<string, string> = {};
     for (const m of ALL_MARKETS) {
       const { poll } = await getOrCreateTodayPollByMarket(m);
@@ -122,7 +117,7 @@ export async function GET() {
     }
     const pollIds = Object.values(pollIdsByMarket);
 
-    // 5) TOP30 유저들의 오늘 투표 (poll_id, user_id, choice, bet_amount, market)
+    // 4) TOP20 유저들의 오늘 투표 (poll_id, user_id, choice, bet_amount, market)
     const { data: votesRows, error: votesError } = await admin
       .from("sentiment_votes")
       .select("poll_id, user_id, choice, bet_amount, market")
@@ -131,7 +126,7 @@ export async function GET() {
       .gt("bet_amount", 0);
 
     if (votesError) {
-      console.error("Leaderboard top5 sentiment_votes error:", votesError);
+      console.error("Leaderboard top20 sentiment_votes error:", votesError);
       return NextResponse.json(
         { success: false, error: { code: "SERVER_ERROR", message: "리더보드를 불러오는데 실패했습니다." } },
         { status: 500 }
@@ -174,7 +169,7 @@ export async function GET() {
       }
     }
 
-    // 6) 유저별 최다배팅 시장 1개 → primary_position
+    // 5) 유저별 최다배팅 시장 1개 → primary_position
     function getPrimaryPosition(userId: string): PrimaryPosition | null {
       const byMarket = betByUserAndMarket.get(userId);
       if (!byMarket || byMarket.size === 0) return null;
@@ -193,30 +188,38 @@ export async function GET() {
       return { market: bestMarket, market_label: label, choice: bestChoice, bet_amount: bestBet };
     }
 
-    // 7) TOP30 배열 조립
-    const top5: LeaderboardTop5Item[] = statsRows.map((row, index) => {
+    // 6) TOP20 배열 조립. 누적 승률은 퍼센트(0~100)로 반환. UI에서 "65.00%" 표시용.
+    const round2 = (n: number) => Math.round(n * 100) / 100;
+    const top20: LeaderboardTop20Item[] = statsRows.map((row, index) => {
       const u = userMap.get(row.user_id);
-      const win_rate = winRateByUser.get(row.user_id) ?? 0;
+      const wins = Number((row as { win_count?: number }).win_count ?? 0);
+      const total = Number((row as { participation_count?: number }).participation_count ?? 0);
+      const win_rate = total > 0 ? round2((wins / total) * 100) : 0; // ×100 필수: 비율(0~1) → 퍼센트(0~100)
       const positions = positionsByUserAndMarket.get(row.user_id) ?? {};
       const primary_position = getPrimaryPosition(row.user_id);
       return {
         rank: index + 1,
         user_id: row.user_id,
         nickname: u?.nickname ?? "알 수 없음",
-        mmr: Number(row.mmr ?? 0),
-        voting_coin_balance: u?.voting_coin_balance ?? 0,
+        mmr: round2(Number(row.mmr ?? 0)),
+        voting_coin_balance: round2(Number(u?.voting_coin_balance ?? 0)),
         win_rate,
         positions,
-        primary_position,
+        primary_position: primary_position
+          ? {
+              ...primary_position,
+              bet_amount: round2(primary_position.bet_amount),
+            }
+          : null,
       };
     });
 
     return NextResponse.json({
       success: true,
-      data: { section: "all", top5 } satisfies LeaderboardTop5Response,
+      data: { section: "all", top20 } satisfies LeaderboardTop20Response,
     });
   } catch (e) {
-    console.error("Leaderboard top5 error:", e);
+    console.error("Leaderboard top20 error:", e);
     return NextResponse.json(
       { success: false, error: { code: "SERVER_ERROR", message: "리더보드를 불러오는데 실패했습니다." } },
       { status: 500 }

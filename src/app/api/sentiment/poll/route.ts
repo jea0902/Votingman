@@ -43,7 +43,14 @@ export async function GET(request: NextRequest) {
             market,
             candleStartAt
           );
-          if (openFromBinance != null) price_open = openFromBinance;
+          if (openFromBinance != null) {
+            price_open = openFromBinance;
+          } else {
+            console.warn(
+              "[sentiment/poll] price_open missing: btc_ohlc miss, Binance returned null",
+              { market, candle_start_at: candleStartAt }
+            );
+          }
         } catch (e) {
           console.error("[sentiment/poll] fetchOpenPriceForCandle error:", e);
         }

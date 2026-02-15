@@ -262,16 +262,16 @@ export type PayoutHistoryRow = {
 };
 
 // =========================================
-// 7단계: 시장별 시즌 통계·MMR·티어
+// 시장별 시즌 통계·MMR (user_season_stats)
 // =========================================
 
-/** 시장 그룹 (티어/MMR): all (통합 랭킹) | btc | us | kr (레거시) */
+/** 시장 그룹: all (통합 랭킹) | btc | us | kr (레거시) */
 export type TierMarket = "all" | "btc" | "us" | "kr";
 
-/** 티어 (배치 완료자만) */
+/** 레거시: DB 스키마 호환용, 저장 시 null */
 export type TierKey = "gold" | "platinum" | "diamond" | "master" | "challenger";
 
-/** user_season_stats: 시장별 시즌 통계 */
+/** user_season_stats: 시장별 시즌 통계 (MMR·승률). placement_*, tier 컬럼은 DB 호환용 */
 export type UserSeasonStatsRow = {
   id: string;
   user_id: string;

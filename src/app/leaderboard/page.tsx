@@ -4,12 +4,12 @@
  * 리더보드 페이지
  *
  * 설계 의도:
- * - 보팅맨 TOP5 랭커 실시간 포지션
+ * - 보팅맨 TOP20 랭커 실시간 포지션 (MMR 순)
  * - 바이낸스 선물 랭커 TOP3는 투표(홈) 페이지로 이동
  */
 
 import { Trophy } from "lucide-react";
-import { MarketTop5Positions } from "@/components/home";
+import { MarketTop20Positions } from "@/components/home";
 
 export default function LeaderboardPage() {
   return (
@@ -19,7 +19,7 @@ export default function LeaderboardPage() {
         리더보드
       </h1>
       <div className="mx-auto max-w-3xl">
-        <MarketTop5Positions />
+        <MarketTop20Positions />
       </div>
     </div>
   );
