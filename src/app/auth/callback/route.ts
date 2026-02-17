@@ -51,6 +51,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/signup?step=nickname`);
   }
 
-  // users 테이블에 있으면 (= 가입 완료) 홈으로
-  return NextResponse.redirect(`${origin}/`);
+  // users 테이블에 있으면 (= 가입 완료) 투표(홈) 페이지로 (Navbar "투표" 탭 활성화)
+  return NextResponse.redirect(`${origin}/home`);
 }

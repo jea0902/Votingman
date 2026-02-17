@@ -18,3 +18,5 @@ export { UserInfoCard } from "./UserInfoCard";
 export { MarketTop20Positions } from "./MarketTop20Positions";
 export { MarketVoteCard } from "./MarketVoteCard";
 export { MarketVoteCardCompact } from "./MarketVoteCardCompact";
+export { WonyottiPosition } from "./WonyottiPosition";
+export { BitmexRankersBoard } from "./BitmexRankersBoard";

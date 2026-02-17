@@ -19,10 +19,11 @@ import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 
-const NAV_LINKS = [ // 네비게이션 링크 — 투표(홈) → 리더보드 → 커뮤니티 → 모의 선물 투자 → 자동매매 → 버핏 원픽
+const NAV_LINKS = [ // 네비게이션 링크 — 투표 → 고수 포지션 → 투표 보상 → 건의 → 모의 선물 투자 → 자동매매 → 버핏 원픽
   { href: "/home", label: "투표" },
-  { href: "/leaderboard", label: "리더보드" },
-  { href: "/community", label: "커뮤니티" },
+  { href: "/pro-positions", label: "고수 포지션" },
+  { href: "/leaderboard", label: "투표 보상" },
+  { href: "/community", label: "건의" },
   { href: "/simulation", label: "모의 선물 투자" },
   { href: "/verified-strategies", label: "자동매매" },
   { href: "/buffet-pick", label: "버핏 원픽" },
@@ -180,7 +181,10 @@ export function Navbar() {
           {/* 우측: 데스크톱 메뉴 (524px 초과에서만 표시) */}
           <div className="hidden nav:flex nav:items-center nav:gap-6">
             {NAV_LINKS.map(({ href, label }) => {
-              const isActive = pathname === href || pathname.startsWith(href + "/");
+              const isActive =
+                pathname === href ||
+                pathname.startsWith(href + "/") ||
+                (href === "/home" && pathname === "/");
               return (
                 <Link
                   key={href}
@@ -407,7 +411,10 @@ export function Navbar() {
               </button>
             </div>
             {NAV_LINKS.map(({ href, label }) => {
-              const isActive = pathname === href || pathname.startsWith(href + "/");
+              const isActive =
+                pathname === href ||
+                pathname.startsWith(href + "/") ||
+                (href === "/home" && pathname === "/");
               return (
                 <Link
                   key={href}

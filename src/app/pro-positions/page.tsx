@@ -1,14 +1,14 @@
-"use client";
-
 /**
- * 홈 메인 콘텐츠 (로그인 시 노출)
+ * 고수 포지션 페이지
  *
- * - UserInfoCard, HumanIndicatorSection, L3 플레이스홀더
+ * - 코인 선물 유튜버 실시간 포지션 카드
+ * - 바이낸스 선물 랭커 TOP3 실시간 포지션 카드
+ * (투표 페이지에서 보여주던 구성 그대로)
  */
 
-import { HumanIndicatorSection } from "@/components/home";
+import { InfluencerPositions, TopRankersBoard, WonyottiPosition, BitmexRankersBoard } from "@/components/home";
 
-export function HomeContent() {
+export default function ProPositionsPage() {
   return (
     <div className="relative w-full">
       <div
@@ -22,16 +22,19 @@ export function HomeContent() {
         <div className="min-w-0">
           <div className="mb-4 flex min-h-[8vh] flex-col justify-center py-4 text-center">
             <h1 className="mb-2 text-2xl font-bold tracking-tight text-[#3b82f6] sm:text-3xl lg:text-4xl">
-              예측 시장 플랫폼
+              고수 포지션
             </h1>
-            <p className="text-base font-medium text-[#fbbf24] sm:text-lg lg:text-xl">
-              말이 아닌 돈으로 예측하는 진짜 시장의 방향
+            <p className="text-base font-medium text-muted-foreground sm:text-lg lg:text-xl">
+              유튜버·바이낸스 랭커 실시간 포지션
             </p>
           </div>
         </div>
         <div className="min-w-0 w-full">
           <div className="w-full space-y-6">
-            <HumanIndicatorSection />
+            <InfluencerPositions />
+            <TopRankersBoard />
+            <WonyottiPosition />
+            <BitmexRankersBoard />
           </div>
         </div>
       </div>

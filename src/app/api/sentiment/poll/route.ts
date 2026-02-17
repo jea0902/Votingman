@@ -9,8 +9,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/lib/supabase/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrCreateTodayPollByMarket } from "@/lib/sentiment/poll-server";
+import { getPreviousCandleStartAt } from "@/lib/btc-ohlc/candle-utils";
 import { getOhlcByMarketAndCandleStart } from "@/lib/btc-ohlc/repository";
-import { fetchOpenPriceForCandle } from "@/lib/binance/btc-klines";
+import { fetchPreviousCandleClose } from "@/lib/binance/btc-klines";
 import { isSentimentMarket } from "@/lib/constants/sentiment-markets";
 
 const BTC_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m"] as const;
@@ -33,28 +34,27 @@ export async function GET(request: NextRequest) {
       candleStartAt &&
       BTC_MARKETS.includes(market as (typeof BTC_MARKETS)[number])
     ) {
-      const ohlc = await getOhlcByMarketAndCandleStart(market, candleStartAt);
-      if (ohlc) {
-        price_open = ohlc.open;
-        price_close = ohlc.close;
+      // 목표가 = 이전 봉 종가 (UP/DOWN 투표 기준). 이전 봉은 마감되어 DB·Binance 모두 존재함.
+      const previousCandleStartAt = getPreviousCandleStartAt(market, candleStartAt);
+      const prevOhlc = await getOhlcByMarketAndCandleStart(market, previousCandleStartAt);
+      if (prevOhlc) {
+        price_open = prevOhlc.close;
       } else {
         try {
-          const openFromBinance = await fetchOpenPriceForCandle(
-            market,
-            candleStartAt
-          );
-          if (openFromBinance != null) {
-            price_open = openFromBinance;
-          } else {
+          price_open = await fetchPreviousCandleClose(market, candleStartAt);
+          if (price_open == null) {
             console.warn(
-              "[sentiment/poll] price_open missing: btc_ohlc miss, Binance returned null",
+              "[sentiment/poll] price_open missing: 이전 봉 종가 조회 실패",
               { market, candle_start_at: candleStartAt }
             );
           }
         } catch (e) {
-          console.error("[sentiment/poll] fetchOpenPriceForCandle error:", e);
+          console.error("[sentiment/poll] fetchPreviousCandleClose error:", e);
         }
       }
+      // 종가 = 현재 봉 종가 (봉 마감 후 크론이 넣은 뒤에만 존재)
+      const currentOhlc = await getOhlcByMarketAndCandleStart(market, candleStartAt);
+      if (currentOhlc) price_close = currentOhlc.close;
     }
 
     let myVote: { choice: "long" | "short"; bet_amount: number } | null = null;

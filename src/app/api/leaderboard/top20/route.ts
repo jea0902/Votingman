@@ -5,7 +5,7 @@
  * - 쿼리: ?section= 무시 (통합만 반환). 하위 호환용 section 파라미터는 받지만 사용하지 않음.
  */
 
-const LEADERBOARD_TOP_N = 20;
+const LEADERBOARD_TOP_N = 30;
 
 import { NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/lib/supabase/server";

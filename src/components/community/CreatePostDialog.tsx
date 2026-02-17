@@ -23,7 +23,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Loader2, Upload, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
-type BoardType = 'free' | 'perspective';
+// 현재는 건의 게시판(자유 board_type)만 사용. 관점 게시판은 MVP에서 비활성화.
+type BoardType = 'free'; // | 'perspective';
 type Category = 'free' | 'suggestion';
 
 type CreatePostDialogProps = {
@@ -39,7 +40,8 @@ export function CreatePostDialog({
   boardType,
   onSuccess 
 }: CreatePostDialogProps) {
-  const [category, setCategory] = useState<Category>('free');
+  // 모든 새 글은 '건의' 카테고리로 저장
+  const [category, setCategory] = useState<Category>('suggestion');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -168,7 +170,7 @@ export function CreatePostDialog({
       // 성공: 폼 초기화 및 모달 닫기
       setTitle('');
       setContent('');
-      setCategory('free');
+      setCategory('suggestion');
       setImages([]);
       imagePreviewUrls.forEach(url => URL.revokeObjectURL(url));
       setImagePreviewUrls([]);
@@ -190,7 +192,7 @@ export function CreatePostDialog({
     if (!isSubmitting) {
       setTitle('');
       setContent('');
-      setCategory('free');
+      setCategory('suggestion');
       setImages([]);
       imagePreviewUrls.forEach(url => URL.revokeObjectURL(url));
       setImagePreviewUrls([]);
@@ -204,20 +206,22 @@ export function CreatePostDialog({
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {boardType === 'free' ? '자유게시판 글쓰기' : '관점 게시판 글쓰기'}
+            건의 게시판 글쓰기
+            {/* 기존: {boardType === 'free' ? '자유게시판 글쓰기' : '관점 게시판 글쓰기'} */}
           </DialogTitle>
           <DialogDescription>
-            {boardType === 'free' 
-              ? '자유롭게 의견을 나누거나 서비스 건의사항을 작성하세요.' 
-              : '투자 관점과 인사이트를 공유하세요.'
-            }
+            서비스에 대한 아이디어, 버그 제보, 불편 사항 등 건의 내용을 작성해주세요.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-          {/* 자유게시판: 카테고리 선택 */}
+          {/* 자유게시판: 카테고리 선택
+              현재는 건의 게시판만 사용하므로 모든 글을 '건의'로 저장합니다.
+              추후 자유/건의 구분이 필요하면 아래 주석을 복원하세요.
+          */}
           {boardType === 'free' && (
-            <div className="space-y-2">
+            <div className="space-y-1 text-xs text-muted-foreground">
+              {/*
               <Label>
                 카테고리 <span className="text-destructive">*</span>
               </Label>
@@ -239,6 +243,8 @@ export function CreatePostDialog({
                   </Label>
                 </div>
               </RadioGroup>
+              */}
+              <p>모든 게시글은 건의 카테고리로 등록됩니다.</p>
             </div>
           )}
 
