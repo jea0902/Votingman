@@ -9,9 +9,9 @@ import type { SentimentMarket } from "@/lib/constants/sentiment-markets";
 
 const RULES_BY_MARKET: Record<SentimentMarket, string> = {
   btc_1d:
-    "【1일봉】 당일 00:00(KST) 시작 봉 하나로 승패가 갈립니다.\n\n" +
-    "· 목표가 = 오늘 00:00 봉의 시가(직전 봉 종가). Binance 1일봉 기준.\n" +
-    "· 투표 마감: 당일 20:30(KST).\n" +
+    "【1일봉】 Binance 1일봉(UTC 00:00 기준)과 동일. 전일 종가 = 목표가.\n\n" +
+    "· 목표가 = 전일 봉 종가 (바이낸스 BTC/USDT 1d 전일 종가와 동일).\n" +
+    "· 투표 마감: 당일 12:00(KST).\n" +
     "· 확정 후: 선택 변경·취소 불가. 같은 방향(롱/숏)으로만 추가 배팅 가능.\n\n" +
     "· 당첨: 봉 종가 > 목표가 → 롱 승 / 종가 < 목표가 → 숏 승 / 종가 = 목표가 → 무효(전원 환불).\n" +
     "· 한쪽만 참여(롱만 or 숏만) 또는 1명 이하 → 전원 환불.\n" +

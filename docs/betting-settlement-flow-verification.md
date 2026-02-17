@@ -20,7 +20,7 @@
 |------|------|-----------|
 | 배팅 | `src/app/api/sentiment/vote/route.ts` | 서버 세션으로 user 확인, KST 오늘 폴(`getOrCreateTodayPollByMarket`), 잔액 차감 → users, sentiment_votes insert/update, sentiment_polls 집계 update |
 | 오늘 날짜 | `src/lib/binance/btc-kst.ts` | `getTodayKstDateString()` = KST 기준 YYYY-MM-DD |
-| 투표 마감 | `src/lib/utils/sentiment-vote.ts` | `isVotingOpenKST(market)` = KST 기준 (비트코인 20:30 마감) |
+| 투표 마감 | `src/lib/utils/sentiment-vote.ts` | `isVotingOpenKST(market)` = KST 기준 (비트코인 1d 12:00 마감) |
 | Cron 스케줄 | `vercel.json` | `"1 15 * * *"` = 매일 15:01 UTC = **00:01 KST** (접속 불필요, 완전 자동) |
 | Cron 인증 | `btc-ohlc-daily/route.ts` | `CRON_SECRET` (Bearer 또는 x-cron-secret) |
 | OHLC 반영 | `settlement-service.ts` | `updateBtcOhlcForPoll(pollDate, pollId)` = Binance 시가·종가 조회 후 sentiment_polls update |

@@ -1,8 +1,10 @@
 /**
  * btc_ohlc 테이블 upsert
  * - Binance에서 수집한 OHLC를 btc_ohlc에 저장
+ * - created_at, updated_at은 KST로 저장 (DB 확인 시 KST로 보이도록)
  */
 
+import { nowKstString } from "@/lib/kst";
 import { createSupabaseAdmin } from "@/lib/supabase/server";
 import type { BtcOhlcRow } from "@/lib/binance/btc-klines";
 
@@ -21,7 +23,7 @@ export async function upsertBtcOhlc(row: BtcOhlcRow): Promise<void> {
         close: row.close,
         high: row.high,
         low: row.low,
-        updated_at: new Date().toISOString(),
+        updated_at: nowKstString(),
       },
       {
         onConflict: "market,candle_start_at",
@@ -74,6 +76,7 @@ export async function upsertBtcOhlcBatch(rows: BtcOhlcRow[]): Promise<{ inserted
   if (rows.length === 0) return { inserted: 0, errors: 0 };
 
   const admin = createSupabaseAdmin();
+  const kstNow = nowKstString();
   const payload = rows.map((r) => ({
     market: r.market,
     candle_start_at: r.candle_start_at,
@@ -81,6 +84,7 @@ export async function upsertBtcOhlcBatch(rows: BtcOhlcRow[]): Promise<{ inserted
     close: r.close,
     high: r.high,
     low: r.low,
+    updated_at: kstNow,
   }));
 
   const { data, error } = await admin

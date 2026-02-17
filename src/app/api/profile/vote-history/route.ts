@@ -12,12 +12,15 @@ import { createSupabaseAdmin } from "@/lib/supabase/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOhlcByMarketAndCandleStart } from "@/lib/btc-ohlc/repository";
 import { MARKET_LABEL } from "@/lib/constants/sentiment-markets";
+import { getPollDateDisplayForKst } from "@/lib/utils/poll-date-display";
 
 const BTC_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m"] as const;
 
 export type VoteHistoryRow = {
-  /** 예측 대상일 (poll_date) */
+  /** 예측 대상일 (poll_date, DB 저장값) */
   poll_date: string;
+  /** 예측 대상일 표시용 (btc_1d일 때 KST 보정) */
+  poll_date_display: string;
   /** 정산 완료 시각 */
   settled_at: string;
   market: string;
@@ -183,6 +186,7 @@ export async function GET(request: NextRequest) {
 
       rows.push({
         poll_date: poll.poll_date,
+        poll_date_display: getPollDateDisplayForKst(poll.market ?? "", poll.poll_date),
         settled_at: poll.settled_at,
         market: poll.market ?? vote.market ?? "—",
         market_label: MARKET_LABEL[poll.market as keyof typeof MARKET_LABEL] ?? poll.market ?? "—",
@@ -191,7 +195,7 @@ export async function GET(request: NextRequest) {
         price_close: close,
         change_pct:
           open != null && close != null && open > 0
-            ? Math.round((close - open) / open * 10000) / 10000
+            ? Math.round((close - open) / open * 10000) / 100
             : null,
         result,
         payout_amount: displayPayout,

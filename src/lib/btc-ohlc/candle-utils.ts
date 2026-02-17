@@ -1,11 +1,8 @@
 /**
- * KST 00:00 기준 캔들 시각 유틸
+ * 캔들 시각 유틸
  *
- * 모든 시간봉(15m, 1h, 4h, 1d)은 KST 00:00:00부터 사이클이 시작.
- * - btc_1d: 00:00 KST (1개/일)
- * - btc_4h: 00:00, 04:00, 08:00, 12:00, 16:00, 20:00 KST (6개/일)
- * - btc_1h: 00:00~23:00 KST (24개/일)
- * - btc_15m: 00:00, 00:15, ..., 23:45 KST (96개/일)
+ * - btc_1d: UTC 00:00 기준 (Binance 1d와 동일, 목표가·차트 일치)
+ * - btc_4h, btc_1h, btc_15m: KST 00:00 기준
  */
 
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
@@ -49,10 +46,20 @@ export function getCandleStartAt(
 }
 
 /**
- * btc_1d: poll_date 00:00 KST 해당 캔들 시작 시각
+ * btc_1d: poll_date 00:00 KST 해당 캔들 시작 시각 (ndq/sp500/kospi/kosdaq 등 일봉 기준용)
  */
 export function getBtc1dCandleStartAt(pollDate: string): string {
   return getCandleStartAt(pollDate, 0, 0);
+}
+
+/**
+ * btc_1d 전용: UTC 00:00 기준 캔들 시작 시각 (Binance 1d와 동일 정렬)
+ * poll_date는 UTC 기준 YYYY-MM-DD로 전달.
+ */
+export function getBtc1dCandleStartAtUtc(utcDate: string): string {
+  const { y, m, d } = parsePollDate(utcDate);
+  const ms = Date.UTC(y, m - 1, d, 0, 0, 0, 0);
+  return new Date(ms).toISOString();
 }
 
 /**
@@ -91,11 +98,9 @@ export function getBtc15mCandleStartAt(
 }
 
 /**
- * poll_date(KST)에 해당하는 당일 캔들 candle_start_at 목록 (과거→미래 순)
- * - btc_1d: 1개
- * - btc_4h: 6개 (00:00, 04:00, 08:00, 12:00, 16:00, 20:00)
- * - btc_1h: 24개
- * - btc_15m: 96개
+ * poll_date에 해당하는 당일 캔들 candle_start_at 목록 (과거→미래 순)
+ * - btc_1d: 1개 (poll_date = UTC YYYY-MM-DD, Binance 1d 정렬)
+ * - btc_4h/1h/15m: poll_date = KST
  */
 export function getCandlesForPollDate(
   market: string,
@@ -106,7 +111,7 @@ export function getCandlesForPollDate(
 
   switch (m) {
     case "btc_1d":
-      result.push(getBtc1dCandleStartAt(pollDate));
+      result.push(getBtc1dCandleStartAtUtc(pollDate));
       break;
     case "btc_4h":
       for (let i = 0; i < 6; i++) {
@@ -138,7 +143,7 @@ export function getCandlesForPollDate(
   return result;
 }
 
-/** market별 poll_date의 첫 캔들(00:00 KST) candle_start_at */
+/** market별 poll_date의 첫 캔들 candle_start_at (btc_1d는 UTC 00:00, 나머지는 KST) */
 export function getCandleStartAtForMarket(
   market: string,
   pollDate: string,
@@ -147,7 +152,7 @@ export function getCandleStartAtForMarket(
   const m = market === "btc" ? "btc_1d" : market;
   switch (m) {
     case "btc_1d":
-      return getBtc1dCandleStartAt(pollDate);
+      return getBtc1dCandleStartAtUtc(pollDate);
     case "btc_4h":
       return getBtc4hCandleStartAt(pollDate, options?.slot4h ?? 0);
     case "btc_1h":
@@ -214,9 +219,15 @@ export function getRecentCandleStartAts(
     const mm = kst.getUTCMinutes();
 
     switch (m) {
-      case "btc_1d":
-        result.push(getBtc1dCandleStartAt(dateStr(dy, dm, dd)));
+      case "btc_1d": {
+        const utcMs = now.getTime() - (i + 1) * MS_1D;
+        const utc = new Date(utcMs);
+        const uy = utc.getUTCFullYear();
+        const um = utc.getUTCMonth() + 1;
+        const ud = utc.getUTCDate();
+        result.push(getBtc1dCandleStartAtUtc(`${uy}-${pad(um)}-${pad(ud)}`));
         break;
+      }
       case "btc_4h":
         result.push(getBtc4hCandleStartAt(dateStr(dy, dm, dd), Math.floor(hh / 4)));
         break;
@@ -251,8 +262,13 @@ export function getCurrentCandleStartAt(market: string): string {
 
   const mNorm = market === "btc" ? "btc_1d" : market;
   switch (mNorm) {
-    case "btc_1d":
-      return getBtc1dCandleStartAt(dateStr);
+    case "btc_1d": {
+      const utc = new Date();
+      const uy = utc.getUTCFullYear();
+      const um = String(utc.getUTCMonth() + 1).padStart(2, "0");
+      const ud = String(utc.getUTCDate()).padStart(2, "0");
+      return getBtc1dCandleStartAtUtc(`${uy}-${um}-${ud}`);
+    }
     case "btc_4h": {
       const slot = Math.floor(h / 4) * 4;
       return getBtc4hCandleStartAt(dateStr, slot / 4);
@@ -266,4 +282,26 @@ export function getCurrentCandleStartAt(market: string): string {
     default:
       throw new Error(`Unsupported market: ${market}`);
   }
+}
+
+/** 봉 주기(ms) - 목표가 = 이전 봉 종가 조회 시 사용 */
+export const CANDLE_PERIOD_MS: Record<string, number> = {
+  btc_15m: MS_15M,
+  btc_1h: MS_1H,
+  btc_4h: MS_4H,
+  btc_1d: MS_1D,
+};
+
+/**
+ * 현재 봉 candle_start_at에서 한 봉 이전의 candle_start_at
+ * 목표가(이전 봉 종가) 조회 시 사용
+ */
+export function getPreviousCandleStartAt(
+  market: string,
+  candleStartAt: string
+): string {
+  const period = CANDLE_PERIOD_MS[market];
+  if (period == null) return candleStartAt;
+  const ms = new Date(candleStartAt).getTime() - period;
+  return new Date(ms).toISOString();
 }

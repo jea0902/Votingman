@@ -1,26 +1,81 @@
 "use client";
 
 /**
- * 리더보드 페이지
+ * 투표 보상 페이지 (보팅맨배)
  *
- * 설계 의도:
- * - 보팅맨 TOP20 랭커 실시간 포지션 (MMR 순)
- * - 바이낸스 선물 랭커 TOP3는 투표(홈) 페이지로 이동
+ * - MMR TOP 10: 선물하기 3만원권 + 명예 배지
+ * - TOP 30: 명예 배지
+ * - 상금: 현재 월 30만 원 (3개월) → 이후 광고 수익 50% 추가 누적 및 보상 인원 추가
  */
 
-import { Trophy } from "lucide-react";
-import { MarketTop20Positions } from "@/components/home";
+import { Trophy, Gift, Award, Info } from "lucide-react";
+import { RewardsTop30Table } from "@/components/leaderboard/RewardsTop30Table";
 
 export default function LeaderboardPage() {
   return (
-    <div className="w-full px-4 py-8 sm:px-6">
-      <h1 className="mb-8 flex items-center justify-center gap-2 text-center text-2xl font-bold text-foreground sm:text-3xl">
-        <Trophy className="h-7 w-7 shrink-0 sm:h-8 sm:w-8" />
-        리더보드
-      </h1>
-      <div className="mx-auto max-w-3xl">
-        <MarketTop20Positions />
-      </div>
+    <div className="mx-auto w-[85%] max-w-5xl px-4 py-8 sm:px-6">
+      {/* 히어로 */}
+      <section className="mb-8 text-center">
+        <h1 className="mb-2 flex items-center justify-center gap-2 text-2xl font-bold text-foreground sm:text-3xl">
+          <Trophy className="h-8 w-8 shrink-0 text-amber-500" />
+          보팅맨배 투표 보상
+        </h1>
+        <p className="mb-4 text-sm text-muted-foreground sm:text-base">
+          MMR TOP 10에게 선물하기 3만원권, TOP 30에게 명예 배지
+        </p>
+        <div className="inline-flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-4 py-2 text-sm font-medium">
+          <span className="text-muted-foreground">현재 상금</span>
+          <span className="text-foreground">월 30만 원</span>
+        </div>
+      </section>
+
+      {/* 보상 내용 */}
+      <section className="mb-8 rounded-lg border border-border bg-card p-4">
+        <h2 className="mb-3 text-sm font-semibold text-foreground">보상 내용</h2>
+        <ul className="space-y-2 text-sm text-muted-foreground">
+          <li className="flex items-center gap-2">
+            <span className="font-medium text-foreground">1~10위</span>
+            <Gift className="h-4 w-4 text-amber-500" />
+            선물하기 3만원권 + 명예 배지
+          </li>
+          <li className="flex items-center gap-2">
+            <span className="font-medium text-foreground">11~30위</span>
+            <Award className="h-4 w-4 text-primary" />
+            명예 배지
+          </li>
+        </ul>
+      </section>
+
+      {/* 상금 규모 */}
+      <section className="mb-8 rounded-lg border border-border bg-card p-4">
+        <h2 className="mb-3 text-sm font-semibold text-foreground">상금 규모</h2>
+        <ul className="space-y-1 text-sm text-muted-foreground">
+          <li>· 현재: 월 30만 원(3개월간 베타테스트)</li>
+          <li>· 이후: 광고 수익의 50% 추가 누적 및 보상 인원 추가</li>
+        </ul>
+      </section>
+
+      {/* 랭킹 기준 */}
+      <section className="mb-8 rounded-lg border border-border bg-muted/20 px-4 py-3">
+        <p className="text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">랭킹 기준</span>
+          {" "}
+          MMR = 보유 VTC × 누적 승률 (높을수록 상위)
+        </p>
+      </section>
+
+      {/* TOP 30 테이블 */}
+      <section className="mb-8">
+        <RewardsTop30Table />
+      </section>
+
+      {/* 유의사항 */}
+      <section className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3">
+        <Info className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+        <p className="text-xs font-medium text-destructive">
+          매월 마지막 날짜 기준 23:00에 MMR TOP 30의 인원을 스냅샷으로 찍어, 매월 1일 15:00에 보상 지급, 명예 배지는 개인 프로필에 표시됩니다.
+        </p>
+      </section>
     </div>
   );
 }

@@ -1,17 +1,15 @@
 "use client";
 
 /**
- * 커뮤니티 페이지 (실제 동작)
- * 
+ * 건의 페이지 (커뮤니티 축소 버전)
+ *
  * 설계 의도:
- * - 최소 클릭으로 즉시 행동 가능한 직관적 UI
- * - 2개 게시판: 자유게시판(자유/건의 카테고리), 관점 게시판
- * - 탭 전환으로 빠른 네비게이션
- * - 실시간 게시글 목록 조회 및 페이지네이션
- * 
- * 확장성:
- * - 인증 추가 시 로그인 상태에 따라 글쓰기 버튼 제어
- * - 댓글, 좋아요 기능 추가 가능
+ * - 최소 클릭으로 서비스 건의만 받을 수 있는 단일 게시판
+ * - 기존 자유/관점/실시간 베스트 구조에서 자유게시판(건의)만 사용
+ *
+ * 주의:
+ * - 관점 게시판, 실시간 베스트 기능은 MVP에서 사용하지 않아 UI에서 숨기고
+ *   관련 코드는 추후 복원을 위해 주석으로 남겨둡니다.
  */
 
 import { useState, useEffect, useCallback } from "react";
@@ -30,7 +28,8 @@ import {
 import { CreatePostDialog } from "@/components/community/CreatePostDialog";
 import type { PostListItem, PostListResponse } from "@/lib/supabase/db-types";
 
-type TabType = "free" | "perspective" | "best";
+// 관점/베스트 탭은 MVP에서 사용하지 않음. 복원 시 아래 주석을 참고하세요.
+type TabType = "free"; // | "perspective" | "best";
 
 export default function CommunityPage() {
   const router = useRouter();
@@ -51,22 +50,30 @@ export default function CommunityPage() {
     try {
       let endpoint = '';
       
-      if (activeTab === 'best') {
-        // 실시간 베스트 API
-        const params = new URLSearchParams({
-          page: page.toString(),
-          page_size: pageSize.toString(),
-        });
-        endpoint = `/api/community/posts/best?${params}`;
-      } else {
-        // 일반 게시판 API
-        const params = new URLSearchParams({
-          board_type: activeTab,
-          page: page.toString(),
-          page_size: pageSize.toString(),
-        });
-        endpoint = `/api/community/posts?${params}`;
-      }
+      // 현재는 건의 게시판(자유 board_type)만 사용.
+      // 과거 실시간 베스트 탭 로직은 아래 주석 참고.
+      //
+      // if (activeTab === 'best') {
+      //   const params = new URLSearchParams({
+      //     page: page.toString(),
+      //     page_size: pageSize.toString(),
+      //   });
+      //   endpoint = `/api/community/posts/best?${params}`;
+      // } else {
+      //   const params = new URLSearchParams({
+      //     board_type: activeTab,
+      //     page: page.toString(),
+      //     page_size: pageSize.toString(),
+      //   });
+      //   endpoint = `/api/community/posts?${params}`;
+      // }
+
+      const params = new URLSearchParams({
+        board_type: "free",
+        page: page.toString(),
+        page_size: pageSize.toString(),
+      });
+      endpoint = `/api/community/posts?${params}`;
 
       const response = await fetch(endpoint);
       
@@ -132,14 +139,14 @@ export default function CommunityPage() {
       {/* 헤더 */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-foreground sm:text-3xl">
-          커뮤니티
+          건의
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          투자자들과 소통하고 관점을 공유하세요
+          서비스 개선 아이디어와 피드백을 자유롭게 남겨주세요.
         </p>
       </div>
 
-      {/* 탭 네비게이션 */}
+      {/* 탭 네비게이션: 현재는 건의 게시판 단일 탭만 사용 */}
       <div className="mb-6 flex items-center gap-2 border-b border-border">
         <button
           type="button"
@@ -152,75 +159,39 @@ export default function CommunityPage() {
           )}
         >
           <MessageSquare className="h-4 w-4" />
-          자유게시판
-          <span className="text-xs text-muted-foreground">(자유/건의)</span>
+          건의 게시판
         </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("perspective")}
-          className={cn(
-            "flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors",
-            activeTab === "perspective"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
-        >
-          <Eye className="h-4 w-4" />
-          관점 게시판
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("best")}
-          className={cn(
-            "flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors",
-            activeTab === "best"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
-        >
-          <ThumbsUp className="h-4 w-4" />
-          실시간 베스트
-        </button>
+        {/* 
+        <button ...>관점 게시판</button>
+        <button ...>실시간 베스트</button>
+        */}
       </div>
-
       {/* 탭 컨텐츠 */}
       <div className="space-y-6">
-        {/* 글쓰기 버튼 영역 (베스트 탭에서는 숨김) */}
-        {activeTab !== "best" && (
+        {/* 글쓰기 버튼 영역 */}
+        {activeTab === "free" && (
           <div className="flex items-center justify-between rounded-lg border border-border bg-card p-4">
             <div className="flex-1">
-              {activeTab === "free" ? (
-              <>
-                <h2 className="text-lg font-semibold text-foreground">
-                  자유게시판
-                </h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  투자 이야기부터 서비스 건의까지, 자유롭게 소통하세요
-                </p>
-              </>
-            ) : (
-              <>
-                <h2 className="text-lg font-semibold text-foreground">
-                  관점 게시판
-                </h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  나만의 투자 관점과 인사이트를 공유하세요
-                </p>
-              </>
-            )}
+              <h2 className="text-lg font-semibold text-foreground">
+                건의 게시판
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                서비스 사용 중 불편했던 점이나 개선 아이디어를 남겨주세요.
+              </p>
+            </div>
+            <Button
+              size="lg"
+              className="gap-2"
+              onClick={() => setIsCreateDialogOpen(true)}
+            >
+              <PenSquare className="h-4 w-4" />
+              건의 글쓰기
+            </Button>
           </div>
-          <Button
-            size="lg"
-            className="gap-2"
-            onClick={() => setIsCreateDialogOpen(true)}
-          >
-            <PenSquare className="h-4 w-4" />
-            글쓰기
-          </Button>
-        </div>
         )}
 
-        {/* 베스트 탭 안내 */}
+        {/* 실시간 베스트 탭 설명은 MVP에서 사용하지 않음 (복원 시 아래 주석 참고) */}
+        {/*
         {activeTab === "best" && (
           <div className="rounded-lg border border-border bg-card p-4">
             <h2 className="text-lg font-semibold text-foreground">
@@ -231,6 +202,7 @@ export default function CommunityPage() {
             </p>
           </div>
         )}
+        */}
 
         {/* 게시글 목록 */}
         <div className="rounded-lg border border-border bg-card">
@@ -271,28 +243,14 @@ export default function CommunityPage() {
           {/* 빈 상태 */}
           {!isLoading && !error && posts.length === 0 && (
             <div className="flex flex-col items-center justify-center py-16 px-4">
-              <div className="rounded-full bg-muted p-4 mb-4">
-                {activeTab === "free" ? (
-                  <MessageSquare className="h-8 w-8 text-muted-foreground" />
-                ) : activeTab === "perspective" ? (
-                  <Eye className="h-8 w-8 text-muted-foreground" />
-                ) : (
-                  <ThumbsUp className="h-8 w-8 text-muted-foreground" />
-                )}
+              <div className="mb-4 rounded-full bg-muted p-4">
+                <MessageSquare className="h-8 w-8 text-muted-foreground" />
               </div>
-              <h3 className="text-lg font-semibold text-foreground mb-2">
-                {activeTab === "best" 
-                  ? "아직 베스트 게시글이 없습니다"
-                  : "첫 게시글을 작성해보세요!"
-                }
+              <h3 className="mb-2 text-lg font-semibold text-foreground">
+                아직 등록된 건의가 없습니다
               </h3>
-              <p className="text-sm text-muted-foreground text-center max-w-md">
-                {activeTab === "free" 
-                  ? "아직 작성된 게시글이 없습니다. 첫 글을 작성해주세요."
-                  : activeTab === "perspective"
-                  ? "아직 공유된 관점이 없습니다. 여러분의 인사이트를 공유해주세요."
-                  : "24시간 이내 좋아요 5개 이상 + 조회수 30회 이상인 게시글이 표시됩니다."
-                }
+              <p className="max-w-md text-center text-sm text-muted-foreground">
+                서비스에 대한 아이디어나 개선 요청을 가장 먼저 남겨보세요.
               </p>
             </div>
           )}
@@ -313,17 +271,8 @@ export default function CommunityPage() {
                         공지
                       </span>
                     )}
-                    {!post.is_pinned && activeTab === "best" && (
-                      <span className={cn(
-                        "inline-flex items-center justify-center w-12 px-1.5 py-0.5 text-xs rounded-full",
-                        post.board_type === 'free' 
-                          ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
-                          : "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300"
-                      )}>
-                        {post.board_type === 'free' ? '자유' : '관점'}
-                      </span>
-                    )}
-                    {!post.is_pinned && activeTab !== "best" && post.category && (
+                    {/* 카테고리: 건의 게시판에서는 '건의' 중심으로 사용 */}
+                    {!post.is_pinned && post.category && (
                       <span className={cn(
                         "inline-flex items-center justify-center w-12 px-1.5 py-0.5 text-xs rounded-full",
                         post.category === 'free' 
@@ -333,7 +282,7 @@ export default function CommunityPage() {
                         {post.category === 'free' ? '자유' : '건의'}
                       </span>
                     )}
-                    {!post.is_pinned && activeTab !== "best" && !post.category && (
+                    {!post.is_pinned && !post.category && (
                       <span className="inline-flex items-center justify-center w-12 px-1.5 py-0.5 text-xs rounded-full bg-muted/50 text-muted-foreground">
                         관점
                       </span>
@@ -411,18 +360,18 @@ export default function CommunityPage() {
         )}
 
         {/* 안내 카드 */}
-        <div className="rounded-lg border border-border bg-muted/30 p-4">
-          <h3 className="text-sm font-semibold text-foreground mb-2">
-            💡 커뮤니티 이용 안내
-          </h3>
-          <ul className="space-y-1 text-xs text-muted-foreground">
-            <li>• <strong>글 작성</strong>: 로그인한 회원만 글을 작성할 수 있습니다</li>
-            <li>• <strong>댓글 및 좋아요</strong>: 비회원도 가능합니다 (익명으로 표시됨)</li>
-            <li>• <strong>자유게시판</strong>: 글 작성 시 [자유] 또는 [건의] 카테고리를 선택할 수 있습니다</li>
-            <li>• <strong>관점 게시판</strong>: 시장 분석, 투자 전략 등 깊이 있는 인사이트를 공유하세요</li>
-            <li>• <strong>설문/공지</strong>: 관리자가 작성한 공지사항은 게시판 상단에 고정됩니다</li>
-          </ul>
-        </div>
+          <div className="rounded-lg border border-border bg-muted/30 p-4">
+            <h3 className="mb-2 text-sm font-semibold text-foreground">
+              💡 건의 게시판 이용 안내
+            </h3>
+            <ul className="space-y-1 text-xs text-muted-foreground">
+              <li>• <strong>글 작성</strong>: 로그인한 회원만 글을 작성할 수 있습니다</li>
+              <li>• <strong>댓글 및 좋아요</strong>: 비회원도 가능합니다 (익명으로 표시됨)</li>
+              <li>• <strong>건의 게시판</strong>: 서비스 개선 아이디어, 버그 제보, 불편 사항 등을 자유롭게 남겨주세요</li>
+              {/* <li>• <strong>관점 게시판</strong>: 시장 분석, 투자 전략 등 깊이 있는 인사이트를 공유하세요</li> */}
+              <li>• <strong>설문/공지</strong>: 관리자가 작성한 공지사항은 게시판 상단에 고정됩니다</li>
+            </ul>
+          </div>
 
         {/* 주의사항 카드 */}
         <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4">
@@ -437,8 +386,8 @@ export default function CommunityPage() {
         </div>
       </div>
 
-      {/* 게시글 작성 다이얼로그 */}
-      {activeTab !== "best" && (
+      {/* 게시글 작성 다이얼로그 (현재는 건의 게시판만 사용) */}
+      {activeTab === "free" && (
         <CreatePostDialog
           open={isCreateDialogOpen}
           onOpenChange={setIsCreateDialogOpen}

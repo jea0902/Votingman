@@ -8,7 +8,9 @@ import { NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/lib/supabase/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrCreateTodayPollByMarket } from "@/lib/sentiment/poll-server";
+import { getPreviousCandleStartAt } from "@/lib/btc-ohlc/candle-utils";
 import { getOhlcByMarketAndCandleStart } from "@/lib/btc-ohlc/repository";
+import { fetchPreviousCandleClose } from "@/lib/binance/btc-klines";
 import { SENTIMENT_MARKETS } from "@/lib/constants/sentiment-markets";
 
 const BTC_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m"] as const;
@@ -79,21 +81,24 @@ export async function GET() {
       }
     }
 
-    // 3) BTC 시장 OHLC 4개 병렬
+    // 3) BTC 시장: 목표가(이전 봉 종가) + 현재 봉 종가 병렬
     const btcOhlcPromises = polls
       .filter((p) => BTC_MARKETS.includes((p.market ?? "") as (typeof BTC_MARKETS)[number]))
-      .map((p) => {
+      .map(async (p) => {
         const market = p.market ?? "";
         const candleStartAt =
           "candle_start_at" in p && typeof p.candle_start_at === "string"
             ? p.candle_start_at
             : null;
-        if (!candleStartAt) return Promise.resolve({ market, open: null as number | null, close: null as number | null });
-        return getOhlcByMarketAndCandleStart(market, candleStartAt).then((ohlc) => ({
-          market,
-          open: ohlc?.open ?? null,
-          close: ohlc?.close ?? null,
-        }));
+        if (!candleStartAt) return { market, open: null as number | null, close: null as number | null };
+        const previousCandleStartAt = getPreviousCandleStartAt(market, candleStartAt);
+        const [prevOhlc, currentOhlc] = await Promise.all([
+          getOhlcByMarketAndCandleStart(market, previousCandleStartAt),
+          getOhlcByMarketAndCandleStart(market, candleStartAt),
+        ]);
+        let open: number | null = prevOhlc?.close ?? null;
+        if (open == null) open = await fetchPreviousCandleClose(market, candleStartAt);
+        return { market, open, close: currentOhlc?.close ?? null };
       });
     const ohlcResults = await Promise.all(btcOhlcPromises);
     const ohlcByMarket = new Map(

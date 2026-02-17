@@ -45,7 +45,7 @@ alwaysApply: true
 
 ---
 
-Always follow the instructions in plan.md. When I say "go", find the next unmarked test in plan.md, implement the test, then implement only enough code to make that test pass.
+Always follow the instructions in plan.md. Whenever working from plan.md, find the next unmarked test, implement the test, then implement only enough code to make that test pass (same as project mandatory rules—no need to say "go").
 
 # ROLE AND EXPERTISE
 

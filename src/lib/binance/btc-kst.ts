@@ -106,6 +106,26 @@ export function getTodayKstDateString(): string {
   return `${y}-${m}-${d}`;
 }
 
+/** 오늘 날짜를 UTC 기준 YYYY-MM-DD로 반환 (btc_1d Binance 정렬용) */
+export function getTodayUtcDateString(): string {
+  const now = new Date();
+  const y = now.getUTCFullYear();
+  const m = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(now.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+/** 어제 날짜를 UTC 기준 YYYY-MM-DD로 반환 (btc_1d Binance 정렬용) */
+export function getYesterdayUtcDateString(): string {
+  const now = new Date();
+  const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  date.setUTCDate(date.getUTCDate() - 1);
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(date.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
 /** KST (y,m,d) 00:00:00 의 UTC ms (해당일 00:00 KST = 전일 15:00 UTC) */

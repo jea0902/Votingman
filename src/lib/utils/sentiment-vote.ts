@@ -2,7 +2,7 @@
  * 인간 지표(데일리 투표) 관련 유틸
  *
  * 설계 의도:
- * - 1일봉(btc_1d): 당일 KST 20:30 고정 마감
+ * - 1일봉(btc_1d): 당일 KST 12:00 고정 마감 (봉 절반 = 12시간)
  * - 4h/1h/15m: 현재 봉 시작 시각 + 주기 절반에 마감 (롤링)
  * - 미국/한국 주식: 시장별 고정 시각 (KST)
  */
@@ -72,7 +72,7 @@ export function getKSTMinutesSinceMidnight(): number {
 }
 
 /**
- * 해당 시장 마감 시각(KST)까지 분 단위. 0시 = 0, 20:30 = 20*60+30.
+ * 해당 시장 마감 시각(KST)까지 분 단위. 0시 = 0, 12:00 = 12*60.
  * 롤링 시장(4h/1h/15m)에서는 사용하지 않음.
  */
 function getCloseMinutes(market: SentimentMarket): number {
@@ -108,7 +108,7 @@ export function getVotingCloseLabel(market?: string): string {
 }
 
 /** @deprecated 비트코인 단일 시장용. getVotingCloseLabel('btc') 사용 권장 */
-export const VOTING_CLOSE_LABEL = "투표 마감 시간 20:30";
+export const VOTING_CLOSE_LABEL = "투표 마감 시간 12:00";
 
 /**
  * 해당 시장 마감 시각까지 남은 밀리초. 마감 후면 0 반환.

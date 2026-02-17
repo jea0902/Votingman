@@ -14,6 +14,8 @@ import { UserInfoCard } from "@/components/home";
 
 type VoteHistoryRow = {
   poll_date: string;
+  /** 예측 대상일 표시용 (btc_1d일 때 KST 보정) */
+  poll_date_display: string;
   settled_at: string;
   market: string;
   market_label: string;
@@ -160,7 +162,7 @@ export default function ProfileStatsPage() {
                       className="rounded-lg border border-border bg-muted/20 p-4"
                     >
                       <div className="mb-3 flex items-center justify-between gap-2 border-b border-border/60 pb-2">
-                        <span className="text-xs text-muted-foreground">{formatDate(r.poll_date)}</span>
+                        <span className="text-xs text-muted-foreground">{formatDate(r.poll_date_display ?? r.poll_date)}</span>
                         <span
                           className={
                             r.result === "win"
@@ -225,7 +227,7 @@ export default function ProfileStatsPage() {
                     </thead>
                     <tbody>
                       {rows.map((r, i) => {
-                        const dateStr = formatDate(r.poll_date);
+                        const dateStr = formatDate(r.poll_date_display ?? r.poll_date);
                         const dateTimeStr = formatDateTime(r.settled_at);
                         return (
                           <tr

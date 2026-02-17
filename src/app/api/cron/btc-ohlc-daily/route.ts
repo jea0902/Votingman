@@ -11,7 +11,7 @@
 import { NextResponse } from "next/server";
 import { fetchOhlcForDailyCron } from "@/lib/binance/btc-klines";
 import {
-  getYesterdayKstDateString,
+  getYesterdayUtcDateString,
   getLastMonday00KstIso,
   getLastMonthFirst00KstIso,
   getLastJan100KstIso,
@@ -48,11 +48,11 @@ export async function GET(request: Request) {
     const rows = await fetchOhlcForDailyCron();
     const { inserted, errors } = await upsertBtcOhlcBatch(rows);
 
-    const yesterday = getYesterdayKstDateString();
+    const yesterdayUtc = getYesterdayUtcDateString();
     const settleResults: Record<string, Awaited<ReturnType<typeof settlePoll>>> = {};
 
-    // 1d: 매일 정산
-    settleResults.btc_1d = await settlePoll(yesterday, "btc_1d");
+    // 1d: 매일 정산 (UTC 00:00 기준, Binance 1d와 동일)
+    settleResults.btc_1d = await settlePoll(yesterdayUtc, "btc_1d");
 
     // 1W: 월요일만 정산 (방금 마감된 주봉)
     if (isTodayMondayKst()) {

@@ -7,11 +7,12 @@
  * - 정상: 패자 풀을 승자에게 베팅 비율 분배, 당첨자 잔액 += (원금 + 수령분) × (1 - 1% 수수료)
  */
 
+import { nowKstString } from "@/lib/kst";
 import { createSupabaseAdmin } from "@/lib/supabase/server";
 
 /** 승자 정산 금액(원금+수령분) 전체에 적용하는 수수료 비율 (0~1). 0.01 = 1% */
 const PAYOUT_FEE_RATE = 0.01;
-import { getBtc1dCandleStartAt } from "@/lib/btc-ohlc/candle-utils";
+import { getBtc1dCandleStartAtUtc } from "@/lib/btc-ohlc/candle-utils";
 import { getOhlcByMarketAndCandleStart } from "@/lib/btc-ohlc/repository";
 import type { SentimentPollRow } from "@/lib/supabase/db-types";
 
@@ -92,7 +93,7 @@ export async function settlePoll(
   const candleStartAt: string | null =
     candleStartAtParam ??
     (market === "btc_1d" && POLL_DATE_REGEX.test(pollDate)
-      ? getBtc1dCandleStartAt(pollDate)
+      ? getBtc1dCandleStartAtUtc(pollDate)
       : null);
 
   if (!candleStartAt) {
@@ -203,7 +204,7 @@ export async function settlePoll(
     }
     await admin
       .from("sentiment_polls")
-      .update({ settled_at: new Date().toISOString() })
+      .update({ settled_at: nowKstString() })
       .eq("id", pollId);
     return {
       poll_id: pollId,
@@ -246,7 +247,7 @@ export async function settlePoll(
     }
     await admin
       .from("sentiment_polls")
-      .update({ settled_at: new Date().toISOString() })
+      .update({ settled_at: nowKstString() })
       .eq("id", pollId);
     return {
       poll_id: pollId,
@@ -296,7 +297,7 @@ export async function settlePoll(
     }
     await admin
       .from("sentiment_polls")
-      .update({ settled_at: new Date().toISOString() })
+      .update({ settled_at: nowKstString() })
       .eq("id", pollId);
     return {
       poll_id: pollId,
@@ -347,7 +348,7 @@ export async function settlePoll(
 
   await admin
     .from("sentiment_polls")
-    .update({ settled_at: new Date().toISOString() })
+    .update({ settled_at: nowKstString() })
     .eq("id", pollId);
 
   return {

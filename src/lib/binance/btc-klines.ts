@@ -6,11 +6,13 @@
  */
 
 import {
+  CANDLE_PERIOD_MS,
   getCandlesForPollDate,
   getRecentCandleStartAts,
 } from "@/lib/btc-ohlc/candle-utils";
 import {
   getYesterdayKstDateString,
+  getYesterdayUtcDateString,
   getLastMonday00KstIso,
   getLastMonthFirst00KstIso,
   getLastJan100KstIso,
@@ -92,40 +94,32 @@ export async function fetchKlines(
     .filter((r): r is BtcOhlcRow => r != null);
 }
 
-/** 봉 주기(ms) - 이전 봉 종가 fallback용 */
-const CANDLE_PERIOD_MS: Record<string, number> = {
-  btc_15m: 15 * 60 * 1000,
-  btc_1h: 60 * 60 * 1000,
-  btc_4h: 4 * 60 * 60 * 1000,
-  btc_1d: 24 * 60 * 60 * 1000,
-};
-
 /**
- * 특정 봉의 시가(목표가)를 Binance에서 조회 (btc_ohlc에 없을 때 사용)
- * @param market btc_15m, btc_1h, btc_4h, btc_1d 등
- * @param candleStartAt 해당 봉 시작 시각 (UTC ISO)
- * 진행 중인 봉은 Binance가 비어 반환할 수 있어, 실패 시 이전 봉 종가(= 현재 봉 시가)로 fallback
+ * 목표가 = 이전 봉 종가. Binance에서 이전 봉(마감됨) 조회 후 close 반환.
+ * btc_ohlc에 없을 때 사용.
+ * btc_1d: Binance 1d는 UTC 자정 정렬이라 KST 00:00 봉과 불일치 → 1h 24개 집계해 마지막 봉 종가 사용.
  */
-export async function fetchOpenPriceForCandle(
+export async function fetchPreviousCandleClose(
   market: string,
-  candleStartAt: string
+  currentCandleStartAt: string
 ): Promise<number | null> {
-  const interval = MARKET_TO_INTERVAL[market];
-  if (!interval) return null;
-  const startTimeMs = new Date(candleStartAt).getTime();
-  const rows = await fetchKlines(interval, startTimeMs, 1);
-  const first = rows[0];
-  if (first && Number.isFinite(first.open)) return first.open;
-
-  // 모든 시간봉: 현재 봉이 비어 오면 이전 봉 종가(= 현재 봉 시가)로 fallback
   const periodMs = CANDLE_PERIOD_MS[market];
-  if (periodMs != null) {
-    const prevRows = await fetchKlines(interval, startTimeMs - periodMs, 1);
-    const prev = prevRows[0];
-    if (prev && Number.isFinite(prev.close)) return prev.close;
+  if (periodMs == null) return null;
+
+  if (market === "btc_1d") {
+    // btc_1d는 UTC 00:00 정렬 → Binance 1d와 동일. 이전 봉 1개 조회 후 close
+    const prevStartMs = new Date(currentCandleStartAt).getTime() - periodMs;
+    const rows = await fetchKlines("1d", prevStartMs, 1);
+    const prev = rows[0];
+    return prev && Number.isFinite(prev.close) ? prev.close : null;
   }
 
-  return null;
+  const interval = MARKET_TO_INTERVAL[market];
+  if (!interval) return null;
+  const prevStartMs = new Date(currentCandleStartAt).getTime() - periodMs;
+  const rows = await fetchKlines(interval, prevStartMs, 1);
+  const prev = rows[0];
+  return prev && Number.isFinite(prev.close) ? prev.close : null;
 }
 
 /**
@@ -174,17 +168,16 @@ export async function fetchOhlcForPollDate(
 
   if (m === "btc_1d") {
     const startMs = new Date(startAts[0]).getTime();
-    const rows = await fetchKlines("1h", startMs, 24);
-    if (rows.length < 24) return [];
-    const first = rows[0];
-    const last = rows[23];
+    const rows = await fetchKlines("1d", startMs, 1);
+    if (rows.length === 0) return [];
+    const r = rows[0];
     results.push({
       market: m,
-      candle_start_at: first.candle_start_at,
-      open: first.open,
-      close: last.close,
-      high: Math.round(Math.max(...rows.map((r) => r.high)) * 100) / 100,
-      low: Math.round(Math.min(...rows.map((r) => r.low)) * 100) / 100,
+      candle_start_at: r.candle_start_at,
+      open: r.open,
+      close: r.close,
+      high: r.high,
+      low: r.low,
     });
     return results;
   }
@@ -393,12 +386,15 @@ export async function fetch12MCandle(): Promise<BtcOhlcRow | null> {
  * (15m/1h/4h는 각각 전용 cron에서 수집하는 것이 권장됨)
  */
 export async function fetchAllMarketsOhlc(): Promise<BtcOhlcRow[]> {
-  const yesterday = getYesterdayKstDateString();
+  const yesterdayKst = getYesterdayKstDateString();
+  const yesterdayUtc = getYesterdayUtcDateString();
 
-  const kstMarkets = ["btc_1d", "btc_4h", "btc_1h", "btc_15m"] as const;
+  const day1d = await fetchOhlcForPollDate("btc_1d", yesterdayUtc);
+  const kstMarkets = ["btc_4h", "btc_1h", "btc_15m"] as const;
   const kstResults = await Promise.all(
-    kstMarkets.map((m) => fetchOhlcForPollDate(m, yesterday))
+    kstMarkets.map((m) => fetchOhlcForPollDate(m, yesterdayKst))
   );
+  const allKst = [...day1d, ...kstResults.flat()];
 
   const utcConfig: { market: string; limit: number }[] = [
     { market: "btc_1W", limit: 3 },
@@ -408,7 +404,7 @@ export async function fetchAllMarketsOhlc(): Promise<BtcOhlcRow[]> {
     utcConfig.map(({ market, limit }) => fetchLatestCandles(market, limit))
   );
 
-  const all = [...kstResults.flat(), ...utcResults.flat()];
+  const all = [...allKst, ...utcResults.flat()];
 
   const candle12M = await fetch12MCandle();
   if (candle12M) all.push(candle12M);
@@ -425,8 +421,8 @@ export async function fetchAllMarketsOhlc(): Promise<BtcOhlcRow[]> {
  * 명세: docs/btc-ohlc-1w-1m-12m-spec.md
  */
 export async function fetchOhlcForDailyCron(): Promise<BtcOhlcRow[]> {
-  const yesterday = getYesterdayKstDateString();
-  const dayResults = await fetchOhlcForPollDate("btc_1d", yesterday);
+  const yesterdayUtc = getYesterdayUtcDateString();
+  const dayResults = await fetchOhlcForPollDate("btc_1d", yesterdayUtc);
 
   const promises: Promise<BtcOhlcRow | null>[] = [];
   if (isTodayMondayKst()) promises.push(fetchBtc1wKstAligned());
