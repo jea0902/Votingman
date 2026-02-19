@@ -53,11 +53,16 @@ export async function GET() {
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
     const todayStartKst = getStartOfTodayKst();
 
-    const [activeRes, signupRes, voteRes, pageviewRes] = await Promise.all([
+    const [activeRes, todayActiveRes, signupRes, voteRes, pageviewRes] = await Promise.all([
       admin
         .from("users")
         .select("*", { count: "exact", head: true })
         .gte("last_active_at", fiveMinutesAgo)
+        .is("deleted_at", null),
+      admin
+        .from("users")
+        .select("*", { count: "exact", head: true })
+        .gte("last_active_at", todayStartKst)
         .is("deleted_at", null),
       admin
         .from("users")
@@ -80,6 +85,7 @@ export async function GET() {
       success: true,
       data: {
         activeUserCount: activeRes.count ?? 0,
+        todayActiveUserCount: todayActiveRes.count ?? 0,
         todaySignups: signupRes.count ?? 0,
         todayVotes: voteRes.count ?? 0,
         todayPageViews: pageviewRes.count ?? 0,

@@ -2,7 +2,7 @@
 yfinance 데이터 수집 스크립트
 
 목적: yfinance API로 데이터를 수집하여 Supabase Storage에 저장
-- 티커 목록 (Wikipedia)
+- 티커 목록 (GitHub: S&P 500, 나스닥 100)
 - 재무제표 (yfinance)
 - 현재가 (yfinance)
 
@@ -27,7 +27,6 @@ from tqdm import tqdm
 from dotenv import load_dotenv
 from supabase import create_client, Client
 import warnings
-import requests
 
 warnings.filterwarnings("ignore")
 
@@ -149,23 +148,15 @@ def get_sp500_tickers() -> List[str]:
 
 
 def get_nasdaq100_tickers() -> List[str]:
-    """Wikipedia에서 나스닥 100 티커 리스트 가져오기"""
+    """GitHub에서 나스닥 100 티커 리스트 가져오기"""
     try:
         print("🔍 나스닥 100 티커 리스트 가져오는 중...")
-        url = "https://en.wikipedia.org/wiki/Nasdaq-100"
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-        tables = pd.read_html(requests.get(url, headers=headers).content)
-        
-        for table in tables:
-            if "Ticker" in table.columns or "Symbol" in table.columns:
-                ticker_col = "Ticker" if "Ticker" in table.columns else "Symbol"
-                tickers = table[ticker_col].tolist()
-                tickers = [str(t).strip() for t in tickers if pd.notna(t)]
-                print(f"✅ 나스닥 100: {len(tickers)}개 종목")
-                return tickers
-        
-        print("❌ 나스닥 100 테이블을 찾을 수 없습니다.")
-        return []
+        url = "https://raw.githubusercontent.com/Gary-Strauss/NASDAQ100_Constituents/master/data/nasdaq100_constituents.csv"
+        df = pd.read_csv(url)
+        tickers = df["Ticker"].tolist()
+        tickers = [str(t).strip().replace(".", "-") for t in tickers if pd.notna(t)]
+        print(f"✅ 나스닥 100: {len(tickers)}개 종목")
+        return tickers
     except Exception as e:
         print(f"❌ 나스닥 100 가져오기 실패: {e}")
         return []

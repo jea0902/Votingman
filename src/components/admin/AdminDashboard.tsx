@@ -8,13 +8,14 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, RefreshCw, Loader2, UserPlus, Vote, Eye } from "lucide-react";
+import { Users, RefreshCw, Loader2, UserPlus, Vote, Eye, UserCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const REFRESH_INTERVAL_MS = 60_000;
 
 interface AdminStats {
   activeUserCount: number;
+  todayActiveUserCount: number;
   todaySignups: number;
   todayVotes: number;
   todayPageViews: number;
@@ -94,11 +95,17 @@ export function AdminDashboard() {
         </p>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <StatCard
           title="최근 5분 내 활성 유저 수"
           value={stats?.activeUserCount ?? null}
           icon={Users}
+          suffix="명"
+        />
+        <StatCard
+          title="오늘 누적 활성 유저 수"
+          value={stats?.todayActiveUserCount ?? null}
+          icon={UserCheck}
           suffix="명"
         />
         <StatCard
