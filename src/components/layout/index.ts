@@ -5,4 +5,6 @@
 
 export { Navbar } from "./Navbar";
 export { Footer } from "./Footer";
+export { HeartbeatProvider } from "./HeartbeatProvider";
+export { PageViewTracker } from "./PageViewTracker";
 export { TickerTape } from "./TickerTape";

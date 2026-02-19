@@ -233,29 +233,8 @@ CREATE TABLE public.buffett_result (
 COMMENT ON TABLE public.buffett_result IS '버핏 평가 결과 (UI 카드/모달용)';
 
 
--- buffett_score_detail: 버핏 평가 상세 점수 테이블
-CREATE TABLE public.buffett_score_detail (
-    run_id BIGINT NOT NULL,
-    stock_id BIGINT NOT NULL,
-    roe_score NUMERIC,                         -- ROE 점수
-    roic_score NUMERIC,                        -- ROIC 점수
-    margin_score NUMERIC,                      -- 마진 안정성 점수
-    trend_score NUMERIC,                       -- 수익성 추세 점수
-    health_score NUMERIC,                      -- 재무 건전성 점수
-    cash_score NUMERIC,                        -- 현금창출력 점수
-    avg_roe NUMERIC,
-    avg_roic NUMERIC,
-    avg_net_margin NUMERIC,
-    avg_fcf_margin NUMERIC,
-    debt_ratio NUMERIC,
-    eps_cagr NUMERIC,                          -- EPS 연평균 성장률
-    
-    CONSTRAINT buffett_score_detail_pkey PRIMARY KEY (run_id, stock_id),
-    CONSTRAINT buffett_score_detail_fkey FOREIGN KEY (run_id, stock_id) 
-        REFERENCES public.buffett_result(run_id, stock_id) ON DELETE CASCADE
-);
-
-COMMENT ON TABLE public.buffett_score_detail IS '버핏 평가 상세 점수 및 지표';
+-- buffett_score_detail: 삭제됨 (015_drop_buffett_score_detail.sql)
+-- 미사용 테이블, 코드 내 참조 없음
 
 
 -- latest_price: 일간 최신 종가 테이블
@@ -327,12 +306,11 @@ CREATE INDEX idx_index_membership_code ON public.index_membership(index_code, ef
 │     ├── board_comment_likes  댓글 좋아요                                │
 │     └── board_bookmarks      북마크(스크랩)                             │
 ├─────────────────────────────────────────────────────────────────────────┤
-│  3. 버핏 원픽 (5개)                                                      │
+│  3. 버핏 원픽 (4개)                                                      │
 │     ├── stocks               주식 마스터                                │
 │     ├── index_membership     지수 편입 이력                             │
 │     ├── buffett_run          평가 실행 스냅샷                           │
 │     ├── buffett_result       평가 결과                                  │
-│     ├── buffett_score_detail 상세 점수                                  │
 │     └── latest_price         최신 종가                                  │
 ├─────────────────────────────────────────────────────────────────────────┤
 │  4. 모의 거래 (1개)                                                      │
@@ -354,6 +332,4 @@ CREATE INDEX idx_index_membership_code ON public.index_membership(index_code, ef
     stocks ──┬── index_membership
              ├── latest_price
              └── buffett_result ◄── buffett_run
-                      │
-                      └── buffett_score_detail
 */

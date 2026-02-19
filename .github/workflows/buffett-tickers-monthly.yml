@@ -1,0 +1,31 @@
+# 버핏 원픽: 월 1회 S&P500·나스닥100 티커 목록 수집
+# Schedule: 매월 1일 KST 05:30 (전날 20:30 UTC)
+name: Buffett Tickers (월 1회)
+
+on:
+  schedule:
+    - cron: "30 20 31 1,3,5,7,8,10,12 *"
+    - cron: "30 20 30 4,6,9,11 *"
+    - cron: "30 20 29 2 *"
+    - cron: "30 20 28 2 *"
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r public/scripts/requirements.txt
+
+      - name: Run tickers (티커 목록 수집)
+        working-directory: public/scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python yf_data_collect.py --mode tickers
