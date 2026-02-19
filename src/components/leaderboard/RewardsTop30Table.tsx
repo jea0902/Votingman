@@ -100,7 +100,7 @@ export function RewardsTop30Table({ className }: { className?: string }) {
                             <Medal
                               className={cn(
                                 "h-4 w-4 shrink-0",
-                                item.rank === 1 && "text-amber-400",
+                                item.rank === 1 && "text-amber-700 dark:text-amber-400",
                                 item.rank === 2 && "text-slate-400",
                                 item.rank === 3 && "text-amber-700"
                               )}
@@ -137,7 +137,7 @@ export function RewardsTop30Table({ className }: { className?: string }) {
                       <td className="py-2.5">
                         <span className="inline-flex flex-wrap items-center gap-1.5">
                           {item.rank <= 10 && (
-                            <span className="inline-flex items-center gap-1 rounded bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400">
+                            <span className="inline-flex items-center gap-1 rounded bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
                               <Gift className="h-3.5 w-3.5" />
                               선물하기 3만원권
                             </span>

@@ -77,7 +77,7 @@ export default function VerifiedStrategiesPage() {
           <h1 className="mb-4 text-5xl font-bold tracking-tight text-[#3b82f6] sm:text-6xl lg:text-7xl">
             실효적 데이터/통계로 검증된 코인 매매법
           </h1>
-          <p className="text-xl font-medium text-[#fbbf24] sm:text-2xl lg:text-3xl">
+          <p className="text-xl font-medium text-amber-700 dark:text-[#fbbf24] sm:text-2xl lg:text-3xl">
             감정 대신 수학적 통계로 투자하세요!
             <br />
             유효한 지표들로 백테스팅이 끝난 전략을 떠먹여 드립니다

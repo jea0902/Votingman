@@ -107,8 +107,16 @@ export async function fetchPreviousCandleClose(
   if (periodMs == null) return null;
 
   if (market === "btc_1d") {
-    // btc_1d는 UTC 00:00 정렬 → Binance 1d와 동일. 이전 봉 1개 조회 후 close
-    const prevStartMs = new Date(currentCandleStartAt).getTime() - periodMs;
+    const d = new Date(currentCandleStartAt);
+    const isKstMidnight = d.getUTCHours() === 15 && d.getUTCMinutes() === 0;
+    if (isKstMidnight) {
+      // KST 00:00 봉: 이전 봉 = 24h 전 15:00 UTC. 1h 24개 집계 후 마지막 봉 종가
+      const prevStartMs = d.getTime() - periodMs;
+      const rows = await fetchKlines("1h", prevStartMs, 24);
+      const last = rows[rows.length - 1];
+      return last && Number.isFinite(last.close) ? last.close : null;
+    }
+    const prevStartMs = d.getTime() - periodMs;
     const rows = await fetchKlines("1d", prevStartMs, 1);
     const prev = rows[0];
     return prev && Number.isFinite(prev.close) ? prev.close : null;
@@ -120,6 +128,21 @@ export async function fetchPreviousCandleClose(
   const rows = await fetchKlines(interval, prevStartMs, 1);
   const prev = rows[0];
   return prev && Number.isFinite(prev.close) ? prev.close : null;
+}
+
+/**
+ * btc_1d KST 00:00 봉의 현재 종가 (진행 중 봉). 1h 24개 조회 후 마지막 봉 close.
+ * btc_ohlc에 없을 때 poll API에서 사용.
+ */
+export async function fetchCurrentCandleCloseForBtc1dKst(
+  candleStartAt: string
+): Promise<number | null> {
+  const d = new Date(candleStartAt);
+  if (d.getUTCHours() !== 15 || d.getUTCMinutes() !== 0) return null;
+  const startMs = d.getTime();
+  const rows = await fetchKlines("1h", startMs, 24);
+  const last = rows[rows.length - 1];
+  return last && Number.isFinite(last.close) ? last.close : null;
 }
 
 /**

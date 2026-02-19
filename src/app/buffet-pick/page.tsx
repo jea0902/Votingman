@@ -172,7 +172,7 @@ export default async function BuffetPickPage() {
           <h1 className="mb-4 text-5xl font-bold tracking-tight text-[#3b82f6] sm:text-6xl lg:text-7xl">
             워렌 버핏 기준 통과 종목과 적정가
           </h1>
-          <p className="text-xl font-medium text-[#fbbf24] sm:text-2xl lg:text-3xl">
+          <p className="text-xl font-medium text-amber-700 dark:text-[#fbbf24] sm:text-2xl lg:text-3xl">
             감정 대신 숫자로 투자하세요.<br />
             바로 저평가 우량주를 떠먹여 드립니다
           </p>
@@ -187,7 +187,7 @@ export default async function BuffetPickPage() {
               <br />
               <span className="font-bold">85점 이상</span>만 우량주로 평가되어 아래에 표시됩니다.
             </p>
-            <p className="text-amber-400/80">
+            <p className="text-amber-700 dark:text-amber-400/80">
               💡 각 카드를 클릭하면 구체적인 버핏의 평가 이유를 확인할 수 있습니다.
             </p>
           </div>
@@ -199,7 +199,7 @@ export default async function BuffetPickPage() {
             {/* 저평가 우량주 섹션 */}
             {undervaluedResults.length > 0 && (
               <div className="mb-12">
-                <h2 className="mb-6 text-2xl font-bold text-amber-400">
+                <h2 className="mb-6 text-2xl font-bold text-amber-700 dark:text-amber-400">
                   🔥 저평가 우량주 ({undervaluedResults.length}개)
                   <span className="ml-3 text-sm font-normal text-muted-foreground">
                     워렌 버핏보다 20% 더 보수적으로 적정가(5년 내 도달 가능한 가격)를 산정

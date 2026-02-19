@@ -105,11 +105,19 @@ export function Navbar() {
             className="flex items-center gap-2 font-semibold text-foreground transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-sm shrink-0"
           >
             <Image
-              src="/images/logo3.png"
+              src="/images/logo-light.png"
               alt="보팅맨 로고"
               width={160}
               height={56}
-              className="h-12 w-auto object-contain sm:h-14"
+              className="h-12 w-auto object-contain sm:h-14 dark:hidden"
+              priority
+            />
+            <Image
+              src="/images/logo-dark.png"
+              alt="보팅맨 로고"
+              width={160}
+              height={56}
+              className="hidden h-12 w-auto object-contain sm:h-14 dark:block"
               priority
             />
           </Link>
@@ -186,10 +194,10 @@ export function Navbar() {
                   </span>
                 </Link>
                 <Link href="/signup">
-                  <span className="inline-flex items-center justify-center gap-1.5 rounded-lg border-2 border-[#fbbf24] bg-[#fbbf24]/15 px-2 py-1.5 sm:px-3 sm:py-2 text-sm font-semibold text-[#fbbf24] transition-colors hover:bg-[#fbbf24]/25">
+                  <span className="inline-flex items-center justify-center gap-1.5 rounded-lg border-2 border-amber-600 dark:border-[#fbbf24] bg-amber-100 dark:bg-[#fbbf24]/15 px-2 py-1.5 sm:px-3 sm:py-2 text-sm font-semibold text-amber-800 dark:text-[#fbbf24] transition-colors hover:bg-amber-200 dark:hover:bg-[#fbbf24]/25">
                     <UserPlus className="h-4 w-4 shrink-0" />
                     <span className="hidden sm:inline">회원가입</span>
-                    <span className="hidden rounded bg-[#fbbf24]/20 px-1.5 py-0.5 text-xs font-medium sm:inline">+10,000 VTC</span>
+                    <span className="hidden rounded bg-amber-200 dark:bg-[#fbbf24]/20 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:text-[#fbbf24] sm:inline">+10,000 VTC</span>
                   </span>
                 </Link>
               </>

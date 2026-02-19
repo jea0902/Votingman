@@ -8,7 +8,7 @@
  * - 하단: 관련 시장 링크
  */
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/dialog";
 import type { SentimentMarket } from "@/lib/constants/sentiment-markets";
 import type { PollData } from "@/components/home/MarketVoteCard";
+import type { TodayResultItem } from "@/app/api/sentiment/polls/today-results/route";
 
 const PERCENT_BUTTONS = [10, 25, 50, 75, 100] as const;
 const MIN_BET = 10;
@@ -79,12 +80,40 @@ export default function PredictMarketPage() {
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
   const [confirmingChoice, setConfirmingChoice] = useState<"long" | "short" | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [todayResults, setTodayResults] = useState<TodayResultItem[]>([]);
+  const [todayResultsLoading, setTodayResultsLoading] = useState(false);
+  const [todayResultsExpanded, setTodayResultsExpanded] = useState(false);
+  const [todayResultsMaxVisible, setTodayResultsMaxVisible] = useState(5);
+  const todayResultsContainerRef = useRef<HTMLDivElement>(null);
+  const [, setTick] = useState(0);
+  const prevVoteOpenRef = useRef<boolean | null>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const voteOpen = useMemo(() => isVotingOpenKST(market), [market]);
+  /** 1초마다 리렌더 → voteOpen/마감 문구가 정산·다음 투표 시각에 맞게 자동 전환 */
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  /** 당일 결과 박스: 한 줄에 넘치지 않게 보여줄 개수 계산 (아이템 40px + gap 8px = 48px) */
+  useEffect(() => {
+    const el = todayResultsContainerRef.current;
+    if (!el || todayResults.length === 0) return;
+    const update = () => {
+      const w = el.clientWidth;
+      const count = Math.max(1, Math.floor(w / 48));
+      setTodayResultsMaxVisible(count);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [todayResults.length]);
+
+  const voteOpen = isVotingOpenKST(market);
   const title = CARD_TITLE[market] ?? `${MARKET_LABEL[market]} 상승/하락`;
 
   const refetchUser = useCallback(async () => {
@@ -163,9 +192,53 @@ export default function PredictMarketPage() {
     };
   }, [isBtcMarket]);
 
+  /** 당일(KST) 정산된 폴 결과 (btc 시장만) */
+  useEffect(() => {
+    if (!isBtcMarket) return;
+    let cancelled = false;
+    setTodayResultsLoading(true);
+    fetch(`/api/sentiment/polls/today-results?market=${market}`)
+      .then((res) => res.json())
+      .then((json) => {
+        if (cancelled) return;
+        if (json?.success && Array.isArray(json?.data?.results)) {
+          setTodayResults(json.data.results);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setTodayResultsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [market, isBtcMarket]);
+
   useEffect(() => {
     fetchPoll();
   }, [fetchPoll]);
+
+  /** 마감↔오픈 전환 시 폴 재조회(새 round 데이터 반영) */
+  useEffect(() => {
+    if (prevVoteOpenRef.current === null) {
+      prevVoteOpenRef.current = voteOpen;
+      return;
+    }
+    if (prevVoteOpenRef.current !== voteOpen) {
+      prevVoteOpenRef.current = voteOpen;
+      fetchPoll();
+      if (voteOpen && isBtcMarket) {
+        setTodayResultsLoading(true);
+        fetch(`/api/sentiment/polls/today-results?market=${market}`)
+          .then((res) => res.json())
+          .then((json) => {
+            if (json?.success && Array.isArray(json?.data?.results)) {
+              setTodayResults(json.data.results);
+            }
+          })
+          .finally(() => setTodayResultsLoading(false));
+      }
+    }
+  }, [voteOpen, fetchPoll, market, isBtcMarket]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -298,12 +371,12 @@ export default function PredictMarketPage() {
                   height={28}
                   className="shrink-0"
                 />
-                <span className="text-sm font-bold text-amber-500">
+                <span className="text-sm font-bold text-amber-700 dark:text-amber-500">
                   {timeframeLabels[market] ?? market}
                 </span>
               </div>
             ) : (
-              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/20 text-xl font-bold text-amber-500">
+              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/20 text-xl font-bold text-amber-700 dark:text-amber-500">
                 {market.toUpperCase()}
               </span>
             )}
@@ -348,7 +421,7 @@ export default function PredictMarketPage() {
               <p className="text-xs font-medium uppercase text-muted-foreground">
                 현재가
               </p>
-              <p className="mt-1 text-lg font-bold text-amber-500">
+              <p className="mt-1 text-lg font-bold text-amber-700 dark:text-amber-500">
                 {currentPrice != null
                   ? `$${currentPrice.toLocaleString(FIXED_LOCALE, {
                       minimumFractionDigits: 2,
@@ -376,13 +449,74 @@ export default function PredictMarketPage() {
               </div>
             )}
           </div>
+
+          {isBtcMarket && (
+            <div
+              ref={todayResultsContainerRef}
+              className="rounded-lg border border-border bg-card p-4"
+            >
+              <p className="mb-2 text-xs text-muted-foreground">
+                당일 결과 · 왼쪽일수록 최신
+              </p>
+              {todayResultsLoading ? (
+                <p className="text-sm text-muted-foreground">불러오는 중…</p>
+              ) : todayResults.length === 0 ? (
+                <p className="text-sm text-muted-foreground">오늘 정산된 결과가 없습니다.</p>
+              ) : (
+                <>
+                  <div
+                    className={`flex gap-2 ${todayResultsExpanded ? "overflow-x-auto scrollbar-hide pb-1" : ""}`}
+                    style={todayResultsExpanded ? { flexWrap: "nowrap" } : undefined}
+                  >
+                    {(todayResultsExpanded
+                      ? todayResults
+                      : todayResults.slice(0, todayResultsMaxVisible)
+                    ).map(
+                      (r) => (
+                        <div
+                          key={r.candle_start_at}
+                          className="flex shrink-0 items-center justify-center rounded-full border border-border w-10 h-10 text-lg"
+                          style={{
+                            backgroundColor:
+                              r.outcome === "long"
+                                ? "rgba(52, 211, 153, 0.2)"
+                                : r.outcome === "short"
+                                  ? "rgba(251, 113, 133, 0.2)"
+                                  : "rgba(148, 163, 184, 0.2)",
+                            color:
+                              r.outcome === "long"
+                                ? "rgb(52, 211, 153)"
+                                : r.outcome === "short"
+                                  ? "rgb(251, 113, 133)"
+                                  : "rgb(148, 163, 184)",
+                          }}
+                          title={r.outcome === "long" ? "상승" : r.outcome === "short" ? "하락" : "동일가"}
+                        >
+                          {r.outcome === "long" ? "▲" : r.outcome === "short" ? "▼" : "−"}
+                        </div>
+                      )
+                    )}
+                  </div>
+                  {todayResults.length > todayResultsMaxVisible && !todayResultsExpanded && (
+                    <button
+                      type="button"
+                      onClick={() => setTodayResultsExpanded(true)}
+                      className="mt-2 text-sm font-medium text-amber-700 dark:text-amber-500 hover:underline"
+                    >
+                      더보기
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         {/* 2) 배팅 박스 (모바일: 차트 바로 아래, lg: 오른쪽) */}
         <div className="order-2 space-y-6">
           {!voteOpen && mounted && (
             <div className="rounded-xl border-2 border-amber-500/40 bg-amber-500/10 p-4 text-center">
-              <p className="text-base font-semibold text-amber-500">
+              <p className="text-base font-semibold text-amber-700 dark:text-amber-500">
                 이 투표는 마감되었습니다.
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -393,7 +527,7 @@ export default function PredictMarketPage() {
           <div className="rounded-xl border border-border bg-card p-5">
             <p className="mb-4 text-sm font-medium text-foreground">
               잔액 :{" "}
-              <span className="font-semibold text-amber-500">
+              <span className="font-semibold text-amber-700 dark:text-amber-500">
                 {(user?.voting_coin_balance ?? 0).toLocaleString(FIXED_LOCALE)} VTC
               </span>
             </p>
@@ -489,8 +623,8 @@ export default function PredictMarketPage() {
             )}
 
             {!user && (
-              <p className="mt-4 text-center text-sm text-muted-foreground">
-                <Link href="/login" className="text-primary hover:underline">
+              <p className="mt-4 text-center text-sm text-destructive">
+                <Link href="/login" className="text-destructive hover:underline font-semibold">
                   로그인
                 </Link>
                 {" 후 배팅할 수 있습니다."}
@@ -504,7 +638,7 @@ export default function PredictMarketPage() {
             )}
 
             {myBetAmount > 0 && vote && (
-              <p className="mt-4 whitespace-pre-line text-center text-sm font-semibold text-amber-500">
+              <p className="mt-4 whitespace-pre-line text-center text-sm font-semibold text-amber-700 dark:text-amber-500">
                 {`${vote === "long" ? "롱" : "숏"} ${myBetAmount.toLocaleString(FIXED_LOCALE)} VTC 투표 확정.\n추가 투표는 같은 선택으로만 가능`}
               </p>
             )}

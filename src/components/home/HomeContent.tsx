@@ -24,7 +24,7 @@ export function HomeContent() {
             <h1 className="mb-2 text-2xl font-bold tracking-tight text-[#3b82f6] sm:text-3xl lg:text-4xl">
               예측 시장 플랫폼
             </h1>
-            <p className="text-base font-medium text-[#fbbf24] sm:text-lg lg:text-xl">
+            <p className="text-base font-medium text-amber-700 dark:text-[#fbbf24] sm:text-lg lg:text-xl">
               말이 아닌 돈으로 예측하는 진짜 시장의 방향
             </p>
           </div>

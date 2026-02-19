@@ -137,10 +137,10 @@ export function UserInfoCard() {
             </Link>
             <Link
               href="/signup"
-              className="flex flex-col items-center justify-center gap-0.5 rounded-lg border-2 border-[#fbbf24] bg-[#fbbf24]/10 px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-[#fbbf24]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex flex-col items-center justify-center gap-0.5 rounded-lg border-2 border-amber-600 dark:border-[#fbbf24] bg-amber-50 dark:bg-[#fbbf24]/10 px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-amber-100 dark:hover:bg-[#fbbf24]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <span>3초 회원가입</span>
-              <span className="text-xs font-semibold text-[#fbbf24]">10,000 VTC 지급</span>
+              <span className="text-xs font-semibold text-amber-800 dark:text-[#fbbf24]">10,000 VTC 지급</span>
             </Link>
           </div>
         </>
@@ -165,7 +165,7 @@ export function UserInfoCard() {
                 {rep ? `${rep.season_win_count}승 ${Math.max(0, rep.season_total_count - rep.season_win_count)}패` : "—"}
               </span>
             </div>
-            <span className="text-[10px] font-semibold text-amber-500 lg:text-xs">
+            <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-500 lg:text-xs">
               가용 코인 수 : {user?.voting_coin_balance != null ? `${user.voting_coin_balance.toLocaleString()} VTC` : "—"}
             </span>
             <div className="w-fit min-w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-center">

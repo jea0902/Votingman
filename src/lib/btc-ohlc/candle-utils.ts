@@ -262,13 +262,8 @@ export function getCurrentCandleStartAt(market: string): string {
 
   const mNorm = market === "btc" ? "btc_1d" : market;
   switch (mNorm) {
-    case "btc_1d": {
-      const utc = new Date();
-      const uy = utc.getUTCFullYear();
-      const um = String(utc.getUTCMonth() + 1).padStart(2, "0");
-      const ud = String(utc.getUTCDate()).padStart(2, "0");
-      return getBtc1dCandleStartAtUtc(`${uy}-${um}-${ud}`);
-    }
+    case "btc_1d":
+      return getBtc1dCandleStartAt(dateStr);
     case "btc_4h": {
       const slot = Math.floor(h / 4) * 4;
       return getBtc4hCandleStartAt(dateStr, slot / 4);
