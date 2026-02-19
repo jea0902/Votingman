@@ -161,6 +161,16 @@ body {
   scrollbar-color: var(--border) var(--muted);
 }
 
+/* 네비 탭 가로 스크롤: 스크롤바 숨김, 터치 스와이프 지원 */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 /* --------------------------------------------------------------------------
  * 랜딩 페이지 애니메이션
  * -------------------------------------------------------------------------- */
