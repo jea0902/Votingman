@@ -1,0 +1,32 @@
+# 버핏 원픽: 연 1회 재무제표 수집
+# Schedule: 매년 1월 2일 KST 02:00 (1월 1일 17:00 UTC)
+name: Buffett Financials (연 1회)
+
+on:
+  schedule:
+    - cron: "0 17 1 1 *"
+  workflow_dispatch: # 수동 실행용
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -r public/scripts/requirements.txt
+
+      - name: Run financials (재무제표 수집)
+        working-directory: public/scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          python yf_data_collect.py --mode financials
