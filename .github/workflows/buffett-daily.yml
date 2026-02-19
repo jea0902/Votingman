@@ -1,0 +1,42 @@
+# 버핏 원픽: 매일 현재가 수집 + 평가 실행
+# Schedule: 매일 KST 06:00 (UTC 21:00 전날)
+# - prices 수집 후 result full 실행
+name: Buffett Daily (prices + result)
+
+on:
+  schedule:
+    # 매일 21:00 UTC = KST 06:00
+    - cron: "0 21 * * *"
+  workflow_dispatch: # 수동 실행용
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -r public/scripts/requirements.txt
+
+      - name: Run prices (현재가 수집)
+        working-directory: public/scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          python yf_data_collect.py --mode prices
+
+      - name: Run result full (평가 실행)
+        working-directory: public/scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          python yf_result.py --mode full

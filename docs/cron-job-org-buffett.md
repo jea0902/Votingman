@@ -1,5 +1,8 @@
 # cron-job.org — 버핏 원픽 자동 실행 설정
 
+> **Vercel만 사용 중이라면**: cron-job.org 대신 **GitHub Actions** 사용을 권장합니다.  
+> → [docs/github-actions-buffett.md](./github-actions-buffett.md) 참고 (PC/서버 없이 GitHub에서 자동 실행)
+
 버핏 원픽 데이터 수집·평가를 **cron-job.org**에서 URL 호출로 실행하는 방법입니다.
 
 ## 전제
