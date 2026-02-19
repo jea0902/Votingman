@@ -1,0 +1,100 @@
+/* Hero.module.css
+ * 랜딩 히어로 전용 스타일.
+ * - 애니메이션과 배경/파티클/그리드 모두 여기에서만 관리
+ * - globals.css에는 전역 변수/폰트/리셋만 남기는 방향
+ */
+
+/* ── 애니메이션 키프레임 ── */
+@keyframes landing-fade-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes landing-fade-down {
+  from { opacity: 0; transform: translateY(-16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes landing-shimmer {
+  0% { background-position: 0% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes landing-aurora {
+  from { opacity: 0.6; transform: translateX(-50%) scale(1); }
+  to { opacity: 1; transform: translateX(-50%) scale(1.08); }
+}
+
+@keyframes landing-aurora-2 {
+  from { opacity: 0.5; transform: scale(1) translate(0, 0); }
+  to { opacity: 0.9; transform: scale(1.1) translate(-20px, -20px); }
+}
+
+@keyframes landing-particle {
+  0% { transform: translateY(0) scale(1); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 0.8; }
+  100% { transform: translateY(-120vh) scale(0.5); opacity: 0; }
+}
+
+@keyframes landing-scroll-wheel {
+  0% { opacity: 1; transform: translateY(0); }
+  80% { opacity: 0; transform: translateY(12px); }
+  100% { opacity: 0; transform: translateY(0); }
+}
+
+/* 스크롤 힌트 막대: 클래스로 적용해야 CSS Module이 키프레임 이름을 올바르게 연결함 (인라인 style은 해시된 이름을 못 찾음) */
+.scrollWheel {
+  animation: landing-scroll-wheel 1.8s ease infinite;
+}
+
+@keyframes landing-glow-pulse {
+  0%, 100% { opacity: 0.4; height: 120px; }
+  50% { height: 160px; opacity: 1; }
+}
+
+@keyframes landing-live-pip {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.3); }
+  50% { box-shadow: 0 0 0 5px rgba(52, 211, 153, 0); }
+}
+
+/* ── 배경 레이어 ── */
+.heroBgBase {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(37, 99, 235, 0.28) 0%, transparent 65%),
+    radial-gradient(ellipse 60% 40% at 80% 80%, rgba(6, 182, 212, 0.12) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 40% at 10% 70%, rgba(29, 78, 216, 0.15) 0%, transparent 60%),
+    linear-gradient(180deg, #0a0f1e 0%, #030712 100%);
+}
+
+.heroNoise {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  opacity: 0.4;
+}
+
+.heroGrid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.032) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.032) 1px, transparent 1px);
+  background-size: 72px 72px;
+  -webkit-mask-image: radial-gradient(ellipse 90% 80% at 50% 40%, black 30%, transparent 80%);
+  mask-image: radial-gradient(ellipse 90% 80% at 50% 40%, black 30%, transparent 80%);
+}
+
+/* 헤드라인 그라디언트 텍스트 */
+.headlineGradient {
+  background: linear-gradient(100deg, #ffffff 0%, #60a5fa 35%, #38bdf8 60%, #ffffff 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: landing-shimmer 4s linear infinite;
+}
+
+/* 파티클 점들 */
+.particle {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(96, 165, 250, 0.7), transparent);
+  animation: landing-particle linear infinite;
+}

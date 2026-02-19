@@ -11,7 +11,10 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrCreateTodayPollByMarket } from "@/lib/sentiment/poll-server";
 import { getPreviousCandleStartAt } from "@/lib/btc-ohlc/candle-utils";
 import { getOhlcByMarketAndCandleStart } from "@/lib/btc-ohlc/repository";
-import { fetchPreviousCandleClose } from "@/lib/binance/btc-klines";
+import {
+  fetchPreviousCandleClose,
+  fetchCurrentCandleCloseForBtc1dKst,
+} from "@/lib/binance/btc-klines";
 import { isSentimentMarket } from "@/lib/constants/sentiment-markets";
 
 const BTC_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m"] as const;
@@ -54,7 +57,15 @@ export async function GET(request: NextRequest) {
       }
       // 종가 = 현재 봉 종가 (봉 마감 후 크론이 넣은 뒤에만 존재)
       const currentOhlc = await getOhlcByMarketAndCandleStart(market, candleStartAt);
-      if (currentOhlc) price_close = currentOhlc.close;
+      if (currentOhlc) {
+        price_close = currentOhlc.close;
+      } else if (market === "btc_1d") {
+        try {
+          price_close = await fetchCurrentCandleCloseForBtc1dKst(candleStartAt);
+        } catch (e) {
+          console.error("[sentiment/poll] fetchCurrentCandleCloseForBtc1dKst error:", e);
+        }
+      }
     }
 
     let myVote: { choice: "long" | "short"; bet_amount: number } | null = null;

@@ -659,7 +659,7 @@ export function BuffettCard({ result }: BuffettCardProps) {
               {result.ticker ?? "N/A"}
             </h3>
             {koreanName && (
-              <span className="text-sm font-medium text-amber-300">
+              <span className="text-sm font-medium text-amber-700 dark:text-amber-300">
                 {koreanName}
               </span>
             )}
@@ -701,7 +701,7 @@ export function BuffettCard({ result }: BuffettCardProps) {
               className={cn(
                 "text-xl font-bold",
                 isUndervalued
-                  ? "text-amber-400"
+                  ? "text-amber-700 dark:text-amber-400"
                   : isPassed
                     ? "text-red-400"
                     : "text-gray-400"
@@ -714,7 +714,7 @@ export function BuffettCard({ result }: BuffettCardProps) {
             <p className="text-[10px] font-semibold text-muted-foreground">
               신뢰등급
             </p>
-            <p className="text-sm text-yellow-400">
+            <p className="text-sm text-amber-700 dark:text-yellow-400">
               {result.trust_grade_stars ?? "☆☆☆☆☆"}
             </p>
           </div>
@@ -733,7 +733,7 @@ export function BuffettCard({ result }: BuffettCardProps) {
             <p
               className={cn(
                 "text-sm font-semibold",
-                isUndervalued ? "text-amber-400" : "text-foreground"
+                isUndervalued ? "text-amber-700 dark:text-amber-400" : "text-foreground"
               )}
             >
               {formatPrice(result.intrinsic_value)}
@@ -809,7 +809,7 @@ export function BuffettCard({ result }: BuffettCardProps) {
                   {result.ticker}
                 </h2>
                 {koreanName && (
-                  <span className="text-lg font-medium text-amber-300">
+                  <span className="text-lg font-medium text-amber-700 dark:text-amber-300">
                     {koreanName}
                   </span>
                 )}
@@ -845,7 +845,7 @@ export function BuffettCard({ result }: BuffettCardProps) {
                   className={cn(
                     "text-2xl font-bold",
                     isUndervalued
-                      ? "text-amber-400"
+                      ? "text-amber-700 dark:text-amber-400"
                       : isPassed
                         ? "text-red-400"
                         : "text-gray-400"
@@ -865,7 +865,7 @@ export function BuffettCard({ result }: BuffettCardProps) {
                 <p
                   className={cn(
                     "text-lg font-semibold",
-                    isUndervalued ? "text-amber-400" : "text-foreground"
+                    isUndervalued ? "text-amber-700 dark:text-amber-400" : "text-foreground"
                   )}
                 >
                   {formatPrice(result.intrinsic_value)}
@@ -889,7 +889,7 @@ export function BuffettCard({ result }: BuffettCardProps) {
             {/* 신뢰등급 */}
             <div className="mb-6 flex items-center justify-between rounded-lg bg-background/20 p-3">
               <div className="flex items-center gap-3">
-                <span className="text-xl text-yellow-400">
+                <span className="text-xl text-amber-700 dark:text-yellow-400">
                   {result.trust_grade_stars}
                 </span>
                 <span className="text-sm text-muted-foreground">
@@ -911,7 +911,7 @@ export function BuffettCard({ result }: BuffettCardProps) {
                     {passData.highlights.map((h, i) => (
                       <span
                         key={i}
-                        className="rounded-full bg-amber-500/20 px-3 py-1 text-xs font-medium text-amber-300"
+                        className="rounded-full bg-amber-500/20 px-3 py-1 text-xs font-medium text-amber-700 dark:text-amber-300"
                       >
                         💡 {h}
                       </span>
@@ -1139,7 +1139,7 @@ function MetricRow({
       {/* 확장 내용 */}
       {isExpanded && (
         <div className="mt-3 border-t border-gray-700/50 pt-3">
-          <p className="mb-2 text-xs text-amber-300/80">{metric.fullName}</p>
+          <p className="mb-2 text-xs text-amber-700 dark:text-amber-300/80">{metric.fullName}</p>
           <p className="mb-3 text-xs text-muted-foreground">
             {metric.description}
           </p>

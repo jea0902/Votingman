@@ -47,7 +47,7 @@ function RankerCard({ ranker }: { ranker: BitmexRankerItem }) {
         <span
           className={cn(
             "shrink-0 text-xs font-medium tabular-nums",
-            ranker.rank === 1 && "text-amber-400",
+            ranker.rank === 1 && "text-amber-700 dark:text-amber-400",
             ranker.rank === 2 && "text-slate-400",
             ranker.rank === 3 && "text-amber-700",
             ranker.rank > 3 && "text-muted-foreground"

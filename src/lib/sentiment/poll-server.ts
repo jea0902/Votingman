@@ -5,7 +5,7 @@
  */
 
 import { createSupabaseAdmin } from "@/lib/supabase/server";
-import { getTodayKstDateString, getTodayUtcDateString } from "@/lib/binance/btc-kst";
+import { getTodayKstDateString } from "@/lib/binance/btc-kst";
 import {
   getBtc1dCandleStartAt,
   getCurrentCandleStartAt,
@@ -31,12 +31,10 @@ export async function getOrCreateTodayPollByMarket(
 ): Promise<TodayPollResult> {
   const m: SentimentMarket = isSentimentMarket(market) ? market : "btc_1d";
   const todayKst = getTodayKstDateString();
-  const todayUtc = getTodayUtcDateString();
   const candleStartAt = BTC_MARKETS.includes(m as (typeof BTC_MARKETS)[number])
     ? getCurrentCandleStartAt(m)
     : getBtc1dCandleStartAt(todayKst); // ndq 등: KST 일봉 기준
-  const today = m === "btc_1d" ? todayUtc : todayKst;
-  return getOrCreatePollByMarketAndCandleStartAt(m, candleStartAt, today);
+  return getOrCreatePollByMarketAndCandleStartAt(m, candleStartAt, todayKst);
 }
 
 /**

@@ -43,8 +43,8 @@ const colorThemes = {
     shadow: "shadow-amber-500/20",
     divider: "bg-amber-500/30",
     badge: "bg-amber-500 text-black",
-    label: "bg-amber-500/20 text-amber-300",
-    value: "text-amber-400",
+    label: "bg-amber-500/20 text-amber-700 dark:text-amber-300",
+    value: "text-amber-700 dark:text-amber-400",
   },
   green: {
     border: "border-green-500/50",

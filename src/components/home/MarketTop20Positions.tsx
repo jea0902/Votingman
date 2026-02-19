@@ -57,7 +57,7 @@ function PositionsSection({ rows }: { rows: PositionRow[] }) {
                 <Medal
                   className={cn(
                     "h-3.5 w-3.5 shrink-0",
-                    row.rank === 1 && "text-amber-400",
+                    row.rank === 1 && "text-amber-700 dark:text-amber-400",
                     row.rank === 2 && "text-slate-400",
                     row.rank === 3 && "text-amber-700"
                   )}

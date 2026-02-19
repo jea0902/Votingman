@@ -106,13 +106,13 @@ export function MarketVoteCardCompact({ market, poll }: Props) {
                 height={24}
                 className="shrink-0"
               />
-              <span className="text-xs font-bold text-amber-500">
+              <span className="text-xs font-bold text-amber-700 dark:text-amber-500">
                 {timeframeLabel}
               </span>
             </div>
           ) : (
             <span
-              className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500/20 text-lg font-bold text-amber-500"
+              className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500/20 text-lg font-bold text-amber-700 dark:text-amber-500"
               aria-hidden
             >
               {icon}

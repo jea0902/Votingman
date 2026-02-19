@@ -17,7 +17,7 @@ export default function LeaderboardPage() {
       {/* 히어로 */}
       <section className="mb-8 text-center">
         <h1 className="mb-2 flex items-center justify-center gap-2 text-2xl font-bold text-foreground sm:text-3xl">
-          <Trophy className="h-8 w-8 shrink-0 text-amber-500" />
+          <Trophy className="h-8 w-8 shrink-0 text-amber-700 dark:text-amber-500" />
           보팅맨배 투표 보상
         </h1>
         <p className="mb-4 text-sm text-muted-foreground sm:text-base">
@@ -35,7 +35,7 @@ export default function LeaderboardPage() {
         <ul className="space-y-2 text-sm text-muted-foreground">
           <li className="flex items-center gap-2">
             <span className="font-medium text-foreground">1~10위</span>
-            <Gift className="h-4 w-4 text-amber-500" />
+            <Gift className="h-4 w-4 text-amber-700 dark:text-amber-500" />
             선물하기 3만원권 + 명예 배지
           </li>
           <li className="flex items-center gap-2">

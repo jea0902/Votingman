@@ -3,127 +3,256 @@
 /**
  * 랜딩 페이지 (비로그인 시 노출)
  *
- * - 도발적 문구로 플랫폼 강점 전달
- * - 조작 불가 예측, 돈이 걸린 포지션, 검증된 실력 이력서
+ * - 스타트업 스타일 히어로: 그라디언트, 그리드, 오로라, 파티클
+ * - 문구: 숫자로 증명하는 플랫폼, 대한민국 리얼 트레이더들의 플랫폼
+ * - 하단: 왜 보팅맨인가? + 로그인/회원가입 CTA
  */
-
+import styles from "./Hero.module.css";
 import Link from "next/link";
-import { LogIn, UserPlus, Shield, CircleDollarSign, Trophy } from "lucide-react";
-
-const HERO_LINE = "입으로만 떠드는 투자 전문가,";
-const HERO_QUESTION = "아직도 믿으십니까?";
-const TAGLINE_1 = "여기서 증명하면 진짜다.";
-const TAGLINE_2 = "대한민국 리얼 트레이더들의 성지";
-const SUB = "누적 승률, 누적 수익률도 숨김없이 보여주는 예측 시장";
+import Image from "next/image";
+import { useEffect, useRef } from "react";
+import { Shield, CircleDollarSign, Trophy, Play, ArrowRight } from "lucide-react";
 
 const VALUE_PROPS = [
   {
     icon: CircleDollarSign,
     title: "돈이 걸린 포지션",
-    desc: "말이 아니라 포인트가 걸린 투표식 예측 시장(정배/역배식 정산)",
+    desc: "포인트를 배팅하는 예측 시장",
   },
   {
     icon: Shield,
-    title: "삭제·수정 불가",
-    desc: "한 번 투표하면 영구 박제. 틀린 예측을 지울 수 없다.",
+    title: "수정 불가",
+    desc: "한번 투표하면 영구 박제",
   },
   {
     icon: Trophy,
     title: "투자 실력 이력서",
-    desc: "누적 승률 · 전적이 숫자로 고정.",
+    desc: "누적 승률 · 전적 투명하게 공개",
   },
 ] as const;
 
 export function LandingSection() {
+  const particlesRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const container = particlesRef.current;
+    if (!container) return;
+    const count = 28;
+    for (let i = 0; i < count; i++) {
+      const p = document.createElement("div");
+      p.className = styles.particle;
+      const size = Math.random() * 3 + 1;
+      const left = Math.random() * 100;
+      const delay = Math.random() * 18;
+      const dur = Math.random() * 14 + 10;
+      const opacity = Math.random() * 0.5 + 0.15;
+      p.setAttribute(
+        "style",
+        `width:${size}px;height:${size}px;left:${left}%;bottom:-10px;opacity:${opacity};animation-duration:${dur}s;animation-delay:${delay}s;`
+      );
+      container.appendChild(p);
+    }
+    return () => {
+      container.innerHTML = "";
+    };
+  }, []);
+
   return (
-    <div className="relative w-full overflow-hidden">
-      {/* 배경: 애니메이션 그라데이션 오브 */}
-      <div
-        className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+    <div className="relative w-full">
+      {/* ═══ 새 히어로 (스타트업 스타일) ═══ */}
+      <section className="relative flex min-h-screen flex-col items-center justify-center px-[20%] pb-24 pt-[120px]">
+        {/* 배경 레이어 */}
+        <div className={`${styles.heroBgBase} absolute inset-0 z-0`} aria-hidden />
+<div className={`${styles.heroNoise} pointer-events-none absolute inset-0 z-[1]`} aria-hidden />
+<div className={`${styles.heroGrid} pointer-events-none absolute inset-0 z-[1]`} aria-hidden />
+        <div
+          className="pointer-events-none absolute left-1/2 top-0 z-[1] h-[500px] w-[900px] -translate-x-1/2 -translate-y-[120px] rounded-full bg-[conic-gradient(from_180deg_at_50%_0%,transparent_60deg,rgba(37,99,235,0.22)_120deg,rgba(56,189,248,0.18)_160deg,transparent_200deg)] blur-[40px]"
+          style={{ animation: "landing-aurora 8s ease-in-out infinite alternate" }}
+          aria-hidden
+        />
+        <div
+          className="pointer-events-none absolute bottom-0 right-0 z-[1] h-[400px] w-[500px] translate-y-20 translate-x-24 rounded-full bg-[radial-gradient(ellipse,rgba(6,182,212,0.18)_0%,transparent_70%)] blur-[60px]"
+          style={{ animation: "landing-aurora-2 10s ease-in-out infinite alternate-reverse" }}
+          aria-hidden
+        />
+        <div ref={particlesRef} className="pointer-events-none absolute inset-0 z-[1]" aria-hidden />
+        <div
+          className="pointer-events-none absolute bottom-0 left-0 right-0 z-[2] h-[200px] bg-gradient-to-b from-transparent to-[#030712]"
+          aria-hidden
+        />
+        <div
+          className="pointer-events-none absolute left-1/2 top-0 z-[3] h-[140px] w-px -translate-x-1/2 bg-gradient-to-b from-transparent via-[rgba(96,165,250,0.7)] to-transparent"
+          style={{ animation: "landing-glow-pulse 3s ease-in-out infinite" }}
         aria-hidden
-      >
-        <div className="animate-gradient-float absolute -left-1/4 top-0 h-[500px] w-[600px] rounded-full bg-[radial-gradient(ellipse_70%_50%_at_50%_0%,rgba(59,130,246,0.15),transparent_70%)]" />
-        <div className="animate-gradient-float absolute -right-1/4 top-1/3 h-[400px] w-[500px] rounded-full bg-[radial-gradient(ellipse_60%_50%_at_50%_50%,rgba(251,191,36,0.08),transparent_70%)]" style={{ animationDelay: "2s" }} />
-        <div className="animate-gradient-float absolute bottom-0 left-1/2 h-[300px] w-[800px] -translate-x-1/2 rounded-full bg-[radial-gradient(ellipse_80%_40%_at_50%_100%,rgba(244,33,46,0.06),transparent_70%)]" style={{ animationDelay: "4s" }} />
-        {/* 그리드 오버레이 */}
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:48px_48px]" />
+        />
+
+        {/* 콘텐츠 */}
+        <div className="relative z-10 w-full max-w-[780px] text-center">
+          {/* 뱃지 */}
+          <div
+            className="mb-8 inline-flex items-center gap-2 rounded-full border border-[rgba(96,165,250,0.3)] bg-[rgba(37,99,235,0.15)] px-2 py-1.5 pl-2 pr-4 text-xs font-medium tracking-wide text-[#60a5fa] bg-[rgba(37,99,235,0.2)]"
+            style={{ animation: "landing-fade-down 0.7s ease both" }}
+          >
+            <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full bg-[rgba(37,99,235,0.3)]">
+              <ArrowRight className="h-3 w-3 text-[#60a5fa]" />
+            </span>
+            <span className="mr-1 inline-block h-[7px] w-[7px] rounded-full bg-[#34d399] shadow-[0_0_0_2px_rgba(52,211,153,0.3)]" style={{ animation: "landing-live-pip 1.6s ease-in-out infinite" }} />
+            실시간 예측 시장 플랫폼 &nbsp;·&nbsp; 4개 마켓 운영 중
       </div>
 
-      {/* 히어로 */}
-      <section className="mx-auto flex min-h-[75vh] max-w-5xl flex-col items-center justify-center px-4 py-16 text-center sm:px-6">
-        <p
-          className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-[#fbbf24]/90 opacity-0 animate-fade-in-up"
-          style={{ animationDelay: "0.1s", animationFillMode: "forwards" }}
-        >
-          실시간 예측 시장 VOTING MAN
-        </p>
-        <h1
-          className="mb-4 max-w-4xl font-extrabold leading-tight tracking-tight text-[#f4212e] opacity-0 animate-hero-entrance"
-          style={{ fontSize: "clamp(0.9375rem, 2.5vw + 0.75rem, 3.5rem)" }}
-        >
-          <span className="block whitespace-nowrap">{HERO_LINE}</span>
-          <span className="mt-1 block whitespace-nowrap">{HERO_QUESTION}</span>
+          {/* 헤드라인 */}
+          <h1
+            className="mb-6 font-extrabold leading-none tracking-tight text-white"
+            style={{
+              fontFamily: "var(--font-geist-sans), Inter, 'Noto Sans KR', sans-serif",
+              fontSize: "clamp(2.625rem, 6.5vw, 4.75rem)",
+              letterSpacing: "-0.03em",
+              animation: "landing-fade-up 0.7s 0.1s ease both",
+            }}
+          >
+            <span className="mb-1 block font-extrabold tracking-tight opacity-90" style={{ letterSpacing: "-0.01em", fontSize: "0.88em" }}>
+              말이 아닌 돈으로
+            </span>
+            <span
+  className={`${styles.headlineGradient} block font-black`}
+  style={{ letterSpacing: "-0.04em" }}
+>
+  SHOW & PROVE
+</span>
         </h1>
-        <p
-          className="mb-2 text-xl font-bold text-[#fbbf24] sm:text-2xl opacity-0 animate-fade-in-up"
-          style={{ animationDelay: "0.35s", animationFillMode: "forwards" }}
-        >
-          <span className="block">{TAGLINE_1}</span>
-          <span className="block">{TAGLINE_2}</span>
-        </p>
-        <p
-          className="mb-8 max-w-2xl text-base text-muted-foreground sm:text-lg opacity-0 animate-fade-in-up"
-          style={{ animationDelay: "0.5s", animationFillMode: "forwards" }}
-        >
-          {SUB}
-        </p>
 
-        {/* 왜 보팅맨인가 */}
-        <div
-          className="mb-10 w-full max-w-4xl opacity-0 animate-fade-in-up"
-          style={{ animationDelay: "0.55s", animationFillMode: "forwards" }}
-        >
-          <h2 className="mb-6 text-center text-xl font-bold text-foreground sm:text-2xl">
-            왜 보팅맨인가?
-          </h2>
-          <div className="grid gap-4 sm:grid-cols-3">
-            {VALUE_PROPS.map(({ icon: Icon, title, desc }) => (
-              <div
-                key={title}
-                className="group rounded-xl border border-border bg-background/80 p-5 backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:border-[#3b82f6]/60 hover:bg-card/60 hover:shadow-[0_8px_30px_rgba(59,130,246,0.15)]"
-              >
-                <div className="mb-3 flex items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#3b82f6]/30 to-[#3b82f6]/10 text-[#3b82f6] transition-transform duration-300 group-hover:scale-110">
-                    <Icon className="h-5 w-5" />
+          {/* 서브 카피 (수정된 문구) */}
+          <p
+            className="mx-auto mb-10 max-w-[480px] text-[17px] font-light leading-relaxed tracking-wide text-white/45"
+            style={{ animation: "landing-fade-up 0.7s 0.2s ease both" }}
+          >
+            <strong className="font-semibold text-white/80">숫자로 증명하는 플랫폼, 대한민국 리얼 트레이더들의 플랫폼.</strong>
+            <br />
+            비트코인 방향 예측부터 고수 포지션 분석까지 —
+            <br />
+            데이터 기반의 투자 인사이트
+          </p>
+
+          {/* CTA */}
+          <div
+            className="mb-16 flex flex-wrap items-center justify-center gap-3"
+            style={{ animation: "landing-fade-up 0.7s 0.3s ease both" }}
+          >
+            <Link
+              href="/home"
+              className="inline-flex items-center gap-2 rounded-xl border-0 bg-[#2563eb] px-7 py-3.5 text-[15px] font-bold text-white shadow-[0_0_0_1px_rgba(255,255,255,0.1)_inset,0_8px_32px_rgba(37,99,235,0.45)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_0_0_1px_rgba(255,255,255,0.15)_inset,0_16px_48px_rgba(37,99,235,0.55)]"
+            >
+              <Play className="h-4 w-4" />
+              지금 투표하기
+            </Link>
+            <Link
+              href="/pro-positions"
+              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-6 py-3.5 text-[15px] font-medium text-white/75 bg-white/10  transition-all duration-200 hover:bg-white/10 hover:text-white hover:-translate-y-0.5"
+            >
+              고수 포지션 보기
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+
+          {/* 스탯 카드 (베타: 미집계 항목은 0/계산중 표시) */}
+          <div
+            className="mx-auto max-w-[700px]"
+            style={{ animation: "landing-fade-up 0.7s 0.4s ease both" }}
+          >
+            <div className="flex overflow-hidden rounded-[20px] border border-white/[0.07] bg-white/[0.035] backdrop-blur-xl">
+              {[
+                { val: "0", showCoin: true, change: "집계 예정", label: "총 거래량 VTC" },
+                { val: "계산중", change: "베타", label: "활성 참여자" },
+                { val: "4", unit: "●", unitColor: "#34d399", change: "LIVE NOW", label: "라이브 마켓" },
+                { val: "계산중", change: "베타", label: "정산 정확도" },
+              ].map((item, i) => (
+                <div
+                  key={i}
+                  className="relative flex-1 px-5 py-6 text-center transition-colors hover:bg-white/[0.06]"
+                  style={i < 3 ? { borderRight: "1px solid rgba(255,255,255,0.07)" } : undefined}
+                >
+                  <div className="mb-2 flex items-center justify-center gap-1.5 font-mono text-2xl font-semibold tracking-tight text-white">
+                    {"showCoin" in item && item.showCoin && (
+                      <span className="mr-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-[radial-gradient(circle_at_30%_0%,rgba(96,165,250,0.85),rgba(37,99,235,0.2))]">
+                        <Image
+                          src="/images/logo-coin.png"
+                          alt="보팅맨 코인 로고"
+                          width={20}
+                          height={20}
+                          className="h-4 w-4 object-contain"
+                        />
+                      </span>
+                    )}
+                    {"unit" in item && item.unit && item.unit !== "%" && (
+                      <span
+                        className="text-[13px] font-normal text-[#60a5fa]"
+                        style={item.unitColor ? { color: item.unitColor } : undefined}
+                      >
+                        {item.unit}
+                      </span>
+                    )}
+                    {item.val}
+                    {"unit" in item && item.unit === "%" && (
+                      <span className="ml-0.5 text-base font-normal text-white/50">%</span>
+                    )}
                   </div>
-                  <h3 className="min-w-0 font-semibold text-foreground text-sm sm:text-base">{title}</h3>
+                  <div className="mb-1.5 inline-flex items-center gap-0.5 rounded bg-[rgba(52,211,153,0.12)] px-1.5 py-0.5 font-mono text-[11px] text-[#34d399]">
+                    {item.change}
+                  </div>
+                  <div className="text-[11.5px] font-normal uppercase tracking-wider text-white/35">
+                    {item.label}
+                  </div>
                 </div>
-                <p className="text-xs text-muted-foreground sm:text-sm">{desc}</p>
-              </div>
-            ))}
+              ))}
+            </div>
+            <p className="mt-3 text-center text-[11px] font-bold tracking-wide text-white/40">
+              베타 테스트중
+            </p>
           </div>
         </div>
 
-        {/* CTA */}
+        {/* 스크롤 힌트 */}
         <div
-          className="flex flex-col gap-4 sm:flex-row opacity-0 animate-fade-in-up"
-          style={{ animationDelay: "0.7s", animationFillMode: "forwards" }}
+          className="absolute bottom-8 left-1/2 z-10 flex -translate-x-1/2 flex-col items-center gap-2"
+          style={{ animation: "fade-in-up 1s 1s ease both" }}
         >
-                    <Link
-            href="/login"
-            className="inline-flex items-center justify-center gap-2 rounded-xl border-2 border-[#3b82f6] bg-[#3b82f6]/10 px-8 py-4 text-lg font-semibold text-[#3b82f6] transition-all duration-300 hover:scale-105 hover:bg-[#3b82f6]/20 hover:shadow-[0_0 30px_rgba(59,130,246,0.3)] active:scale-100"
+          <div className="flex h-9 w-6 items-start justify-center rounded-xl border-2 border-white/20 pt-1.5">
+            <div className={`h-2 w-1 rounded-sm bg-white/50 ${styles.scrollWheel}`} />
+          </div>
+          <span className="text-[10px] tracking-[0.2em] text-white/25">scroll</span>
+        </div>
+      </section>
+
+      {/* ═══ 왜 보팅맨인가? (스탯 박스 스타일 3등분) + 로그인/회원가입 ═══ */}
+      <section className="relative z-10 border-t border-white/10 bg-[#030712] px-4 py-16 sm:px-6">
+        <div className="mx-auto max-w-[700px]">
+          <h2
+            className="mb-6 text-center font-extrabold tracking-tight text-white"
+            style={{
+              fontFamily: "var(--font-geist-sans), Inter, 'Noto Sans KR', sans-serif",
+              fontSize: "clamp(1.25rem, 3vw, 1.75rem)",
+              letterSpacing: "-0.01em",
+            }}
           >
-            <LogIn className="h-5 w-5" />
-            로그인
-          </Link>
-          <Link
-            href="/signup"
-            className="group relative inline-flex items-center justify-center gap-2 overflow-hidden rounded-xl border-2 border-[#fbbf24] bg-[#fbbf24] px-8 py-4 text-lg font-bold text-black transition-all duration-300 hover:scale-105 hover:border-[#fbbf24] hover:shadow-[0_0_40px_rgba(251,191,36,0.5)] hover:shadow-[#fbbf24]/30 active:scale-100"
-          >
-            <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
-            <UserPlus className="relative h-5 w-5" />
-            <span className="relative">증명하기 (+10,000 VTC)</span>
-          </Link>
+            왜 보팅맨이어야 하는가?
+          </h2>
+          <div className="mb-12 flex overflow-hidden rounded-[20px] border border-white/[0.07] bg-white/[0.035] backdrop-blur-xl">
+            {VALUE_PROPS.map(({ icon: Icon, title, desc }, i) => (
+              <div
+                key={title}
+                className="relative flex flex-1 flex-col px-5 py-6 text-center transition-colors hover:bg-white/[0.06]"
+                style={i < VALUE_PROPS.length - 1 ? { borderRight: "1px solid rgba(255,255,255,0.07)" } : undefined}
+              >
+                <div className="mb-3 flex justify-center">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#3b82f6]/30 text-[#3b82f6]">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                </div>
+                <h3 className="mb-2 font-semibold text-white text-sm sm:text-base">{title}</h3>
+                <p className="text-[11.5px] leading-relaxed text-white/45 sm:text-xs">{desc}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
     </div>

@@ -35,7 +35,7 @@ export function CountdownTimer({ market }: Props) {
   }, [market]);
 
   return (
-    <span className="font-mono font-semibold text-amber-500 tabular-nums" suppressHydrationWarning>
+    <span className="font-mono font-semibold text-amber-700 dark:text-amber-500 tabular-nums" suppressHydrationWarning>
       {ms === null ? "—" : formatCountdown(ms)}
     </span>
   );

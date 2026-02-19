@@ -304,7 +304,7 @@ export function MarketVoteCard({ market, poll, user, onUpdate }: Props) {
               className="h-9 w-24 rounded-lg border border-border bg-background px-2 text-sm tabular-nums"
             />
             <span className="text-xs text-muted-foreground">
-              VTC (잔액 : <span className="font-semibold text-amber-500">{balance.toLocaleString()} VTC</span>
+              VTC (잔액 : <span className="font-semibold text-amber-700 dark:text-amber-500">{balance.toLocaleString()} VTC</span>
               {isAdditionalMode && (
                 <> · 기존 배팅 <span className="font-semibold">{myBetAmount.toLocaleString()} VTC</span></>
               )}

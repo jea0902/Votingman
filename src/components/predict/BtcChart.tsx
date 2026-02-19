@@ -284,7 +284,7 @@ export function BtcChart({ targetPrice, defaultInterval = "1m", className }: Pro
             className={cn(
               "rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
               chartInterval === iv
-                ? "border-amber-500 bg-amber-500/20 text-amber-500"
+                ? "border-amber-500 bg-amber-500/20 text-amber-700 dark:text-amber-500"
                 : "border-border bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
             )}
           >

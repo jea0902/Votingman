@@ -80,7 +80,7 @@ export function StockCard({ stock }: StockCardProps) {
               className={cn(
                 "rounded px-1.5 py-0.5 text-[9px] font-medium",
                 isUndervalued
-                  ? "bg-amber-500/20 text-amber-300"
+                  ? "bg-amber-500/20 text-amber-700 dark:text-amber-300"
                   : "bg-red-500/20 text-red-300"
               )}
             >
@@ -96,7 +96,7 @@ export function StockCard({ stock }: StockCardProps) {
           <p className="mb-1 text-[10px] font-semibold text-muted-foreground">
             저평가 이유
           </p>
-          <p className="text-[10px] font-medium text-amber-200">
+          <p className="text-[10px] font-medium text-amber-800 dark:text-amber-200">
             {stock.undervaluedReason}
           </p>
         </div>
@@ -110,7 +110,7 @@ export function StockCard({ stock }: StockCardProps) {
         <p
           className={cn(
             "text-lg font-bold",
-            isUndervalued ? "text-amber-400" : "text-red-400"
+            isUndervalued ? "text-amber-700 dark:text-amber-400" : "text-red-400"
           )}
         >
           {stock.fairValue}

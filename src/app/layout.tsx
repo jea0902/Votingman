@@ -42,16 +42,29 @@ export default function RootLayout({
   return (
     <html lang="ko" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} min-h-screen antialiased bg-background text-foreground`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
         <Script id="theme-init" strategy="beforeInteractive">
           {THEME_SCRIPT}
         </Script>
+        {/* 전역 배경: 랜딩과 동일한 그리드 (다크 모드에서만) */}
+        <div
+          className="fixed inset-0 -z-10 hidden opacity-40 dark:block"
+          style={{
+            backgroundImage: "linear-gradient(rgba(255,255,255,0.032) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.032) 1px, transparent 1px)",
+            backgroundSize: "72px 72px",
+            WebkitMaskImage: "radial-gradient(ellipse 90% 80% at 50% 40%, black 30%, transparent 80%)",
+            maskImage: "radial-gradient(ellipse 90% 80% at 50% 40%, black 30%, transparent 80%)",
+          }}
+          aria-hidden
+        />
+
+        {/* main에 flex-1 없음 → main 높이 = 콘텐츠 높이 → 문서 전체 스크롤. flex-1이면 main을 스크롤 가두는 게 아니라 남은 공간을 채우는 거 */}
         <div className="flex min-h-screen flex-col">
           <HeartbeatProvider />
           <PageViewTracker />
           <Navbar />
-          <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
+          <main className="flex-1">
             {children}
           </main>
           <Footer />
