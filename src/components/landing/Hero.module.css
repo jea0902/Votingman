@@ -64,7 +64,7 @@
     radial-gradient(ellipse 80% 60% at 50% -10%, rgba(37, 99, 235, 0.28) 0%, transparent 65%),
     radial-gradient(ellipse 60% 40% at 80% 80%, rgba(6, 182, 212, 0.12) 0%, transparent 60%),
     radial-gradient(ellipse 50% 40% at 10% 70%, rgba(29, 78, 216, 0.15) 0%, transparent 60%),
-    linear-gradient(180deg, #0a0f1e 0%, #030712 100%);
+    linear-gradient(180deg, #152238 0%, #0f1c2e 100%);
 }
 
 .heroNoise {

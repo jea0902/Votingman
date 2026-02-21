@@ -97,7 +97,7 @@ export default function ProfileStatsPage() {
   return (
     <div className="min-h-screen py-6 sm:py-8">
       {/* 모바일: 넓은 너비, 데스크톱: 80% 콘텐츠 */}
-      <div className="mx-auto w-[95%] max-w-6xl px-1 sm:w-[90%] sm:px-0 md:w-[80%]">
+      <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
         <div className="rounded-xl border border-border bg-card px-4 py-6 shadow-lg sm:px-8 sm:py-10">
           <h1 className="mb-6 text-xl font-bold text-foreground sm:text-2xl">
             전적 및 승률 조회

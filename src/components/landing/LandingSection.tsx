@@ -60,24 +60,14 @@ export function LandingSection() {
   return (
     <div className="relative w-full">
       {/* ═══ 새 히어로 (스타트업 스타일) ═══ */}
-      <section className="relative flex min-h-screen flex-col items-center justify-center px-[20%] pb-24 pt-[120px]">
+      <section className="relative flex min-h-screen flex-col items-center justify-center px-4 pb-24 pt-[120px]">
         {/* 배경 레이어 */}
         <div className={`${styles.heroBgBase} absolute inset-0 z-0`} aria-hidden />
-<div className={`${styles.heroNoise} pointer-events-none absolute inset-0 z-[1]`} aria-hidden />
-<div className={`${styles.heroGrid} pointer-events-none absolute inset-0 z-[1]`} aria-hidden />
-        <div
-          className="pointer-events-none absolute left-1/2 top-0 z-[1] h-[500px] w-[900px] -translate-x-1/2 -translate-y-[120px] rounded-full bg-[conic-gradient(from_180deg_at_50%_0%,transparent_60deg,rgba(37,99,235,0.22)_120deg,rgba(56,189,248,0.18)_160deg,transparent_200deg)] blur-[40px]"
-          style={{ animation: "landing-aurora 8s ease-in-out infinite alternate" }}
-          aria-hidden
-        />
-        <div
-          className="pointer-events-none absolute bottom-0 right-0 z-[1] h-[400px] w-[500px] translate-y-20 translate-x-24 rounded-full bg-[radial-gradient(ellipse,rgba(6,182,212,0.18)_0%,transparent_70%)] blur-[60px]"
-          style={{ animation: "landing-aurora-2 10s ease-in-out infinite alternate-reverse" }}
-          aria-hidden
-        />
+        <div className={`${styles.heroNoise} pointer-events-none absolute inset-0 z-[1]`} aria-hidden />
+        <div className={`${styles.heroGrid} pointer-events-none absolute inset-0 z-[1]`} aria-hidden />
         <div ref={particlesRef} className="pointer-events-none absolute inset-0 z-[1]" aria-hidden />
         <div
-          className="pointer-events-none absolute bottom-0 left-0 right-0 z-[2] h-[200px] bg-gradient-to-b from-transparent to-[#030712]"
+          className="pointer-events-none absolute bottom-0 left-0 right-0 z-[2] h-[200px] bg-gradient-to-b from-transparent to-[#0f1c2e]"
           aria-hidden
         />
         <div
@@ -126,7 +116,7 @@ export function LandingSection() {
             className="mx-auto mb-10 max-w-[480px] text-[17px] font-light leading-relaxed tracking-wide text-white/45"
             style={{ animation: "landing-fade-up 0.7s 0.2s ease both" }}
           >
-            <strong className="font-semibold text-white/80">숫자로 증명하는 플랫폼, 대한민국 리얼 트레이더들의 플랫폼.</strong>
+            <strong className="font-semibold text-white/80">숫자로 증명하는, 리얼 트레이더들의 플랫폼</strong>
             <br />
             비트코인 방향 예측부터 고수 포지션 분석까지 —
             <br />
@@ -149,7 +139,7 @@ export function LandingSection() {
               href="/pro-positions"
               className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-6 py-3.5 text-[15px] font-medium text-white/75 bg-white/10  transition-all duration-200 hover:bg-white/10 hover:text-white hover:-translate-y-0.5"
             >
-              고수 포지션 보기
+              실시간 고수 포지션
               <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
@@ -159,7 +149,7 @@ export function LandingSection() {
             className="mx-auto max-w-[700px]"
             style={{ animation: "landing-fade-up 0.7s 0.4s ease both" }}
           >
-            <div className="flex overflow-hidden rounded-[20px] border border-white/[0.07] bg-white/[0.035] backdrop-blur-xl">
+            <div className="grid grid-cols-2 gap-2 overflow-hidden rounded-[20px] border border-white/[0.07] bg-white/[0.07] backdrop-blur-xl sm:gap-3">
               {[
                 { val: "0", showCoin: true, change: "집계 예정", label: "총 거래량 VTC" },
                 { val: "계산중", change: "베타", label: "활성 참여자" },
@@ -168,8 +158,7 @@ export function LandingSection() {
               ].map((item, i) => (
                 <div
                   key={i}
-                  className="relative flex-1 px-5 py-6 text-center transition-colors hover:bg-white/[0.06]"
-                  style={i < 3 ? { borderRight: "1px solid rgba(255,255,255,0.07)" } : undefined}
+                  className="relative bg-white/[0.035] px-4 py-5 text-center transition-colors hover:bg-white/[0.06] sm:px-5 sm:py-6"
                 >
                   <div className="mb-2 flex items-center justify-center gap-1.5 font-mono text-2xl font-semibold tracking-tight text-white">
                     {"showCoin" in item && item.showCoin && (
@@ -224,7 +213,7 @@ export function LandingSection() {
       </section>
 
       {/* ═══ 왜 보팅맨인가? (스탯 박스 스타일 3등분) + 로그인/회원가입 ═══ */}
-      <section className="relative z-10 border-t border-white/10 bg-[#030712] px-4 py-16 sm:px-6">
+      <section className="relative z-10 border-t border-white/10 bg-[#0f1c2e] px-4 py-16 sm:px-6">
         <div className="mx-auto max-w-[700px]">
           <h2
             className="mb-6 text-center font-extrabold tracking-tight text-white"
@@ -236,12 +225,11 @@ export function LandingSection() {
           >
             왜 보팅맨이어야 하는가?
           </h2>
-          <div className="mb-12 flex overflow-hidden rounded-[20px] border border-white/[0.07] bg-white/[0.035] backdrop-blur-xl">
-            {VALUE_PROPS.map(({ icon: Icon, title, desc }, i) => (
+          <div className="mb-12 flex flex-col overflow-hidden rounded-[20px] border border-white/[0.07] bg-white/[0.035] backdrop-blur-xl sm:flex-row">
+            {VALUE_PROPS.map(({ icon: Icon, title, desc }) => (
               <div
                 key={title}
-                className="relative flex flex-1 flex-col px-5 py-6 text-center transition-colors hover:bg-white/[0.06]"
-                style={i < VALUE_PROPS.length - 1 ? { borderRight: "1px solid rgba(255,255,255,0.07)" } : undefined}
+                className="relative flex flex-1 flex-col border-b border-white/[0.07] px-5 py-6 text-center last:border-b-0 transition-colors hover:bg-white/[0.06] sm:border-b-0 sm:border-r sm:last:border-r-0"
               >
                 <div className="mb-3 flex justify-center">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#3b82f6]/30 text-[#3b82f6]">

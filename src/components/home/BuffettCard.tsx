@@ -577,11 +577,11 @@ export function BuffettCard({ result }: BuffettCardProps) {
   // 카드 스타일 결정
   const getCardStyle = () => {
     if (isUndervalued && isBuy) {
-      return "border-amber-500/50 bg-gradient-to-br from-amber-900/20 to-yellow-900/10 shadow-amber-500/20";
+      return "border-amber-500/50 bg-white/20 shadow-amber-500/20 dark:bg-gradient-to-br dark:from-amber-900/20 dark:to-yellow-900/10";
     } else if (isPassed) {
-      return "border-red-500/50 bg-gradient-to-br from-red-900/20 to-rose-900/10 shadow-red-500/20";
+      return "border-red-500/50 bg-white/20 shadow-red-500/20 dark:bg-gradient-to-br dark:from-red-900/20 dark:to-rose-900/10";
     } else {
-      return "border-gray-500/50 bg-gradient-to-br from-gray-900/20 to-slate-900/10 shadow-gray-500/20";
+      return "border-gray-500/50 bg-white/20 shadow-gray-500/20 dark:bg-gradient-to-br dark:from-gray-900/20 dark:to-slate-900/10";
     }
   };
 
@@ -638,7 +638,7 @@ export function BuffettCard({ result }: BuffettCardProps) {
       <div
         onClick={() => setIsModalOpen(true)}
         className={cn(
-          "group relative cursor-pointer overflow-hidden rounded-lg border-2 p-4 transition-all duration-300 hover:scale-105 hover:shadow-2xl",
+          "group relative cursor-pointer overflow-hidden rounded-lg border-2 p-3 transition-all duration-300 sm:p-4 sm:hover:scale-105 sm:hover:shadow-2xl",
           getCardStyle()
         )}
       >
@@ -653,13 +653,13 @@ export function BuffettCard({ result }: BuffettCardProps) {
         </div>
 
         {/* 티커 + 한글명 + 영문 회사명 */}
-        <div className="mb-3">
-          <div className="flex items-baseline gap-2">
-            <h3 className="text-lg font-bold text-foreground">
+        <div className="mb-2 sm:mb-3">
+          <div className="flex flex-wrap items-baseline gap-1.5 sm:gap-2">
+            <h3 className="text-base font-bold text-foreground sm:text-lg">
               {result.ticker ?? "N/A"}
             </h3>
             {koreanName && (
-              <span className="text-sm font-medium text-amber-700 dark:text-amber-300">
+              <span className="text-xs font-medium text-amber-700 dark:text-amber-300 sm:text-sm">
                 {koreanName}
               </span>
             )}
@@ -682,7 +682,7 @@ export function BuffettCard({ result }: BuffettCardProps) {
         {/* 구분선 */}
         <div
           className={cn(
-            "mb-3 h-px",
+            "mb-2 h-px sm:mb-3",
             isUndervalued
               ? "bg-amber-500/30"
               : isPassed
@@ -699,7 +699,7 @@ export function BuffettCard({ result }: BuffettCardProps) {
             </p>
             <p
               className={cn(
-                "text-xl font-bold",
+                "text-base font-bold sm:text-xl",
                 isUndervalued
                   ? "text-amber-700 dark:text-amber-400"
                   : isPassed
@@ -757,7 +757,7 @@ export function BuffettCard({ result }: BuffettCardProps) {
           </p>
           <p
             className={cn(
-              "text-lg font-bold",
+              "text-base font-bold sm:text-lg",
               result.gap_pct && result.gap_pct > 0
                 ? "text-green-400"
                 : result.gap_pct && result.gap_pct < 0
@@ -772,7 +772,7 @@ export function BuffettCard({ result }: BuffettCardProps) {
         {/* 데이터 연수 + 클릭 안내 */}
         <div className="mt-2 text-center">
           <p className="text-[9px] text-muted-foreground">
-            {result.years_data ?? 0}년 데이터 기준 • 클릭하여 상세보기
+            {result.years_data ?? 0}년 데이터 기준
           </p>
         </div>
       </div>
@@ -780,36 +780,36 @@ export function BuffettCard({ result }: BuffettCardProps) {
       {/* 평가 상세 모달 */}
       {isModalOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-4 dark:bg-black/85"
           onClick={() => setIsModalOpen(false)}
         >
           <div
             className={cn(
-              "relative max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl border-2 p-6",
+              "relative max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl border-2 p-4 sm:p-6",
               isUndervalued
-                ? "border-amber-500/50 bg-gradient-to-br from-gray-950 to-amber-950/50"
+                ? "border-amber-500/50 bg-gradient-to-br from-background to-amber-50 dark:from-gray-950 dark:to-amber-950/50"
                 : isPassed
-                  ? "border-red-500/50 bg-gradient-to-br from-gray-950 to-red-950/50"
-                  : "border-gray-500/50 bg-gray-950"
+                  ? "border-red-500/50 bg-gradient-to-br from-background to-red-50 dark:from-gray-950 dark:to-red-950/50"
+                  : "border-gray-500/50 bg-background dark:bg-gray-950"
             )}
             onClick={(e) => e.stopPropagation()}
           >
             {/* 닫기 버튼 */}
             <button
               onClick={() => setIsModalOpen(false)}
-              className="absolute right-4 top-4 rounded-full p-2 text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
+              className="absolute right-4 top-4 rounded-full p-2 text-muted-foreground transition-colors hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10"
             >
               ✕
             </button>
 
             {/* 헤더 */}
-            <div className="mb-6">
-              <div className="flex items-center gap-3">
-                <h2 className="text-2xl font-bold text-foreground">
+            <div className="mb-4 sm:mb-6">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                <h2 className="text-xl font-bold text-foreground sm:text-2xl">
                   {result.ticker}
                 </h2>
                 {koreanName && (
-                  <span className="text-lg font-medium text-amber-700 dark:text-amber-300">
+                  <span className="text-base font-medium text-amber-700 dark:text-amber-300 sm:text-lg">
                     {koreanName}
                   </span>
                 )}
@@ -826,7 +826,7 @@ export function BuffettCard({ result }: BuffettCardProps) {
                 {result.company_name}
               </p>
               {result.industry && (
-                <p className="mt-1 text-xs text-blue-400">
+                <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
                   📁 {result.industry}
                   {getIndustryKorean(result.industry) && (
                     <span className="ml-1">
@@ -838,12 +838,12 @@ export function BuffettCard({ result }: BuffettCardProps) {
             </div>
 
             {/* 총점 요약 */}
-            <div className="mb-6 grid grid-cols-4 gap-4 rounded-lg bg-background/30 p-4">
+            <div className="mb-4 grid grid-cols-2 gap-2 rounded-lg bg-muted/50 p-3 dark:bg-background/30 sm:mb-6 sm:grid-cols-4 sm:gap-4 sm:p-4">
               <div className="text-center">
                 <p className="text-xs text-muted-foreground">총점</p>
                 <p
                   className={cn(
-                    "text-2xl font-bold",
+                    "text-lg font-bold sm:text-2xl",
                     isUndervalued
                       ? "text-amber-700 dark:text-amber-400"
                       : isPassed
@@ -856,7 +856,7 @@ export function BuffettCard({ result }: BuffettCardProps) {
               </div>
               <div className="text-center">
                 <p className="text-xs text-muted-foreground">현재가</p>
-                <p className="text-lg font-semibold text-foreground">
+                <p className="text-base font-semibold text-foreground sm:text-lg">
                   {formatPrice(result.current_price)}
                 </p>
               </div>
@@ -864,7 +864,7 @@ export function BuffettCard({ result }: BuffettCardProps) {
                 <p className="text-xs text-muted-foreground">적정가</p>
                 <p
                   className={cn(
-                    "text-lg font-semibold",
+                    "text-base font-semibold sm:text-lg",
                     isUndervalued ? "text-amber-700 dark:text-amber-400" : "text-foreground"
                   )}
                 >
@@ -875,10 +875,10 @@ export function BuffettCard({ result }: BuffettCardProps) {
                 <p className="text-xs text-muted-foreground">상승여력</p>
                 <p
                   className={cn(
-                    "text-lg font-bold",
+                    "text-base font-bold sm:text-lg",
                     result.gap_pct && result.gap_pct > 0
-                      ? "text-green-400"
-                      : "text-red-400"
+                      ? "text-green-600 dark:text-green-400"
+                      : "text-red-600 dark:text-red-400"
                   )}
                 >
                   {formatGap(result.gap_pct)}
@@ -887,9 +887,9 @@ export function BuffettCard({ result }: BuffettCardProps) {
             </div>
 
             {/* 신뢰등급 */}
-            <div className="mb-6 flex items-center justify-between rounded-lg bg-background/20 p-3">
+            <div className="mb-4 flex flex-col gap-1 rounded-lg bg-muted/50 p-3 dark:bg-background/20 sm:mb-6 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
-                <span className="text-xl text-amber-700 dark:text-yellow-400">
+                <span className="text-lg text-amber-700 dark:text-yellow-400 sm:text-xl">
                   {result.trust_grade_stars}
                 </span>
                 <span className="text-sm text-muted-foreground">
@@ -988,7 +988,7 @@ export function BuffettCard({ result }: BuffettCardProps) {
                   <h3 className="mb-3 text-sm font-semibold text-muted-foreground">
                     📊 평가 요약
                   </h3>
-                  <div className="whitespace-pre-wrap rounded-lg bg-background/20 p-4 text-sm text-foreground/90">
+                  <div className="whitespace-pre-wrap rounded-lg bg-muted/50 p-4 text-sm text-foreground/90 dark:bg-background/20">
                     {result.pass_reason}
                   </div>
                 </div>
@@ -1001,7 +1001,7 @@ export function BuffettCard({ result }: BuffettCardProps) {
                 <h3 className="mb-4 text-lg font-bold text-foreground">
                   💰 저평가 분석
                 </h3>
-                <div className="rounded-lg bg-background/20 p-4">
+                <div className="rounded-lg bg-muted/50 p-4 dark:bg-background/20">
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
                       <p className="text-muted-foreground">EPS 연평균 성장률</p>
@@ -1028,7 +1028,7 @@ export function BuffettCard({ result }: BuffettCardProps) {
                   <h3 className="mb-3 text-sm font-semibold text-muted-foreground">
                     💰 적정가 분석
                   </h3>
-                  <div className="whitespace-pre-wrap rounded-lg bg-background/20 p-4 text-sm text-foreground/90">
+                  <div className="whitespace-pre-wrap rounded-lg bg-muted/50 p-4 text-sm text-foreground/90 dark:bg-background/20">
                     {result.valuation_reason}
                   </div>
                 </div>
@@ -1037,7 +1037,7 @@ export function BuffettCard({ result }: BuffettCardProps) {
 
             {/* PASS가 아닌 경우 안내 */}
             {!isPassed && (
-              <div className="rounded-lg bg-gray-800/50 p-4 text-center text-sm text-muted-foreground">
+              <div className="rounded-lg bg-muted p-4 text-center text-sm text-muted-foreground dark:bg-gray-800/50">
                 이 종목은 버핏 우량주 기준(85점)을 통과하지 못했습니다.
               </div>
             )}
@@ -1083,7 +1083,7 @@ function MetricRow({
   const displayScore = score ?? 0;
 
   return (
-    <div className="rounded-lg bg-background/20 p-3">
+    <div className="rounded-lg bg-muted/50 p-3 dark:bg-background/20">
       {/* 기본 정보 */}
       <div
         className="flex cursor-pointer items-center justify-between"
@@ -1106,7 +1106,7 @@ function MetricRow({
         <div className="flex items-center gap-4">
           {/* 점수 바 */}
           <div className="w-32">
-            <div className="h-2 rounded-full bg-gray-700">
+            <div className="h-2 rounded-full bg-gray-300 dark:bg-gray-700">
               <div
                 className={cn(
                   "h-2 rounded-full transition-all",
@@ -1138,7 +1138,7 @@ function MetricRow({
 
       {/* 확장 내용 */}
       {isExpanded && (
-        <div className="mt-3 border-t border-gray-700/50 pt-3">
+        <div className="mt-3 border-t border-gray-300 pt-3 dark:border-gray-700/50">
           <p className="mb-2 text-xs text-amber-700 dark:text-amber-300/80">{metric.fullName}</p>
           <p className="mb-3 text-xs text-muted-foreground">
             {metric.description}

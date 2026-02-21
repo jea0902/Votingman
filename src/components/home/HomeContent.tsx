@@ -11,14 +11,7 @@ import { HumanIndicatorSection } from "@/components/home";
 export function HomeContent() {
   return (
     <div className="relative w-full">
-      <div
-        className="pointer-events-none absolute inset-0 -z-10"
-        aria-hidden
-      >
-        <div className="absolute left-1/2 top-0 h-[300px] w-[800px] -translate-x-1/2 rounded-full bg-[radial-gradient(ellipse_80%_50%_at_50%_0%,rgba(59,130,246,0.08),transparent)]" />
-      </div>
-
-      <div className="mx-auto flex w-[80%] max-w-7xl flex-col gap-8 px-4 sm:px-6">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 sm:px-6 lg:px-8">
         <div className="min-w-0">
           <div className="mb-4 flex min-h-[8vh] flex-col justify-center py-4 text-center">
             <h1 className="mb-2 text-2xl font-bold tracking-tight text-[#3b82f6] sm:text-3xl lg:text-4xl">

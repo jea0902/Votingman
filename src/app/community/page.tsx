@@ -135,16 +135,7 @@ export default function CommunityPage() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-      {/* 헤더 */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-foreground sm:text-3xl">
-          건의
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          서비스 개선 아이디어와 피드백을 자유롭게 남겨주세요.
-        </p>
-      </div>
+    <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
 
       {/* 탭 네비게이션: 현재는 건의 게시판 단일 탭만 사용 */}
       <div className="mb-6 flex items-center gap-2 border-b border-border">
@@ -170,8 +161,8 @@ export default function CommunityPage() {
       <div className="space-y-6">
         {/* 글쓰기 버튼 영역 */}
         {activeTab === "free" && (
-          <div className="flex items-center justify-between rounded-lg border border-border bg-card p-4">
-            <div className="flex-1">
+          <div className="flex flex-col gap-4 rounded-lg border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0 flex-1">
               <h2 className="text-lg font-semibold text-foreground">
                 건의 게시판
               </h2>
@@ -181,7 +172,7 @@ export default function CommunityPage() {
             </div>
             <Button
               size="lg"
-              className="gap-2"
+              className="shrink-0 gap-2 self-start sm:self-center"
               onClick={() => setIsCreateDialogOpen(true)}
             >
               <PenSquare className="h-4 w-4" />
@@ -206,15 +197,15 @@ export default function CommunityPage() {
 
         {/* 게시글 목록 */}
         <div className="rounded-lg border border-border bg-card">
-          {/* 목록 헤더 */}
-          <div className="border-b border-border bg-muted/30 px-4 py-3">
-            <div className="flex items-center gap-3 text-xs font-medium text-muted-foreground">
+          {/* 목록 헤더 (데스크톱) */}
+          <div className="hidden border-b border-border bg-muted/30 px-4 py-3 sm:block">
               <span className="w-16 text-center">카테고리</span>
+            <div className="flex items-center gap-3 text-xs font-medium text-muted-foreground">
               <span className="flex-1 min-w-0">제목</span>
-              <span className="hidden w-20 text-center sm:block">작성자</span>
-              <span className="hidden w-12 text-center md:block">조회</span>
-              <span className="hidden w-12 text-center md:block">좋아요</span>
-              <span className="hidden w-20 text-center lg:block">작성일</span>
+              <span className="w-20 text-center">작성자</span>
+              <span className="w-12 text-center">조회</span>
+              <span className="w-12 text-center">좋아요</span>
+              <span className="w-20 text-center">작성일</span>
             </div>
           </div>
 
@@ -262,7 +253,7 @@ export default function CommunityPage() {
                 <div
                   key={post.post_id}
                   onClick={() => handlePostClick(post.post_id)}
-                  className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50 cursor-pointer transition-colors"
+                  className="flex flex-col gap-1 px-4 py-3 hover:bg-muted/50 cursor-pointer transition-colors sm:flex-row sm:items-center sm:gap-3"
                 >
                   {/* 카테고리 */}
                   <div className="w-16 flex-shrink-0 text-center">
@@ -292,6 +283,11 @@ export default function CommunityPage() {
                   {/* 제목 */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
+                      {post.is_pinned && (
+                        <span className="shrink-0 inline-flex items-center justify-center px-1.5 py-0.5 text-xs rounded-full bg-primary/10 text-primary">
+                          공지
+                        </span>
+                      )}
                       <span className="text-sm font-medium text-foreground truncate">
                         {post.title}
                       </span>
@@ -301,31 +297,26 @@ export default function CommunityPage() {
                         </span>
                       )}
                     </div>
-                    {/* 모바일: 통계 */}
-                    <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground sm:hidden">
+                    {/* 모바일: 제목 아래 작성자/조회/좋아요/작성일 */}
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs text-muted-foreground sm:hidden">
                       <span>{post.author_name}</span>
                       <span>조회 {post.view_count}</span>
                       <span>좋아요 {post.like_count}</span>
+                      <span>{formatDate(post.created_at)}</span>
                     </div>
                   </div>
 
-                  {/* 작성자 (태블릿+) */}
-                  <span className="hidden w-20 text-sm text-muted-foreground text-center truncate sm:block">
+                  {/* 데스크톱: 작성자/조회/좋아요/작성일 */}
+                  <span className="hidden w-20 truncate text-center text-sm text-muted-foreground sm:block">
                     {post.author_name}
                   </span>
-
-                  {/* 조회수 (태블릿+) */}
-                  <span className="hidden w-12 text-sm text-muted-foreground text-center md:block">
+                  <span className="hidden w-12 text-center text-sm text-muted-foreground md:block">
                     {post.view_count}
                   </span>
-
-                  {/* 좋아요 수 (태블릿+) */}
-                  <span className="hidden w-12 text-sm text-muted-foreground text-center md:block">
+                  <span className="hidden w-12 text-center text-sm text-muted-foreground md:block">
                     {post.like_count}
                   </span>
-
-                  {/* 작성일 (데스크톱) */}
-                  <span className="hidden w-20 text-xs text-muted-foreground text-center lg:block">
+                  <span className="hidden w-20 text-center text-xs text-muted-foreground lg:block">
                     {formatDate(post.created_at)}
                   </span>
                 </div>

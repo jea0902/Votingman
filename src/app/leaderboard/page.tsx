@@ -9,28 +9,25 @@
  */
 
 import { Trophy, Gift, Award, Info } from "lucide-react";
-import { RewardsTop30Table } from "@/components/leaderboard/RewardsTop30Table";
+import { MarketTop30Positions } from "@/components/leaderboard/MarketTop30Positions";
 
 export default function LeaderboardPage() {
   return (
-    <div className="mx-auto w-[85%] max-w-5xl px-4 py-8 sm:px-6">
+    <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
       {/* 히어로 */}
       <section className="mb-8 text-center">
         <h1 className="mb-2 flex items-center justify-center gap-2 text-2xl font-bold text-foreground sm:text-3xl">
           <Trophy className="h-8 w-8 shrink-0 text-amber-700 dark:text-amber-500" />
           보팅맨배 투표 보상
         </h1>
-        <p className="mb-4 text-sm text-muted-foreground sm:text-base">
-          MMR TOP 10에게 선물하기 3만원권, TOP 30에게 명예 배지
-        </p>
-        <div className="inline-flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-4 py-2 text-sm font-medium">
+        <div className="inline-flex items-center gap-2 rounded-lg border border-border bg-muted/20 px-4 py-2 text-sm font-medium">
           <span className="text-muted-foreground">현재 상금</span>
           <span className="text-foreground">월 30만 원</span>
         </div>
       </section>
 
       {/* 보상 내용 */}
-      <section className="mb-8 rounded-lg border border-border bg-card p-4">
+      <section className="mb-8 rounded-lg border border-border bg-muted/20 p-4">
         <h2 className="mb-3 text-sm font-semibold text-foreground">보상 내용</h2>
         <ul className="space-y-2 text-sm text-muted-foreground">
           <li className="flex items-center gap-2">
@@ -47,10 +44,10 @@ export default function LeaderboardPage() {
       </section>
 
       {/* 상금 규모 */}
-      <section className="mb-8 rounded-lg border border-border bg-card p-4">
+      <section className="mb-8 rounded-lg border border-border bg-muted/20 p-4">
         <h2 className="mb-3 text-sm font-semibold text-foreground">상금 규모</h2>
         <ul className="space-y-1 text-sm text-muted-foreground">
-          <li>· 현재: 월 30만 원(3개월간 베타테스트)</li>
+          <li>· 현재: 월 30만 원</li>
           <li>· 이후: 광고 수익의 50% 추가 누적 및 보상 인원 추가</li>
         </ul>
       </section>
@@ -66,7 +63,7 @@ export default function LeaderboardPage() {
 
       {/* TOP 30 테이블 */}
       <section className="mb-8">
-        <RewardsTop30Table />
+        <MarketTop30Positions variant="leaderboard" />
       </section>
 
       {/* 유의사항 */}

@@ -12,7 +12,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
-import { LogIn, UserPlus, LogOut, User, ChevronDown, UserCircle, Pencil, UserX, Trophy, Sun, Moon } from "lucide-react";
+import { LogIn, UserPlus, LogOut, User, ChevronDown, UserCircle, UserX, Trophy, Sun, Moon } from "lucide-react";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -32,7 +32,28 @@ export function Navbar() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [user, setUser] = useState<{ id: string; email: string; nickname: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const tabScrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = tabScrollRef.current;
+    if (!el) return;
+    const updateScrollHint = () => {
+      const { scrollLeft, scrollWidth, clientWidth } = el;
+      setCanScrollLeft(scrollLeft > 0);
+      setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 1);
+    };
+    updateScrollHint();
+    el.addEventListener("scroll", updateScrollHint);
+    const ro = new ResizeObserver(updateScrollHint);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener("scroll", updateScrollHint);
+      ro.disconnect();
+    };
+  }, [pathname]);
 
   useEffect(() => {
     if (!userMenuOpen) return;
@@ -45,36 +66,44 @@ export function Navbar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [userMenuOpen]);
 
-  useEffect(() => {
-    const loadUser = async () => {
-      const supabase = createClient();
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user) {
-          setIsLoading(false);
-          return;
-        }
-        const { data: userData, error } = await supabase
-          .from("users")
-          .select("nickname")
-          .eq("user_id", session.user.id)
-          .is("deleted_at", null)
-          .single();
-
-        if (!error && userData) {
-          setUser({
-            id: session.user.id,
-            email: session.user.email || "",
-            nickname: userData.nickname,
-          });
-        }
-      } catch (err) {
-        console.error("[Navbar] Error loading user:", err);
-      } finally {
+  const loadUser = async () => {
+    const supabase = createClient();
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
+        setUser(null);
         setIsLoading(false);
+        return;
       }
-    };
+      const { data: userData, error } = await supabase
+        .from("users")
+        .select("nickname")
+        .eq("user_id", session.user.id)
+        .is("deleted_at", null)
+        .single();
+
+      if (!error && userData) {
+        setUser({
+          id: session.user.id,
+          email: session.user.email || "",
+          nickname: userData.nickname,
+        });
+      }
+    } catch (err) {
+      console.error("[Navbar] Error loading user:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
     loadUser();
+  }, []);
+
+  useEffect(() => {
+    const handler = () => loadUser();
+    window.addEventListener("user-profile-updated", handler);
+    return () => window.removeEventListener("user-profile-updated", handler);
   }, []);
 
   const toggleTheme = () => {
@@ -96,12 +125,12 @@ export function Navbar() {
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+    <header className="sticky top-0 z-50 w-full border-b border-border bg-background">
       <nav className="flex flex-col" aria-label="메인 네비게이션">
         {/* Row 1: 로고 | 유저 + 테마 */}
         <div className="mx-auto flex h-14 min-h-14 w-full max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
           <Link
-            href="/"
+            href="/landing"
             className="flex items-center gap-2 font-semibold text-foreground transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-sm shrink-0"
           >
             <Image
@@ -155,15 +184,7 @@ export function Navbar() {
                         onClick={() => setUserMenuOpen(false)}
                       >
                         <UserCircle className="h-4 w-4 shrink-0" />
-                        개인 정보 조회
-                      </Link>
-                      <Link
-                        href="/profile/edit"
-                        className="flex items-center gap-2 px-3 py-2 text-sm text-foreground transition-colors hover:bg-muted"
-                        onClick={() => setUserMenuOpen(false)}
-                      >
-                        <Pencil className="h-4 w-4 shrink-0" />
-                        개인정보 수정
+                        개인정보 조회/수정
                       </Link>
                       <Link
                         href="/account/leave"
@@ -215,11 +236,31 @@ export function Navbar() {
           </div>
         </div>
 
-        {/* Row 2: 탭 (가로 스크롤, 모바일 스와이프, 첫 탭 로고 아래 정렬) */}
-        <div className="bg-muted/20">
+        {/* Row 2: 탭 (가로 스크롤, 모바일 스와이프, 그라디언트로 더 있음 표시) */}
+        <div className="relative bg-background">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className="overflow-x-auto scrollbar-hide">
-              <div className="flex items-center gap-2 py-2 flex-nowrap min-w-max sm:gap-4 lg:gap-6">
+            <div className="relative">
+              {/* 왼쪽 그라디언트: 스크롤 시 더 있음 표시 */}
+              <div
+                className={cn(
+                  "pointer-events-none absolute left-0 top-0 bottom-0 z-10 w-10 shrink-0 bg-gradient-to-r from-background via-background/95 to-transparent transition-opacity duration-200 sm:w-14",
+                  canScrollLeft ? "opacity-100" : "opacity-0"
+                )}
+                aria-hidden
+              />
+              {/* 오른쪽 그라디언트: 오른쪽에 탭이 더 있을 때 */}
+              <div
+                className={cn(
+                  "pointer-events-none absolute right-0 top-0 bottom-0 z-10 w-10 shrink-0 bg-gradient-to-l from-background via-background/95 to-transparent transition-opacity duration-200 sm:w-14",
+                  canScrollRight ? "opacity-100" : "opacity-0"
+                )}
+                aria-hidden
+              />
+              <div
+                ref={tabScrollRef}
+                className="overflow-x-auto scrollbar-hide -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"
+              >
+                <div className="flex items-center gap-2 py-2 flex-nowrap min-w-max sm:gap-4 lg:gap-6">
               {NAV_LINKS.map(({ href, label }) => {
                   const isActive =
                     pathname === href ||
@@ -240,6 +281,7 @@ export function Navbar() {
                   </Link>
                 );
               })}
+                </div>
               </div>
             </div>
           </div>

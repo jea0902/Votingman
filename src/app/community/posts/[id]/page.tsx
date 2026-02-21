@@ -131,7 +131,7 @@ export default function PostDetailPage() {
   // 로딩 상태
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
+      <div className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6">
         <div className="flex flex-col items-center justify-center py-16">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mb-4" />
           <p className="text-sm text-muted-foreground">게시글을 불러오는 중...</p>
@@ -143,7 +143,7 @@ export default function PostDetailPage() {
   // 에러 상태
   if (error || !post) {
     return (
-      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
+      <div className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6">
         <div className="flex flex-col items-center justify-center py-16">
           <p className="text-sm text-destructive mb-4">{error || '게시글을 찾을 수 없습니다.'}</p>
           <Button variant="outline" onClick={handleGoBack}>
@@ -161,7 +161,7 @@ export default function PostDetailPage() {
   const canEdit = isOwner || isAdmin;
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
+    <div className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6">
       {/* 상단 네비게이션 */}
       <div className="mb-6">
         <Button variant="ghost" size="sm" onClick={handleGoBack} className="gap-2">
