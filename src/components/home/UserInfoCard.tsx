@@ -18,6 +18,8 @@ type RankMarketData = {
   mmr: number;
   /** 해당 시장 내 상위 몇 % (0~100, 소수 둘째자리) */
   percentile_pct?: number | null;
+  /** 해당 시장 내 실시간 순위 (1위, 2위, ...) */
+  rank?: number | null;
 };
 
 type RankMeData = {
@@ -146,11 +148,18 @@ export function UserInfoCard() {
         </>
       ) : (
         <>
-          {/* 로그인 시: 닉네임 → 승률+전적 → 가용코인 → MMR/상위% */}
+          {/* 로그인 시: [순위] 닉네임 → 승률+전적 → 가용코인 → MMR/상위% */}
           <div className="flex flex-col gap-3">
-            <span className="min-w-0 truncate text-xs font-semibold text-foreground lg:text-sm" title={user?.nickname}>
-              {user?.nickname ?? "—"}
-            </span>
+            <div className="flex items-center gap-2">
+              {rep?.rank != null && (
+                <span className="shrink-0 rounded bg-muted px-2 py-0.5 text-[10px] font-bold tabular-nums text-muted-foreground lg:text-xs">
+                  {rep.rank}위
+                </span>
+              )}
+              <span className="min-w-0 truncate text-xs font-semibold text-foreground lg:text-sm" title={user?.nickname}>
+                {user?.nickname ?? "—"}
+              </span>
+            </div>
             <div className="flex flex-wrap items-center gap-x-2 text-[10px] lg:text-xs">
               <span className="text-foreground">
                 승률 <span className="font-medium text-[#3b82f6]">

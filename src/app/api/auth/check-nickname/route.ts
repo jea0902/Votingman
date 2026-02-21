@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseAnon } from "@/lib/supabase/server";
+import { createSupabaseAdmin } from "@/lib/supabase/server";
 
 /**
  * 닉네임 중복 체크 API
- * 
+ *
  * 설계 의도:
- * - 회원가입 시 실시간 닉네임 중복 확인
+ * - 회원가입/닉네임 수정 시 실시간 닉네임 중복 확인
  * - 소프트 삭제된 사용자 제외
- * 
+ *
+ * users 테이블 RLS로 인해 anon 키는 조회 불가 → service_role(Admin) 사용
+ *
  * 보안:
  * - SQL Injection: Supabase 파라미터화 쿼리
  * - Rate Limiting: 추후 추가 예정
@@ -17,6 +19,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const nickname = searchParams.get('nickname');
+    const excludeUserId = searchParams.get('exclude_user_id');
 
     // 입력 검증
     if (!nickname || nickname.trim().length === 0) {
@@ -33,15 +36,21 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const supabase = createSupabaseAnon();
+    const supabase = createSupabaseAdmin();
 
     // 닉네임 중복 체크 (소프트 삭제 제외)
-    const { data, error } = await supabase
+    let query = supabase
       .from('users')
       .select('user_id')
       .eq('nickname', nickname.trim())
-      .is('deleted_at', null)
-      .maybeSingle();
+      .is('deleted_at', null);
+
+    // 수정 시 현재 사용자 제외 (자기 닉네임은 사용 가능으로 판정)
+    if (excludeUserId && excludeUserId.trim().length > 0) {
+      query = query.neq('user_id', excludeUserId.trim());
+    }
+
+    const { data, error } = await query.maybeSingle();
 
     if (error) {
       console.error('Failed to check nickname:', error);

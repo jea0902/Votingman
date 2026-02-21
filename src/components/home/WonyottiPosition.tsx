@@ -53,28 +53,33 @@ export function WonyottiPosition({ className }: { className?: string }) {
   const isProfit = data.pnlUsdt > 0;
   const isLoss = data.pnlUsdt < 0;
 
+  const liquidationPrice =
+    data.position === "Long"
+      ? data.entryPrice * (1 - 0.9 / data.leverage)
+      : data.entryPrice * (1 + 0.9 / data.leverage);
+
   return (
-    <Card className={cn("border-border bg-card", className)}>
+    <Card className={cn("min-w-0 overflow-hidden border-border bg-muted/20", className)}>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">워뇨띠(aoa) 선물 - 실시간 포지션</CardTitle>
+        <CardTitle className="truncate text-base">워뇨띠(aoa) 선물 - 실시간 포지션</CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="min-w-0">
         {data.isLive ? (
-          <div className="space-y-4">
-            {/* 메인 포지션 정보 */}
-            <div className="rounded-lg border border-border bg-muted/30 p-4">
-              <div className="mb-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
+          <div className="min-w-0 space-y-4">
+            {/* 메인 포지션 정보 - 모바일: 세로 스택, 데스크톱: 가로 배치 */}
+            <div className="min-w-0 overflow-hidden rounded-lg border border-border bg-muted/20 p-4">
+              <div className="mb-4 flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-center gap-3">
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-accent/20 to-chart-2/20 text-lg font-bold text-foreground">
                     AOA
                   </div>
-                  <div>
-                    <div className="text-base font-semibold text-foreground">워뇨띠</div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <div className="min-w-0">
+                    <div className="truncate text-base font-semibold text-foreground">워뇨띠</div>
+                    <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                       <span>{data.symbol}</span>
                       <span
                         className={cn(
-                          "rounded px-2 py-0.5 text-xs font-bold",
+                          "shrink-0 rounded px-2 py-0.5 text-xs font-bold",
                           data.position === "Long"
                             ? "bg-chart-2/20 text-chart-2"
                             : "bg-chart-4/20 text-chart-4"
@@ -82,11 +87,11 @@ export function WonyottiPosition({ className }: { className?: string }) {
                       >
                         {data.position}
                       </span>
-                      <span className="text-xs">×{data.leverage}</span>
+                      <span className="shrink-0 text-xs">×{data.leverage}</span>
                     </div>
                   </div>
                 </div>
-                <div className="text-right">
+                <div className="shrink-0 text-left sm:text-right">
                   <div className="mb-1 text-xs text-muted-foreground">미실현 손익</div>
                   <div
                     className={cn(
@@ -109,41 +114,37 @@ export function WonyottiPosition({ className }: { className?: string }) {
                 </div>
               </div>
 
-              {/* 가격 정보 그리드 */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="rounded bg-background/50 px-3 py-2">
-                  <div className="mb-1 text-xs text-muted-foreground">진입가</div>
-                  <div className="text-sm font-semibold tabular-nums text-foreground">
+              {/* 가격 정보 - 모바일: 2열 그리드, 데스크톱: 3열 */}
+              <dl className="grid min-w-0 grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
+                <div className="rounded bg-muted/20 px-3 py-2">
+                  <dt className="mb-1 text-xs text-muted-foreground">진입가</dt>
+                  <dd className="truncate text-sm font-semibold tabular-nums text-foreground">
                     {data.entryPrice >= 10000
                       ? `${(data.entryPrice / 1000).toFixed(1)}K`
                       : data.entryPrice.toLocaleString()}
-                  </div>
+                  </dd>
                 </div>
-                <div className="rounded bg-background/50 px-3 py-2">
-                  <div className="mb-1 text-xs text-muted-foreground">시장가</div>
-                  <div className="text-sm font-semibold tabular-nums text-foreground">
+                <div className="rounded bg-muted/20 px-3 py-2">
+                  <dt className="mb-1 text-xs text-muted-foreground">시장가</dt>
+                  <dd className="truncate text-sm font-semibold tabular-nums text-foreground">
                     {data.marketPrice >= 10000
                       ? `${(data.marketPrice / 1000).toFixed(1)}K`
                       : data.marketPrice.toLocaleString()}
-                  </div>
+                  </dd>
                 </div>
-                <div className="rounded bg-background/50 px-3 py-2">
-                  <div className="mb-1 text-xs text-muted-foreground">청산가</div>
-                  <div className="text-sm font-semibold tabular-nums text-foreground">
-                    {data.position === "Long"
-                      ? data.entryPrice * (1 - 0.9 / data.leverage) >= 10000
-                        ? `${((data.entryPrice * (1 - 0.9 / data.leverage)) / 1000).toFixed(1)}K`
-                        : (data.entryPrice * (1 - 0.9 / data.leverage)).toFixed(2)
-                      : data.entryPrice * (1 + 0.9 / data.leverage) >= 10000
-                        ? `${((data.entryPrice * (1 + 0.9 / data.leverage)) / 1000).toFixed(1)}K`
-                        : (data.entryPrice * (1 + 0.9 / data.leverage)).toFixed(2)}
-                  </div>
+                <div className="col-span-2 rounded bg-muted/20 px-3 py-2 sm:col-span-1">
+                  <dt className="mb-1 text-xs text-muted-foreground">청산가</dt>
+                  <dd className="truncate text-sm font-semibold tabular-nums text-foreground">
+                    {liquidationPrice >= 10000
+                      ? `${(liquidationPrice / 1000).toFixed(1)}K`
+                      : liquidationPrice.toFixed(2)}
+                  </dd>
                 </div>
-              </div>
+              </dl>
             </div>
           </div>
         ) : (
-          <div className="rounded bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
+          <div className="rounded bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
             포지션 정보 없음
           </div>
         )}

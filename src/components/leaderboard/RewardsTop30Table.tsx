@@ -43,7 +43,7 @@ export function RewardsTop30Table({ className }: { className?: string }) {
   return (
     <Card className={cn("border-border bg-card", className)}>
       <CardContent className="pt-6">
-        <h3 className="mb-4 text-sm font-semibold text-foreground">현재 랭킹 TOP 30</h3>
+        <h3 className="mb-4 text-sm font-semibold text-foreground">리더보드</h3>
 
         {isLoading && (
           <div className="space-y-2 py-4">

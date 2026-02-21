@@ -33,10 +33,10 @@ export function StockCard({ stock }: StockCardProps) {
   return (
     <div
       className={cn(
-        "group relative overflow-hidden rounded-lg border-2 p-4 transition-all duration-300 hover:scale-105 hover:shadow-2xl",
+        "group relative overflow-hidden rounded-lg border-2 p-3 transition-all duration-300 sm:p-4 sm:hover:scale-105 sm:hover:shadow-2xl",
         isUndervalued
-          ? "border-amber-500/50 bg-gradient-to-br from-amber-900/20 to-yellow-900/10 shadow-amber-500/20"
-          : "border-red-500/50 bg-gradient-to-br from-red-900/20 to-rose-900/10 shadow-red-500/20"
+          ? "border-amber-500/50 bg-white/20 shadow-amber-500/20 dark:bg-gradient-to-br dark:from-amber-900/20 dark:to-yellow-900/10"
+          : "border-red-500/50 bg-white/20 shadow-red-500/20 dark:bg-gradient-to-br dark:from-red-900/20 dark:to-rose-900/10"
       )}
     >
       {/* 배지: 우량주 vs 저평가 우량주 */}
@@ -52,10 +52,10 @@ export function StockCard({ stock }: StockCardProps) {
       </div>
 
       {/* 로고 + 회사명 + 티커 */}
-      <div className="mb-3 flex items-center gap-2">
-        <span className="text-3xl">{stock.logo}</span>
+      <div className="mb-2 flex items-center gap-2 sm:mb-3">
+        <span className="text-2xl sm:text-3xl">{stock.logo}</span>
         <div className="flex-1">
-          <h3 className="text-sm font-bold text-foreground">{stock.name}</h3>
+          <h3 className="text-xs font-bold text-foreground sm:text-sm">{stock.name}</h3>
           <p className="text-xs text-muted-foreground">{stock.ticker}</p>
         </div>
       </div>
@@ -109,7 +109,7 @@ export function StockCard({ stock }: StockCardProps) {
         </p>
         <p
           className={cn(
-            "text-lg font-bold",
+            "text-base font-bold sm:text-lg",
             isUndervalued ? "text-amber-700 dark:text-amber-400" : "text-red-400"
           )}
         >

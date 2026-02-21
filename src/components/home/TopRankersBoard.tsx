@@ -43,7 +43,7 @@ function PnlBadge({ pnl }: { pnl: number }) {
 
 function RankerCard({ ranker }: { ranker: RankerItem }) {
   return (
-    <div className="min-w-0 overflow-hidden rounded-lg border border-border bg-muted/30 p-3">
+    <div className="min-w-0 overflow-hidden rounded-lg border border-border bg-muted/20 p-3">
       <div className="mb-2 flex min-w-0 items-center gap-2">
         <span
           className={cn(
@@ -80,7 +80,7 @@ function RankerCard({ ranker }: { ranker: RankerItem }) {
 
 export function TopRankersBoard({ className }: { className?: string }) {
   return (
-    <Card className={cn("border-border bg-card", className)}>
+    <Card className={cn("min-w-0 overflow-hidden border-border bg-muted/20", className)}>
       <CardHeader className="pb-2">
         <CardTitle className="text-base">바이낸스 선물 랭커 TOP3 - 실시간 포지션</CardTitle>
       </CardHeader>

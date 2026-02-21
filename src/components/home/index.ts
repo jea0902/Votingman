@@ -15,7 +15,6 @@ export { BuffettCard } from "./BuffettCard";
 export { HumanIndicatorSection } from "./HumanIndicatorSection";
 export { MarketTabCards } from "./MarketTabCards";
 export { UserInfoCard } from "./UserInfoCard";
-export { MarketTop20Positions } from "./MarketTop20Positions";
 export { MarketVoteCard } from "./MarketVoteCard";
 export { MarketVoteCardCompact } from "./MarketVoteCardCompact";
 export { WonyottiPosition } from "./WonyottiPosition";

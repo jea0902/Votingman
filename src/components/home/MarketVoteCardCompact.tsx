@@ -14,16 +14,16 @@ import { MARKET_LABEL } from "@/lib/constants/sentiment-markets";
 import type { SentimentMarket } from "@/lib/constants/sentiment-markets";
 import type { PollData } from "./MarketVoteCard";
 
-/** 시장별 카드 제목 (상승/하락 예측) */
-const CARD_TITLE: Record<string, string> = {
-  btc_1d: "[1일 후] 비트코인 상승/하락",
-  btc_4h: "[4시간 후] 비트코인 상승/하락",
-  btc_1h: "[1시간 후] 비트코인 상승/하락",
-  btc_15m: "[15분 후] 비트코인 상승/하락",
-  ndq: "나스닥100 상승/하락",
-  sp500: "S&P 500 상승/하락",
-  kospi: "코스피 상승/하락",
-  kosdaq: "코스닥 상승/하락",
+/** 시장별 카드 제목 - 모바일용 짧은 형식 (시간봉 + 상승 or 하락) */
+const CARD_TITLE_SHORT: Record<string, string> = {
+  btc_1d: "1일 후 BTC 상승 or 하락",
+  btc_4h: "4시간 후 BTC 상승 or 하락",
+  btc_1h: "1시간 후 BTC 상승 or 하락",
+  btc_15m: "15분 후 BTC 상승 or 하락",
+  ndq: "NDQ 상승 or 하락",
+  sp500: "SPX 상승 or 하락",
+  kospi: "코스피 상승 or 하락",
+  kosdaq: "코스닥 상승 or 하락",
 };
 
 /** btc 계열 시간봉 라벨 */
@@ -82,7 +82,7 @@ export function MarketVoteCardCompact({ market, poll }: Props) {
   }, [poll]);
 
   const detailHref = `/predict/${market}`;
-  const title = CARD_TITLE[market] ?? `${MARKET_LABEL[market]} 상승/하락`;
+  const title = CARD_TITLE_SHORT[market] ?? `${MARKET_LABEL[market]} 상승 or 하락`;
   const icon = MARKET_ICON[market] ?? market.toUpperCase();
   const timeframeLabel = isBtcMarket(market) ? TIMEFRAME_LABEL[market] : null;
 
@@ -125,10 +125,20 @@ export function MarketVoteCardCompact({ market, poll }: Props) {
             {title}
           </h3>
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-sm font-semibold text-emerald-500">
-            롱 {longPct}%
-          </span>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {longPct > shortPct ? (
+            <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+              상승 {longPct}%
+            </span>
+          ) : shortPct > longPct ? (
+            <span className="rounded-full bg-rose-500/20 px-2 py-0.5 text-xs font-semibold text-rose-600 dark:text-rose-400">
+              하락 {shortPct}%
+            </span>
+          ) : (
+            <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
+              50:50
+            </span>
+          )}
         </div>
       </div>
       </Link>
@@ -139,7 +149,7 @@ export function MarketVoteCardCompact({ market, poll }: Props) {
           : `${getNextOpenTimeKstString(market)} 다시 투표 가능`}
       </p>
 
-      <div className="mb-4 flex h-2 overflow-hidden rounded-full bg-muted">
+      <div className="mb-3 flex h-1.5 overflow-hidden rounded-full bg-muted sm:mb-4 sm:h-2">
         <div
           className="bg-emerald-500 transition-all duration-500 ease-out"
           style={{ width: `${longPct}%` }}
@@ -150,20 +160,20 @@ export function MarketVoteCardCompact({ market, poll }: Props) {
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-2 sm:gap-3">
         <Link
           href={`${detailHref}?choice=long`}
-          className="flex min-h-[52px] flex-col items-center justify-center rounded-xl border-2 border-emerald-500/60 bg-emerald-500/10 py-4 text-emerald-400 transition-all hover:border-emerald-400 hover:bg-emerald-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+          className="flex min-h-[40px] flex-col items-center justify-center rounded-lg border-2 border-emerald-500/60 bg-emerald-500/10 py-2 text-emerald-400 transition-all hover:border-emerald-400 hover:bg-emerald-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 sm:min-h-[48px] sm:rounded-xl sm:py-3"
         >
-          <span className="text-2xl font-bold sm:text-3xl">Up</span>
-          <span className="mt-1 text-xs text-muted-foreground">상승 예상</span>
+          <span className="text-lg font-bold sm:text-2xl">Up</span>
+          <span className="mt-0.5 text-[10px] text-muted-foreground sm:mt-1 sm:text-xs">상승</span>
         </Link>
         <Link
           href={`${detailHref}?choice=short`}
-          className="flex min-h-[52px] flex-col items-center justify-center rounded-xl border-2 border-rose-500/60 bg-rose-500/10 py-4 text-rose-400 transition-all hover:border-rose-400 hover:bg-rose-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+          className="flex min-h-[40px] flex-col items-center justify-center rounded-lg border-2 border-rose-500/60 bg-rose-500/10 py-2 text-rose-400 transition-all hover:border-rose-400 hover:bg-rose-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 sm:min-h-[48px] sm:rounded-xl sm:py-3"
         >
-          <span className="text-2xl font-bold sm:text-3xl">Down</span>
-          <span className="mt-1 text-xs text-muted-foreground">하락 예상</span>
+          <span className="text-lg font-bold sm:text-2xl">Down</span>
+          <span className="mt-0.5 text-[10px] text-muted-foreground sm:mt-1 sm:text-xs">하락</span>
         </Link>
       </div>
 

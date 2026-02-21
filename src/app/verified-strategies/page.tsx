@@ -57,16 +57,8 @@ const DUMMY_STRATEGIES: Strategy[] = [
 export default function VerifiedStrategiesPage() {
   return (
     <div className="relative min-h-[calc(100vh-3.5rem)] w-full">
-      {/* 배경 그라데이션 */}
-      <div
-        className="pointer-events-none absolute inset-0 -z-10"
-        aria-hidden
-      >
-        <div className="absolute left-1/2 top-0 h-[300px] w-[800px] -translate-x-1/2 rounded-full bg-[radial-gradient(ellipse_80%_50%_at_50%_0%,rgba(59,130,246,0.15),transparent)]" />
-      </div>
-
-      {/* 메인 콘텐츠 (좌우 15% 여백) */}
-      <div className="mx-auto w-[70%] px-4 py-12">
+      {/* 메인 콘텐츠 */}
+      <div className="mx-auto w-full max-w-5xl px-4 py-12 sm:px-6 lg:px-8">
         {/* 기능 준비중 안내 */}
         <div className="mb-8 rounded-lg border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-center text-sm font-medium text-amber-600 dark:text-amber-400">
           이 기능은 현재 준비 중입니다.

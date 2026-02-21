@@ -1,6 +1,7 @@
 /**
  * GET /api/rank/me
- * 현재 로그인 사용자의 랭크 정보(승률, MMR, 상위 %).
+ * 현재 로그인 사용자의 랭크 정보(승률, MMR, 상위 %, 실시간 순위).
+ * user_stats 기준으로 계산.
  */
 
 import { NextResponse } from "next/server";
@@ -40,6 +41,7 @@ export async function GET() {
           win_rate: Math.round(m.win_rate * 10000) / 100,
           mmr: Math.round(m.mmr * 100) / 100,
           percentile_pct: m.percentile_pct,
+          rank: m.rank,
         })),
       },
     });

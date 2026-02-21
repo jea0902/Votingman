@@ -69,7 +69,7 @@ function PositionCard({ influencer }: { influencer: InfluencerPosition }) {
   const isLoss = influencer.pnlUsdt < 0;
 
   return (
-    <div className="min-w-0 overflow-hidden rounded-lg border border-border bg-card p-3">
+    <div className="min-w-0 overflow-hidden rounded-lg border border-border bg-muted/20 p-3">
       {/* 상단: 프로필 + 이름 + 상태 */}
       <div className="mb-3 flex min-w-0 items-start gap-2 sm:gap-3">
         <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-muted sm:h-12 sm:w-12">
@@ -134,7 +134,7 @@ function PositionCard({ influencer }: { influencer: InfluencerPosition }) {
       {/* 하단: 가격 정보 */}
       {influencer.isLive && influencer.entryPrice > 0 && (
         <div className="grid min-w-0 grid-cols-3 gap-1.5 sm:gap-2">
-          <div className="min-w-0 overflow-hidden rounded bg-muted/50 px-1.5 py-1.5 sm:px-2">
+          <div className="min-w-0 overflow-hidden rounded bg-muted/20 px-1.5 py-1.5 sm:px-2">
             <div className="mb-0.5 truncate text-[9px] text-muted-foreground sm:text-[10px]">진입가</div>
             <div className="truncate text-[10px] font-medium tabular-nums text-foreground sm:text-xs">
               {influencer.entryPrice >= 10000
@@ -142,7 +142,7 @@ function PositionCard({ influencer }: { influencer: InfluencerPosition }) {
                 : influencer.entryPrice.toLocaleString()}
             </div>
           </div>
-          <div className="min-w-0 overflow-hidden rounded bg-muted/50 px-1.5 py-1.5 sm:px-2">
+          <div className="min-w-0 overflow-hidden rounded bg-muted/20 px-1.5 py-1.5 sm:px-2">
             <div className="mb-0.5 truncate text-[9px] text-muted-foreground sm:text-[10px]">시장가</div>
             <div className="truncate text-[10px] font-medium tabular-nums text-foreground sm:text-xs">
               {influencer.marketPrice >= 10000
@@ -150,7 +150,7 @@ function PositionCard({ influencer }: { influencer: InfluencerPosition }) {
                 : influencer.marketPrice.toLocaleString()}
             </div>
           </div>
-          <div className="min-w-0 overflow-hidden rounded bg-muted/50 px-1.5 py-1.5 sm:px-2">
+          <div className="min-w-0 overflow-hidden rounded bg-muted/20 px-1.5 py-1.5 sm:px-2">
             <div className="mb-0.5 truncate text-[9px] text-muted-foreground sm:text-[10px]">청산가</div>
             <div className="truncate text-[10px] font-medium tabular-nums text-foreground sm:text-xs">
               {influencer.entryPrice * 0.92 >= 10000
@@ -162,7 +162,7 @@ function PositionCard({ influencer }: { influencer: InfluencerPosition }) {
       )}
 
       {influencer.isLive && influencer.entryPrice === 0 && (
-        <div className="rounded bg-muted/30 px-2 py-2 text-center text-xs text-muted-foreground">
+        <div className="rounded bg-muted/20 px-2 py-2 text-center text-xs text-muted-foreground">
           포지션 정보 없음
         </div>
       )}
@@ -172,7 +172,7 @@ function PositionCard({ influencer }: { influencer: InfluencerPosition }) {
 
 export function InfluencerPositions({ className }: { className?: string }) {
   return (
-    <Card className={cn("border-border bg-card", className)}>
+    <Card className={cn("min-w-0 overflow-hidden border-border bg-muted/20", className)}>
       <CardHeader className="pb-3">
         <CardTitle className="text-base">코인 선물 유튜버 3대장 - 실시간 포지션</CardTitle>
       </CardHeader>

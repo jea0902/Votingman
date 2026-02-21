@@ -24,7 +24,20 @@ import {
   normalizeToDbMarket,
 } from "@/lib/constants/sentiment-markets";
 import { createClient } from "@/lib/supabase/client";
-import { BtcChart } from "@/components/predict/BtcChart";
+import dynamic from "next/dynamic";
+
+const BtcChart = dynamic(
+  () => import("@/components/predict/BtcChart").then((m) => ({ default: m.BtcChart })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-[500px] flex-col items-center justify-center gap-4 rounded-lg border border-border bg-card">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" />
+        <span className="text-sm text-muted-foreground">차트 불러오는 중…</span>
+      </div>
+    ),
+  }
+);
 import { PollRulesContent } from "@/components/predict/PollRulesContent";
 import { MarketContextContent } from "@/components/predict/MarketContextContent";
 import { CountdownTimer } from "@/components/predict/CountdownTimer";
