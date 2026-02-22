@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 const NAV_LINKS = [
   { href: "/home", label: "투표" },
   { href: "/market-sentiment", label: "시장 분위기" },
+  { href: "/arbitrage", label: "아비트라지" },
   { href: "/leaderboard", label: "투표 보상" },
   { href: "/community", label: "건의" },
   { href: "/simulation", label: "모의 선물 투자" },
@@ -261,26 +262,26 @@ export function Navbar() {
                 className="overflow-x-auto scrollbar-hide -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"
               >
                 <div className="flex items-center gap-2 py-2 flex-nowrap min-w-max sm:gap-4 lg:gap-6">
-              {NAV_LINKS.map(({ href, label }) => {
-                  const isActive =
-                    pathname === href ||
-                    pathname.startsWith(href + "/") ||
-                    (href === "/home" && pathname === "/");
-                return (
-                  <Link
-                    key={href}
-                    href={href}
-                    className={cn(
-                      "whitespace-nowrap rounded-sm px-2 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background shrink-0",
-                      isActive
-                        ? "text-foreground bg-muted/80"
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                    )}
-                  >
-                    {label}
-                  </Link>
-                );
-              })}
+                  {NAV_LINKS.map(({ href, label }) => {
+                    const isActive =
+                      pathname === href ||
+                      pathname.startsWith(href + "/") ||
+                      (href === "/home" && pathname === "/");
+                    return (
+                      <Link
+                        key={href}
+                        href={href}
+                        className={cn(
+                          "whitespace-nowrap rounded-sm px-2 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background shrink-0",
+                          isActive
+                            ? "text-foreground bg-muted/80"
+                            : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                        )}
+                      >
+                        {label}
+                      </Link>
+                    );
+                  })}
                 </div>
               </div>
             </div>
