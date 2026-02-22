@@ -7,7 +7,7 @@ export { StockHeatmap } from "./StockHeatmap";
 export { NewsTimeline } from "./NewsTimeline";
 export { EconomicCalendar } from "./EconomicCalendar";
 export { LoginSignupCard } from "./LoginSignupCard";
-export { TopRankersBoard } from "./TopRankersBoard";
+export { BinanceTop3Board } from "./BinanceTop3Board";
 export { InfluencerPositions } from "./InfluencerPositions";
 export { StockCard } from "./StockCard";
 export { StrategyCard } from "./StrategyCard";

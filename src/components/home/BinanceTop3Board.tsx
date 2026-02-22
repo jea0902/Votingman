@@ -78,7 +78,7 @@ function RankerCard({ ranker }: { ranker: RankerItem }) {
   );
 }
 
-export function TopRankersBoard({ className }: { className?: string }) {
+export function BinanceTop3Board({ className }: { className?: string }) {
   return (
     <Card className={cn("min-w-0 overflow-hidden border-border bg-muted/20", className)}>
       <CardHeader className="pb-2">

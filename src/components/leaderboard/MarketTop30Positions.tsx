@@ -10,7 +10,7 @@ import { useEffect, useState } from "react";
 import { Medal } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { LeaderboardTop20Item, LeaderboardTop20Response } from "@/app/api/leaderboard/top20/route";
+import type { LeaderboardTop30Item, LeaderboardTop30Response } from "@/app/api/leaderboard/top30/route";
 
 type Props = {
   variant?: "leaderboard" | "positions";
@@ -33,13 +33,13 @@ function getAvatarGradient(rank: number) {
 }
 
 export function MarketTop30Positions({ variant = "leaderboard", className }: Props) {
-  const [data, setData] = useState<LeaderboardTop20Response | null>(null);
+  const [data, setData] = useState<LeaderboardTop30Response | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/leaderboard/top20")
+    fetch("/api/leaderboard/top30")
       .then((res) => res.json())
       .then((json) => {
         if (cancelled) return;
@@ -58,7 +58,7 @@ export function MarketTop30Positions({ variant = "leaderboard", className }: Pro
     return () => { cancelled = true; };
   }, []);
 
-  const rows = data?.top20 ?? [];
+  const rows = data?.top30 ?? [];
 
   return (
     <Card className={cn("min-w-0 overflow-hidden rounded-xl border-border bg-muted/20", className)}>
@@ -96,7 +96,7 @@ export function MarketTop30Positions({ variant = "leaderboard", className }: Pro
             </div>
 
             <div className="space-y-3 px-4 pb-4 sm:space-y-0 sm:divide-y sm:divide-border sm:px-0 sm:pb-0">
-              {rows.map((item: LeaderboardTop20Item) => {
+              {rows.map((item: LeaderboardTop30Item) => {
                 const winRate =
                   typeof item.win_rate === "number" ? `${Number(item.win_rate).toFixed(2)}%` : "-";
                 const initial = (item.nickname || "?").charAt(0).toUpperCase();

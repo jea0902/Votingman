@@ -40,7 +40,7 @@
 - `computeUserMarketSeason` 반환: `placement_matches_played` 대신 참여 횟수만 `participation_count`로 전달
 - MMR 계산: 기존과 동일 `balance * (win_count / participation_count)` (0 나누기 방지)
 
-### 2.3 `src/app/api/leaderboard/top20/route.ts`
+### 2.3 `src/app/api/leaderboard/top30/route.ts`
 - `.from("user_season_stats")` → `.from("user_stats")`
 - `.eq("season_id", seasonId)` 제거
 - 조회 컬럼: `user_id`, `mmr` 등 필요 컬럼만 (season_id 없음)

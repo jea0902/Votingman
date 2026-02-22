@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServerClient, createSupabaseAdmin } from "@/lib/supabase/server";
 
 /**
  * Auth Callback Route (로그인용)
@@ -37,20 +37,27 @@ export async function GET(request: NextRequest) {
   // users 테이블에서 사용자 확인 (닉네임 설정 여부 체크)
   const { data: userData, error: userError } = await supabase
     .from('users')
-    .select('user_id, nickname')
+    .select('user_id, nickname, deleted_at')
     .eq('user_id', userId)
-    .is('deleted_at', null)
     .maybeSingle();
 
-  if (userError) {
-    console.error('User check failed:', userError);
-  }
-
-  // users 테이블에 없으면 (= 닉네임 미설정) 회원가입으로
-  if (!userData) {
-    return NextResponse.redirect(`${origin}/signup?step=nickname`);
-  }
-
-  // users 테이블에 있으면 (= 가입 완료) 투표(홈) 페이지로 (Navbar "투표" 탭 활성화)
-  return NextResponse.redirect(`${origin}/home`);
+    if (userError) {
+      console.error('User check failed:', userError);
+    }
+    
+    // users 테이블에 없으면 (= 신규 가입) 닉네임 설정으로
+    if (!userData) {
+      return NextResponse.redirect(`${origin}/signup?step=nickname`);
+    }
+    
+    // 탈퇴한 유저면 계정 재활성화
+    if (userData.deleted_at) {
+      const supabaseAdmin = createSupabaseAdmin();
+      await supabaseAdmin
+        .from('users')
+        .update({ deleted_at: null })
+        .eq('user_id', userId);
+    }
+    
+    return NextResponse.redirect(`${origin}/home`);
 }

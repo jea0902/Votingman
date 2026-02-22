@@ -29,7 +29,7 @@ const SAMPLE_INFLUENCERS: InfluencerPosition[] = [
   {
     id: "1",
     name: "박호두",
-    avatar: "/avatars/influencer-parkhodu.jpg",
+    avatar: "/images/influencer/parkhodu2.jpg",
     rank: 1,
     symbol: "BTCUSDT",
     position: "Long",
@@ -41,7 +41,7 @@ const SAMPLE_INFLUENCERS: InfluencerPosition[] = [
   {
     id: "2",
     name: "짭구",
-    avatar: "/avatars/influencer-jjapgu.jpg",
+    avatar: "/images/influencer/jjapgu.jpg",
     rank: 2,
     symbol: "BTCUSDT",
     position: "Long",
@@ -53,7 +53,7 @@ const SAMPLE_INFLUENCERS: InfluencerPosition[] = [
   {
     id: "3",
     name: "사또",
-    avatar: "/avatars/influencer-satto.jpg",
+    avatar: "/images/influencer/satto.jpg",
     rank: 3,
     symbol: "ETHUSDT",
     position: "Long",

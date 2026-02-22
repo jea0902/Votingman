@@ -54,14 +54,14 @@
  * 다크 모드 (html.dark) — 랜딩 네이비 스타일 통일
  * -------------------------------------------------------------------------- */
 html.dark {
-  --background: #030712;
+  --background: #0c1222;
   --foreground: #f8fafc;
   --card: #0a0f1e;
   --card-foreground: #f8fafc;
   --popover: #0a0f1e;
   --popover-foreground: #f8fafc;
   --primary: #60a5fa;
-  --primary-foreground: #030712;
+  --primary-foreground: #0c1222;
   --secondary: #0f1629;
   --secondary-foreground: #f8fafc;
   --muted: #0f1629;

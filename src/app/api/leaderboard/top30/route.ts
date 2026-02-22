@@ -1,6 +1,6 @@
 /**
- * 보팅맨 통합 랭킹 TOP20 + 유저당 최다배팅 시장 1개 포지션
- * - user_stats.market = 'all' 기준 MMR TOP20, 승률은 user_stats의 win_count/participation_count 사용
+ * 보팅맨 통합 랭킹 TOP30 + 유저당 최다배팅 시장 1개 포지션
+ * - user_stats.market = 'all' 기준 MMR TOP30, 승률은 user_stats의 win_count/participation_count 사용
  * - 각 유저별 "가장 많이 배팅한 시장" 1개만 표시 (시장명 + 롱/숏 + 배팅 VTC)
  * - 쿼리: ?section= 무시 (통합만 반환). 하위 호환용 section 파라미터는 받지만 사용하지 않음.
  */
@@ -26,7 +26,7 @@ export type LeaderboardPosition = {
   bet_amount: number;
 };
 
-export type LeaderboardTop20Item = {
+export type LeaderboardTop30Item = {
   rank: number;
   user_id: string;
   nickname: string;
@@ -39,9 +39,9 @@ export type LeaderboardTop20Item = {
   primary_position: PrimaryPosition | null;
 };
 
-export type LeaderboardTop20Response = {
+export type LeaderboardTop30Response = {
   section: "all";
-  top20: LeaderboardTop20Item[];
+  top30: LeaderboardTop30Item[];
 };
 
 const ALL_MARKETS: SentimentMarket[] = [
@@ -59,7 +59,7 @@ export async function GET() {
   try {
     const admin = createSupabaseAdmin();
 
-    // 1) 통합 랭킹: user_stats market='all' 기준 MMR TOP20 (승률은 win_count/participation_count로 계산)
+    // 1) 통합 랭킹: user_stats market='all' 기준 MMR TOP30 (승률은 win_count/participation_count로 계산)
     const { data: statsRows, error: statsError } = await admin
       .from("user_stats")
       .select("user_id, mmr, win_count, participation_count")
@@ -68,7 +68,7 @@ export async function GET() {
       .limit(LEADERBOARD_TOP_N);
 
     if (statsError) {
-      console.error("Leaderboard top20 user_stats error:", statsError);
+      console.error("Leaderboard top30 user_stats error:", statsError);
       return NextResponse.json(
         { success: false, error: { code: "SERVER_ERROR", message: "리더보드를 불러오는데 실패했습니다." } },
         { status: 500 }
@@ -78,7 +78,7 @@ export async function GET() {
     if (!statsRows || statsRows.length === 0) {
       return NextResponse.json({
         success: true,
-        data: { section: "all", top20: [] } satisfies LeaderboardTop20Response,
+        data: { section: "all", top30: [] } satisfies LeaderboardTop30Response,
       });
     }
 
@@ -92,7 +92,7 @@ export async function GET() {
       .is("deleted_at", null);
 
     if (usersError) {
-      console.error("Leaderboard top20 users error:", usersError);
+      console.error("Leaderboard top30 users error:", usersError);
       return NextResponse.json(
         { success: false, error: { code: "SERVER_ERROR", message: "리더보드를 불러오는데 실패했습니다." } },
         { status: 500 }
@@ -117,7 +117,7 @@ export async function GET() {
     }
     const pollIds = Object.values(pollIdsByMarket);
 
-    // 4) TOP20 유저들의 오늘 투표 (poll_id, user_id, choice, bet_amount, market)
+    // 4) TOP30 유저들의 오늘 투표 (poll_id, user_id, choice, bet_amount, market)
     const { data: votesRows, error: votesError } = await admin
       .from("sentiment_votes")
       .select("poll_id, user_id, choice, bet_amount, market")
@@ -126,7 +126,7 @@ export async function GET() {
       .gt("bet_amount", 0);
 
     if (votesError) {
-      console.error("Leaderboard top20 sentiment_votes error:", votesError);
+      console.error("Leaderboard top30 sentiment_votes error:", votesError);
       return NextResponse.json(
         { success: false, error: { code: "SERVER_ERROR", message: "리더보드를 불러오는데 실패했습니다." } },
         { status: 500 }
@@ -188,9 +188,9 @@ export async function GET() {
       return { market: bestMarket, market_label: label, choice: bestChoice, bet_amount: bestBet };
     }
 
-    // 6) TOP20 배열 조립. 누적 승률은 퍼센트(0~100)로 반환. UI에서 "65.00%" 표시용.
+    // 6) TOP30 배열 조립. 누적 승률은 퍼센트(0~100)로 반환. UI에서 "65.00%" 표시용.
     const round2 = (n: number) => Math.round(n * 100) / 100;
-    const top20: LeaderboardTop20Item[] = statsRows.map((row, index) => {
+    const top30: LeaderboardTop30Item[] = statsRows.map((row, index) => {
       const u = userMap.get(row.user_id);
       const wins = Number((row as { win_count?: number }).win_count ?? 0);
       const total = Number((row as { participation_count?: number }).participation_count ?? 0);
@@ -216,10 +216,10 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      data: { section: "all", top20 } satisfies LeaderboardTop20Response,
+      data: { section: "all", top30 } satisfies LeaderboardTop30Response,
     });
   } catch (e) {
-    console.error("Leaderboard top20 error:", e);
+    console.error("Leaderboard top30 error:", e);
     return NextResponse.json(
       { success: false, error: { code: "SERVER_ERROR", message: "리더보드를 불러오는데 실패했습니다." } },
       { status: 500 }

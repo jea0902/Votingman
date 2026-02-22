@@ -154,7 +154,7 @@ export function LandingSection() {
                 { val: "0", showCoin: true, change: "집계 예정", label: "총 거래량 VTC" },
                 { val: "계산중", change: "베타", label: "활성 참여자" },
                 { val: "4", unit: "●", unitColor: "#34d399", change: "LIVE NOW", label: "라이브 마켓" },
-                { val: "계산중", change: "베타", label: "정산 정확도" },
+                { val: "계산중", change: "베타", label: "예측 정확도" },
               ].map((item, i) => (
                 <div
                   key={i}
