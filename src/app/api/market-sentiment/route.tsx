@@ -19,6 +19,7 @@ const BINANCE_FAPI = "https://fapi.binance.com";
 async function fetchBinance(path: string) {
   const res = await fetch(`${BINANCE_FAPI}${path}`, {
     next: { revalidate: 30 }, // 30초 캐시
+    // cache: "no-store",
   });
   if (!res.ok) throw new Error(`Binance API error: ${path} ${res.status}`);
   return res.json();
