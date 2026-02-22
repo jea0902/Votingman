@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
   { href: "/home", label: "투표" },
-  { href: "/pro-positions", label: "고수 포지션" },
+  { href: "/market-sentiment", label: "시장 분위기" },
   { href: "/leaderboard", label: "투표 보상" },
   { href: "/community", label: "건의" },
   { href: "/simulation", label: "모의 선물 투자" },
@@ -134,7 +134,7 @@ export function Navbar() {
             className="flex items-center gap-2 font-semibold text-foreground transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-sm shrink-0"
           >
             <Image
-              src="/images/logo-light.png"
+              src="/images/logo-l.png"
               alt="보팅맨 로고"
               width={160}
               height={56}
@@ -142,7 +142,7 @@ export function Navbar() {
               priority
             />
             <Image
-              src="/images/logo-dark.png"
+              src="/images/logo-d.png"
               alt="보팅맨 로고"
               width={160}
               height={56}

@@ -23,7 +23,7 @@
   - `GET /api/sentiment/polls` — 여러 시장 오늘 폴 한 번에 조회
   - `POST /api/sentiment/vote` — 투표 시 (해당 시장 현재 폴 확보)
   - `POST /api/sentiment/vote/cancel` — 투표 취소 시
-  - `GET /api/leaderboard/top20` — 리더보드에서 오늘 폴 사용
+  - `GET /api/leaderboard/top30` — 리더보드에서 오늘 폴 사용
 
 **결과**: 시장당 **현재 진행 중인 봉 1개**에 대한 행만 생성됨.  
 예: btc_15m에서 10:00에 접속하면 `10:00~10:15` 봉 폴만 생기고, `00:00~00:15`, `00:15~00:30` … 는 **절대 이 경로로는 생성되지 않음.**

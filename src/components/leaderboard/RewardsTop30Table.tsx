@@ -10,16 +10,16 @@ import { useEffect, useState } from "react";
 import { Medal, Award, Gift } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { LeaderboardTop20Item, LeaderboardTop20Response } from "@/app/api/leaderboard/top20/route";
+import type { LeaderboardTop30Item, LeaderboardTop30Response } from "@/app/api/leaderboard/top30/route";
 
 export function RewardsTop30Table({ className }: { className?: string }) {
-  const [data, setData] = useState<LeaderboardTop20Response | null>(null);
+  const [data, setData] = useState<LeaderboardTop30Response | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/leaderboard/top20")
+    fetch("/api/leaderboard/top30")
       .then((res) => res.json())
       .then((json) => {
         if (cancelled) return;
@@ -38,7 +38,7 @@ export function RewardsTop30Table({ className }: { className?: string }) {
     return () => { cancelled = true; };
   }, []);
 
-  const rows = data?.top20 ?? [];
+  const rows = data?.top30 ?? [];
 
   return (
     <Card className={cn("border-border bg-card", className)}>
@@ -79,7 +79,7 @@ export function RewardsTop30Table({ className }: { className?: string }) {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((item: LeaderboardTop20Item) => {
+                {rows.map((item: LeaderboardTop30Item) => {
                   const pp = item.primary_position;
                   const choice = pp?.choice ?? "long";
                   const betAmount = pp?.bet_amount ?? 0;
