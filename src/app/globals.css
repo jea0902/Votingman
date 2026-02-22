@@ -170,6 +170,7 @@ body {
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
 }
+
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
@@ -178,38 +179,92 @@ body {
  * 랜딩 페이지 애니메이션
  * -------------------------------------------------------------------------- */
 @keyframes hero-glow {
-  0%, 100% { filter: drop-shadow(0 0 12px rgba(244, 33, 46, 0.5)) drop-shadow(0 0 30px rgba(244, 33, 46, 0.2)); }
-  50% { filter: drop-shadow(0 0 20px rgba(244, 33, 46, 0.7)) drop-shadow(0 0 40px rgba(244, 33, 46, 0.3)); }
+
+  0%,
+  100% {
+    filter: drop-shadow(0 0 12px rgba(244, 33, 46, 0.5)) drop-shadow(0 0 30px rgba(244, 33, 46, 0.2));
+  }
+
+  50% {
+    filter: drop-shadow(0 0 20px rgba(244, 33, 46, 0.7)) drop-shadow(0 0 40px rgba(244, 33, 46, 0.3));
+  }
 }
 
 @keyframes gradient-float {
-  0%, 100% { opacity: 0.6; transform: translate(0, 0) scale(1); }
-  33% { opacity: 0.8; transform: translate(2%, -2%) scale(1.02); }
-  66% { opacity: 0.7; transform: translate(-1%, 1%) scale(0.98); }
+
+  0%,
+  100% {
+    opacity: 0.6;
+    transform: translate(0, 0) scale(1);
+  }
+
+  33% {
+    opacity: 0.8;
+    transform: translate(2%, -2%) scale(1.02);
+  }
+
+  66% {
+    opacity: 0.7;
+    transform: translate(-1%, 1%) scale(0.98);
+  }
 }
 
 @keyframes fade-in-up {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
 }
 
 @keyframes float-subtle {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-4px); }
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-4px);
+  }
 }
 
-.animate-hero-glow { animation: hero-glow 3s ease-in-out infinite; }
-.animate-hero-entrance { animation: fade-in-up 0.8s ease-out 0.2s forwards, hero-glow 3s ease-in-out 1s infinite; }
-.animate-gradient-float { animation: gradient-float 8s ease-in-out infinite; }
-.animate-fade-in-up { animation: fade-in-up 0.8s ease-out forwards; }
+.animate-hero-glow {
+  animation: hero-glow 3s ease-in-out infinite;
+}
+
+.animate-hero-entrance {
+  animation: fade-in-up 0.8s ease-out 0.2s forwards, hero-glow 3s ease-in-out 1s infinite;
+}
+
+.animate-gradient-float {
+  animation: gradient-float 8s ease-in-out infinite;
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.8s ease-out forwards;
+}
+
 .animate-shimmer {
   background: linear-gradient(90deg, transparent, rgba(251, 191, 36, 0.15), transparent);
   background-size: 200% 100%;
   animation: shimmer 2.5s infinite;
 }
-.animate-float-subtle { animation: float-subtle 4s ease-in-out infinite; }
+
+.animate-float-subtle {
+  animation: float-subtle 4s ease-in-out infinite;
+}
