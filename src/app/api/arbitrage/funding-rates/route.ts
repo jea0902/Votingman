@@ -17,8 +17,10 @@ import { NextResponse } from "next/server";
 // 타입
 // ────────────────────────────────────────────────
 
-export type ExchangeName = "binance" | "bybit" | "okx" | "bitget" | "hyperliquid";
+export type ExchangeName = "binance" | "bybit" | "okx" | "bitget" | "hyperliquid" | "gateio" | "mexc";
 export type SpotExchangeName = "binance" | "bybit" | "okx" | "bitget";
+// 선물 전용 거래소 (현물 거래소로 사용 불가)
+export type FuturesOnlyExchangeName = "hyperliquid" | "gateio" | "mexc";
 
 export interface ExchangeFundingData {
     rate: number | null;            // 펀딩비 (소수, 예: 0.0001 = 0.01%)
@@ -71,12 +73,23 @@ async function fetchBinanceSpotSymbols(): Promise<Set<string>> {
 }
 
 async function fetchBinanceFunding(): Promise<Map<string, { rate: number; nextFundingTime: number; quoteVolume: number; intervalHours: number }>> {
-    const [fundingRes, tickerRes] = await Promise.all([
+    // fundingInfo: 종목별 정산 주기 실시간 감지 (극단 시 1h/4h로 단축되는 경우 반영)
+    const [fundingRes, tickerRes, fundingInfoRes] = await Promise.all([
         fetch("https://fapi.binance.com/fapi/v1/premiumIndex"),
         fetch("https://fapi.binance.com/fapi/v1/ticker/24hr"),
+        fetch("https://fapi.binance.com/fapi/v1/fundingInfo"),
     ]);
     const fundingData = await fundingRes.json();
     const tickerData = await tickerRes.json();
+    const fundingInfoData = await fundingInfoRes.json();
+
+    // 종목별 정산 주기 Map (fundingIntervalHours 필드)
+    const intervalMap = new Map<string, number>();
+    for (const f of fundingInfoData ?? []) {
+        if (!f.symbol.endsWith("USDT")) continue;
+        const base = f.symbol.replace("USDT", "");
+        intervalMap.set(base, f.fundingIntervalHours ?? 8);
+    }
 
     const volumeMap = new Map<string, number>();
     for (const t of tickerData) {
@@ -93,7 +106,7 @@ async function fetchBinanceFunding(): Promise<Map<string, { rate: number; nextFu
             rate: parseFloat(d.lastFundingRate),
             nextFundingTime: d.nextFundingTime,
             quoteVolume: volumeMap.get(d.symbol) ?? 0,
-            intervalHours: 8,
+            intervalHours: intervalMap.get(base) ?? 8, // 실시간 정산 주기
         });
     }
     return map;
@@ -118,17 +131,43 @@ async function fetchBybitSpotSymbols(): Promise<Set<string>> {
     return symbols;
 }
 
+/** 바이비트 선물 instruments-info에서 종목별 정산 주기 가져오기
+ *  fundingInterval: 분 단위 (480 = 8시간, 60 = 1시간)
+ */
+async function fetchBybitFundingIntervalMap(): Promise<Map<string, number>> {
+    const map = new Map<string, number>();
+    let cursor = "";
+    while (true) {
+        const url = `https://api.bybit.com/v5/market/instruments-info?category=linear&limit=1000${cursor ? `&cursor=${cursor}` : ""}`;
+        const res = await fetch(url, { next: { revalidate: 3600 } });
+        const data = await res.json();
+        for (const s of data.result?.list ?? []) {
+            if (!s.symbol.endsWith("USDT")) continue;
+            const base = s.symbol.replace("USDT", "");
+            // fundingInterval: 분 단위 → 시간으로 변환
+            const intervalMin = parseInt(s.fundingInterval ?? "480");
+            map.set(base, intervalMin / 60);
+        }
+        cursor = data.result?.nextPageCursor ?? "";
+        if (!cursor) break;
+    }
+    return map;
+}
+
 async function fetchBybitFunding(): Promise<Map<string, { rate: number; nextFundingTime: number; intervalHours: number }>> {
-    const res = await fetch("https://api.bybit.com/v5/market/tickers?category=linear");
-    const data = await res.json();
+    // tickers + instruments-info 병렬 호출
+    const [tickerData, intervalMap] = await Promise.all([
+        fetch("https://api.bybit.com/v5/market/tickers?category=linear").then((r) => r.json()),
+        fetchBybitFundingIntervalMap(),
+    ]);
     const map = new Map<string, { rate: number; nextFundingTime: number; intervalHours: number }>();
-    for (const d of data.result?.list ?? []) {
+    for (const d of tickerData.result?.list ?? []) {
         if (!d.symbol.endsWith("USDT")) continue;
         const base = d.symbol.replace("USDT", "");
         map.set(base, {
             rate: parseFloat(d.fundingRate ?? "0"),
             nextFundingTime: parseInt(d.nextFundingTime ?? "0"),
-            intervalHours: 8,
+            intervalHours: intervalMap.get(base) ?? 8, // 실시간 정산 주기
         });
     }
     return map;
@@ -195,10 +234,12 @@ async function fetchOkxFundingBatch(symbols: string[]): Promise<Map<string, { ra
             const d = result.value.data?.[0];
             if (!d) continue;
             const base = batch[j];
+            // fundingInterval: 초 단위 (28800 = 8시간, 3600 = 1시간)
+            const intervalSec = parseInt(d.fundingInterval ?? "28800");
             map.set(base, {
                 rate: parseFloat(d.fundingRate ?? "0"),
                 nextFundingTime: parseInt(d.nextFundingTime ?? "0"),
-                intervalHours: 8,
+                intervalHours: intervalSec / 3600, // 실시간 정산 주기
             });
         }
     }
@@ -233,10 +274,12 @@ async function fetchBitgetFunding(): Promise<Map<string, { rate: number; nextFun
     for (const d of data.data ?? []) {
         if (!d.symbol.endsWith("USDT")) continue;
         const base = d.symbol.replace("USDT", "");
+        // fundingInterval: ms 단위 (28800000 = 8시간, 3600000 = 1시간)
+        const intervalMs = parseInt(d.fundingInterval ?? "28800000");
         map.set(base, {
             rate: parseFloat(d.fundingRate ?? "0"),
             nextFundingTime: parseInt(d.deliveryTime ?? "0"),
-            intervalHours: 8,
+            intervalHours: intervalMs / 3_600_000, // 실시간 정산 주기
         });
     }
     return map;
@@ -277,6 +320,48 @@ async function fetchHyperliquidFunding(): Promise<Map<string, { rate: number; ne
 }
 
 // ────────────────────────────────────────────────
+// 게이트io (선물 전용)
+// ────────────────────────────────────────────────
+
+async function fetchGateioFunding(): Promise<Map<string, { rate: number; nextFundingTime: number; intervalHours: number }>> {
+    const res = await fetch("https://api.gateio.ws/api/v4/futures/usdt/tickers");
+    const data = await res.json();
+    const map = new Map<string, { rate: number; nextFundingTime: number; intervalHours: number }>();
+    for (const d of data ?? []) {
+        // 게이트io 심볼 형태: "BTC_USDT"
+        if (!d.contract.endsWith("_USDT")) continue;
+        const base = d.contract.replace("_USDT", "");
+        map.set(base, {
+            rate: parseFloat(d.funding_rate ?? "0"),
+            nextFundingTime: parseInt(d.funding_next_apply ?? "0") * 1000, // 초 → ms
+            intervalHours: 8,
+        });
+    }
+    return map;
+}
+
+// ────────────────────────────────────────────────
+// MEXC (선물 전용)
+// ────────────────────────────────────────────────
+
+async function fetchMexcFunding(): Promise<Map<string, { rate: number; nextFundingTime: number; intervalHours: number }>> {
+    const res = await fetch("https://contract.mexc.com/api/v1/contract/ticker");
+    const data = await res.json();
+    const map = new Map<string, { rate: number; nextFundingTime: number; intervalHours: number }>();
+    for (const d of data.data ?? []) {
+        // MEXC 심볼 형태: "BTC_USDT"
+        if (!d.symbol.endsWith("_USDT")) continue;
+        const base = d.symbol.replace("_USDT", "");
+        map.set(base, {
+            rate: parseFloat(d.fundingRate ?? "0"),
+            nextFundingTime: parseInt(d.nextSettleTime ?? "0"),
+            intervalHours: 8,
+        });
+    }
+    return map;
+}
+
+// ────────────────────────────────────────────────
 // 유틸
 // ────────────────────────────────────────────────
 
@@ -295,6 +380,7 @@ export async function GET() {
         const [
             binanceSpot, bybitSpot, okxSpot, bitgetSpot,
             binanceFunding, bybitFunding, bitgetFunding, hyperliquidFunding,
+            gateioFunding, mexcFunding,
         ] = await Promise.all([
             fetchBinanceSpotSymbols(),
             fetchBybitSpotSymbols(),
@@ -304,6 +390,8 @@ export async function GET() {
             fetchBybitFunding(),
             fetchBitgetFunding(),
             fetchHyperliquidFunding(),
+            fetchGateioFunding(),
+            fetchMexcFunding(),
         ]);
 
         // 2. 바이낸스 거래량 기준 상위 200개 종목
@@ -339,6 +427,8 @@ export async function GET() {
             const okxData = okxFunding.get(symbol);
             const bitgetData = bitgetFunding.get(symbol);
             const hlData = hyperliquidFunding.get(symbol);
+            const gateioData = gateioFunding.get(symbol);
+            const mexcData = mexcFunding.get(symbol);
 
             const funding: Record<ExchangeName, ExchangeFundingData | null> = {
                 binance: binanceData ? { rate: binanceData.rate, intervalHours: binanceData.intervalHours, nextFundingTime: binanceData.nextFundingTime } : null,
@@ -346,14 +436,19 @@ export async function GET() {
                 okx: okxData ? { rate: okxData.rate, intervalHours: okxData.intervalHours, nextFundingTime: okxData.nextFundingTime } : null,
                 bitget: bitgetData ? { rate: bitgetData.rate, intervalHours: bitgetData.intervalHours, nextFundingTime: bitgetData.nextFundingTime } : null,
                 hyperliquid: hlData ? { rate: hlData.rate, intervalHours: hlData.intervalHours, nextFundingTime: hlData.nextFundingTime } : null,
+                gateio: gateioData ? { rate: gateioData.rate, intervalHours: gateioData.intervalHours, nextFundingTime: gateioData.nextFundingTime } : null,
+                mexc: mexcData ? { rate: mexcData.rate, intervalHours: mexcData.intervalHours, nextFundingTime: mexcData.nextFundingTime } : null,
             };
 
             // 숏 거래소 후보 중 양펀비 최고인 거래소 선택
+            // gateio/mexc는 선물 전용 — 현물은 메이저 4개 거래소에 상장된 경우에만 숏 후보 포함
+            const FUTURES_ONLY: ExchangeName[] = ["hyperliquid", "gateio", "mexc"];
             const shortCandidates: { exchange: ExchangeName; rate: number; intervalHours: number }[] = [];
             for (const [ex, data] of Object.entries(funding) as [ExchangeName, ExchangeFundingData | null][]) {
-                if (data && data.rate !== null && data.rate > 0) {
-                    shortCandidates.push({ exchange: ex, rate: data.rate, intervalHours: data.intervalHours ?? 8 });
-                }
+                if (!data || data.rate === null || data.rate <= 0) continue;
+                // 선물 전용 거래소는 현물이 메이저 4개 중 하나라도 있어야 숏 후보 포함
+                if (FUTURES_ONLY.includes(ex as ExchangeName) && spotExchanges.length === 0) continue;
+                shortCandidates.push({ exchange: ex, rate: data.rate, intervalHours: data.intervalHours ?? 8 });
             }
 
             if (shortCandidates.length === 0) continue;

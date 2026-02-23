@@ -4,12 +4,12 @@
  * 회원가입 페이지
  * 
  * 설계 의도:
- * - 구글 OAuth로 이메일 자동 가져오기
+ * - 구글 OAuth 또는 카카오 OAuth로 이메일 자동 가져오기
  * - 닉네임만 입력 (중복 체크)
  * - 완료 시 로그인 페이지로 리다이렉트
  * 
  * UX:
- * - 2단계 흐름: 구글 인증 → 닉네임 입력
+ * - 2단계 흐름: 소셜 인증 → 닉네임 입력
  * - 실시간 닉네임 중복 체크
  * - 진행 상태 명확하게 표시
  */
@@ -24,35 +24,35 @@ import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
-type SignupStep = "google" | "nickname";
+type SignupStep = "social" | "nickname";
 
 export default function SignupPage() {
   const router = useRouter();
-  
+
   // 단계 관리
-  const [step, setStep] = useState<SignupStep>("google");
-  
-  // 구글 로그인 상태
+  const [step, setStep] = useState<SignupStep>("social");
+
+  // 소셜 로그인 상태
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const [googleEmail, setGoogleEmail] = useState("");
-  
+  const [isKakaoLoading, setIsKakaoLoading] = useState(false);
+  const [userEmail, setUserEmail] = useState("");
+
   // 닉네임 상태
   const [nickname, setNickname] = useState("");
   const [isCheckingNickname, setIsCheckingNickname] = useState(false);
   const [nicknameAvailable, setNicknameAvailable] = useState<boolean | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   const [error, setError] = useState("");
 
-  // 구글 로그인
+  // 구글 가입
   const handleGoogleSignup = async () => {
     setIsGoogleLoading(true);
     setError("");
 
     try {
       const supabase = createClient();
-      
-      // Google OAuth 로그인 (회원가입)
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -64,8 +64,6 @@ export default function SignupPage() {
         throw error;
       }
 
-      // Google 로그인 페이지로 리다이렉트됨 (자동)
-      
     } catch (err) {
       console.error("Google signup failed:", err);
       setError("구글 로그인에 실패했습니다. 다시 시도해주세요.");
@@ -73,21 +71,44 @@ export default function SignupPage() {
     }
   };
 
-  // 구글 로그인 후 돌아왔을 때 처리
+  // 카카오 가입
+  const handleKakaoSignup = async () => {
+    setIsKakaoLoading(true);
+    setError("");
+
+    try {
+      const supabase = createClient();
+
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'kakao',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback/signup`,
+        },
+      });
+
+      if (error) {
+        throw error;
+      }
+
+    } catch (err) {
+      console.error("Kakao signup failed:", err);
+      setError("카카오 로그인에 실패했습니다. 다시 시도해주세요.");
+      setIsKakaoLoading(false);
+    }
+  };
+
+  // 소셜 로그인 후 돌아왔을 때 처리
   useEffect(() => {
     const supabase = createClient();
     const searchParams = new URLSearchParams(window.location.search);
     const urlStep = searchParams.get('step');
-    
-    // URL 파라미터로 닉네임 단계인지 확인
+
     if (urlStep === 'nickname') {
-      // 세션 확인
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (session?.user) {
-          setGoogleEmail(session.user.email || "");
+          setUserEmail(session.user.email || "");
           setStep("nickname");
         } else {
-          // 세션이 없으면 첫 단계로
           setError("세션이 만료되었습니다. 다시 시도해주세요.");
         }
       });
@@ -102,11 +123,11 @@ export default function SignupPage() {
     }
 
     setIsCheckingNickname(true);
-    
+
     try {
       const response = await fetch(`/api/auth/check-nickname?nickname=${encodeURIComponent(value)}`);
       const data = await response.json();
-      
+
       if (response.ok) {
         setNicknameAvailable(data.available);
       } else {
@@ -120,61 +141,55 @@ export default function SignupPage() {
     }
   };
 
-  // 닉네임 유효성 검사 (한글, 영어, 숫자만 허용)
+  // 닉네임 유효성 검사
   const [nicknameError, setNicknameError] = useState<string>("");
-  
+
   const validateNickname = (value: string): boolean => {
-    // 빈 값 체크
     if (!value) {
       setNicknameError("");
       return false;
     }
-    
-    // 한글, 영어, 숫자만 허용하는 정규식
+
     const validPattern = /^[가-힣a-zA-Z0-9]+$/;
-    
+
     if (!validPattern.test(value)) {
       setNicknameError("닉네임은 한글, 영어, 숫자만 사용할 수 있습니다");
       return false;
     }
-    
+
     if (value.length < 2) {
       setNicknameError("닉네임은 2자 이상이어야 합니다");
       return false;
     }
-    
+
     if (value.length > 10) {
       setNicknameError("닉네임은 10자 이하여야 합니다");
       return false;
     }
-    
+
     setNicknameError("");
     return true;
   };
 
   // 닉네임 입력 핸들러 (디바운스)
   const [nicknameTimeout, setNicknameTimeout] = useState<NodeJS.Timeout | null>(null);
-  
+
   const handleNicknameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setNickname(value);
     setNicknameAvailable(null);
-    
-    // 유효성 검사
+
     const isValid = validateNickname(value);
-    
-    // 기존 타이머 취소
+
     if (nicknameTimeout) {
       clearTimeout(nicknameTimeout);
     }
-    
-    // 유효한 경우에만 중복 체크
+
     if (isValid) {
-      // 새 타이머 설정 (500ms 디바운스)
       const timeoutId = setTimeout(() => {
         checkNickname(value);
       }, 500);
-      
+
       setNicknameTimeout(timeoutId);
     }
   };
@@ -182,7 +197,7 @@ export default function SignupPage() {
   // 회원가입 완료
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!nicknameAvailable) {
       setError("사용 가능한 닉네임을 입력해주세요.");
       return;
@@ -193,16 +208,13 @@ export default function SignupPage() {
 
     try {
       const supabase = createClient();
-      
-      // 현재 세션 확인
+
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       if (!session?.user) {
         throw new Error("세션이 만료되었습니다. 다시 시도해주세요.");
       }
 
-      // users 테이블에 닉네임 저장
-      // 재가입 시 기존 데이터가 있을 수 있으므로 먼저 확인
       const { data: existingUser } = await supabase
         .from('users')
         .select('user_id')
@@ -210,13 +222,12 @@ export default function SignupPage() {
         .maybeSingle();
 
       if (existingUser) {
-        // 기존 사용자가 있으면 업데이트 (재가입)
         const { error: updateError } = await supabase
           .from('users')
           .update({
             user_id: session.user.id,
             nickname: nickname.trim(),
-            deleted_at: null, // soft delete 해제
+            deleted_at: null,
           })
           .eq('email', session.user.email!);
 
@@ -224,7 +235,6 @@ export default function SignupPage() {
           throw updateError;
         }
       } else {
-        // 신규 사용자면 삽입
         const { error: insertError } = await supabase
           .from('users')
           .insert({
@@ -234,13 +244,13 @@ export default function SignupPage() {
           });
 
         if (insertError) {
+          console.error("Insert error details:", insertError.code, insertError.message, insertError.details);
           throw insertError;
         }
       }
 
-      // 성공: 로그인 페이지로 리다이렉트
       router.push("/login");
-      
+
     } catch (err) {
       console.error("Signup failed:", err);
       setError(err instanceof Error ? err.message : "회원가입에 실패했습니다. 다시 시도해주세요.");
@@ -254,20 +264,21 @@ export default function SignupPage() {
         <CardHeader className="space-y-1 text-center">
           <CardTitle className="text-2xl font-bold">회원가입</CardTitle>
           <CardDescription>
-            {step === "google" 
-              ? "구글 계정으로 간편하게 가입하세요" 
+            {step === "social"
+              ? "소셜 계정으로 간편하게 가입하세요"
               : "닉네임을 설정해주세요"
             }
           </CardDescription>
         </CardHeader>
 
         <CardContent className="space-y-4">
-          {/* STEP 1: 구글 로그인 */}
-          {step === "google" && (
+          {/* STEP 1: 소셜 로그인 */}
+          {step === "social" && (
             <>
+              {/* 구글 가입 버튼 */}
               <Button
                 onClick={handleGoogleSignup}
-                disabled={isGoogleLoading}
+                disabled={isGoogleLoading || isKakaoLoading}
                 className="w-full h-12 text-base font-medium"
                 size="lg"
               >
@@ -292,14 +303,36 @@ export default function SignupPage() {
                         d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
                       />
                       <path
-                    fill="currentColor"
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                  />
-                </svg>
-                Google로 3초 가입
-              </>
-            )}
-          </Button>
+                        fill="currentColor"
+                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                      />
+                    </svg>
+                    Google로 간편가입
+                  </>
+                )}
+              </Button>
+
+              {/* 카카오 가입 버튼 */}
+              <Button
+                onClick={handleKakaoSignup}
+                disabled={isGoogleLoading || isKakaoLoading}
+                className="w-full h-12 text-base font-medium bg-[#FEE500] hover:bg-[#FDD835] text-[#191919]"
+                size="lg"
+              >
+                {isKakaoLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    카카오 연동 중...
+                  </>
+                ) : (
+                  <>
+                    <svg className="mr-2 h-5 w-5" viewBox="0 0 24 24" fill="#191919">
+                      <path d="M12 3C6.477 3 2 6.477 2 10.5c0 2.548 1.516 4.788 3.809 6.13l-.971 3.603a.375.375 0 0 0 .545.415L9.51 18.35A11.1 11.1 0 0 0 12 18c5.523 0 10-3.477 10-7.5S17.523 3 12 3z" />
+                    </svg>
+                    카카오로 간편가입
+                  </>
+                )}
+              </Button>
             </>
           )}
 
@@ -308,8 +341,8 @@ export default function SignupPage() {
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* 이메일 확인 */}
               <div className="rounded-lg bg-muted/50 border border-border px-4 py-3">
-                <p className="text-xs text-muted-foreground mb-1">구글 계정</p>
-                <p className="text-sm font-medium text-foreground">{googleEmail}</p>
+                <p className="text-xs text-muted-foreground mb-1">가입 계정</p>
+                <p className="text-sm font-medium text-foreground">{userEmail}</p>
               </div>
 
               {/* 닉네임 입력 */}
@@ -329,7 +362,6 @@ export default function SignupPage() {
                     className="pr-10"
                     required
                   />
-                  {/* 중복 체크 아이콘 */}
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
                     {isCheckingNickname && (
                       <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
@@ -342,8 +374,7 @@ export default function SignupPage() {
                     )}
                   </div>
                 </div>
-                
-                {/* 닉네임 안내 */}
+
                 <div className="text-xs space-y-1">
                   <p className="text-muted-foreground">
                     • 2-10자, 한글/영어/숫자만 사용 가능
@@ -392,8 +423,8 @@ export default function SignupPage() {
             </form>
           )}
 
-          {/* 로그인 링크 (구글 단계에만 표시) */}
-          {step === "google" && (
+          {/* 로그인 링크 (소셜 단계에만 표시) */}
+          {step === "social" && (
             <>
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
@@ -421,8 +452,8 @@ export default function SignupPage() {
 
           {/* 홈으로 돌아가기 */}
           <div className="text-center pt-4">
-            <Link 
-              href="/" 
+            <Link
+              href="/"
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
               ← 홈으로 돌아가기
