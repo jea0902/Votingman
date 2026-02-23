@@ -136,7 +136,7 @@ export function LandingSection() {
               지금 투표하기
             </Link>
             <Link
-              href="/market-sentiments"
+              href="/market-sentiment"
               className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-6 py-3.5 text-[15px] font-medium text-white/75 bg-white/10  transition-all duration-200 hover:bg-white/10 hover:text-white hover:-translate-y-0.5"
             >
               시장 분위기 지표
