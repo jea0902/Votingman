@@ -3,11 +3,13 @@
  *
  * 설계 의도:
  * - 전역 폰트(Geist), 메타데이터, Navbar + Main + Footer 구조
- * - 테마: 기본 다크, localStorage에 'light'일 때만 라이트. (첫 페인트 전 스크립트로 설정)
+ * - 테마: 기본 다크, localStorage에 'light'일 때만 라이트.
+ * - FOUC 해결: next/script 대신 <head> 인라인 스크립트 사용
+ *   (next/script의 beforeInteractive는 모바일에서 늦게 실행되는 이슈 있음)
  */
 
 import type { Metadata } from "next";
-import Script from "next/script";
+// ✅ next/script import 제거 (더 이상 사용 안 함)
 import { Geist, Geist_Mono } from "next/font/google";
 import { Navbar, Footer, HeartbeatProvider, PageViewTracker } from "@/components/layout";
 import "./globals.css";
@@ -24,10 +26,10 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "보팅맨 | 탈중앙화 예측 배팅 플랫폼",
-  description:
-    "보팅맨에서 데이터 기반 투자를 시작하세요.",
+  description: "보팅맨에서 데이터 기반 투자를 시작하세요.",
 };
 
+// ✅ 동일한 테마 스크립트 유지 (로직 변경 없음)
 const THEME_SCRIPT = `
 (function(){
   var t = localStorage.getItem('theme');
@@ -41,12 +43,18 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ko" suppressHydrationWarning>
+      {/* ✅ <head>에 인라인 스크립트 직접 삽입
+           - next/script(beforeInteractive) 대신 이 방식 사용
+           - React보다 무조건 먼저 실행되어 다크모드 깜빡임(FOUC) 완전 해결
+           - 모바일에서도 새로고침 시 테마 유지됨 */}
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
-        <Script id="theme-init" strategy="beforeInteractive">
-          {THEME_SCRIPT}
-        </Script>
+        {/* ✅ <Script> 컴포넌트 제거 (위의 인라인 스크립트로 대체됨) */}
+
         {/* 전역 배경: 랜딩과 동일한 그리드 (다크 모드에서만) */}
         <div
           className="fixed inset-0 -z-10 hidden opacity-40 dark:block"
@@ -59,7 +67,6 @@ export default function RootLayout({
           aria-hidden
         />
 
-        {/* main에 flex-1 없음 → main 높이 = 콘텐츠 높이 → 문서 전체 스크롤. flex-1이면 main을 스크롤 가두는 게 아니라 남은 공간을 채우는 거 */}
         <div className="flex min-h-screen flex-col">
           <HeartbeatProvider />
           <PageViewTracker />
