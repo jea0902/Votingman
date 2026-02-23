@@ -4,12 +4,12 @@
  * 로그인 페이지
  * 
  * 설계 의도:
- * - 구글 OAuth만 지원 (간편하고 안전)
+ * - 구글 OAuth, 카카오 OAuth 지원
  * - 원클릭 로그인
  * - 회원가입 링크 명확하게 표시
  * 
  * UX:
- * - 최소한의 클릭 (구글 버튼 1번)
+ * - 최소한의 클릭 (버튼 1번)
  * - 직관적인 레이아웃
  * - 회원가입 경로 명확
  */
@@ -24,7 +24,8 @@ import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isKakaoLoading, setIsKakaoLoading] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
@@ -32,20 +33,19 @@ export default function LoginPage() {
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
     const urlMessage = searchParams.get('message');
-    
+
     if (urlMessage === 'already_registered') {
       setMessage("이미 가입된 계정입니다. 로그인해주세요.");
     }
   }, []);
 
   const handleGoogleLogin = async () => {
-    setIsLoading(true);
+    setIsGoogleLoading(true);
     setError("");
 
     try {
       const supabase = createClient();
-      
-      // Google OAuth 로그인
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -57,12 +57,35 @@ export default function LoginPage() {
         throw error;
       }
 
-      // Google 로그인 페이지로 리다이렉트됨 (자동)
-      
     } catch (err) {
       console.error("Login failed:", err);
       setError("로그인에 실패했습니다. 다시 시도해주세요.");
-      setIsLoading(false);
+      setIsGoogleLoading(false);
+    }
+  };
+
+  const handleKakaoLogin = async () => {
+    setIsKakaoLoading(true);
+    setError("");
+
+    try {
+      const supabase = createClient();
+
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'kakao',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+
+      if (error) {
+        throw error;
+      }
+
+    } catch (err) {
+      console.error("Kakao login failed:", err);
+      setError("로그인에 실패했습니다. 다시 시도해주세요.");
+      setIsKakaoLoading(false);
     }
   };
 
@@ -72,7 +95,7 @@ export default function LoginPage() {
         <CardHeader className="space-y-1 text-center">
           <CardTitle className="text-2xl font-bold">로그인</CardTitle>
           <CardDescription>
-            구글 계정으로 간편하게 로그인하세요
+            간편하게 로그인하세요
           </CardDescription>
         </CardHeader>
 
@@ -80,11 +103,11 @@ export default function LoginPage() {
           {/* 구글 로그인 버튼 */}
           <Button
             onClick={handleGoogleLogin}
-            disabled={isLoading}
+            disabled={isGoogleLoading || isKakaoLoading}
             className="w-full h-12 text-base font-medium"
             size="lg"
           >
-            {isLoading ? (
+            {isGoogleLoading ? (
               <>
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                 Google 연동 중...
@@ -110,6 +133,28 @@ export default function LoginPage() {
                   />
                 </svg>
                 Google로 간편 로그인
+              </>
+            )}
+          </Button>
+
+          {/* 카카오 로그인 버튼 */}
+          <Button
+            onClick={handleKakaoLogin}
+            disabled={isGoogleLoading || isKakaoLoading}
+            className="w-full h-12 text-base font-medium bg-[#FEE500] hover:bg-[#FDD835] text-[#191919]"
+            size="lg"
+          >
+            {isKakaoLoading ? (
+              <>
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                카카오 연동 중...
+              </>
+            ) : (
+              <>
+                <svg className="mr-2 h-5 w-5" viewBox="0 0 24 24" fill="#191919">
+                  <path d="M12 3C6.477 3 2 6.477 2 10.5c0 2.548 1.516 4.788 3.809 6.13l-.971 3.603a.375.375 0 0 0 .545.415L9.51 18.35A11.1 11.1 0 0 0 12 18c5.523 0 10-3.477 10-7.5S17.523 3 12 3z" />
+                </svg>
+                카카오로 간편 로그인
               </>
             )}
           </Button>
@@ -154,8 +199,8 @@ export default function LoginPage() {
 
           {/* 홈으로 돌아가기 */}
           <div className="text-center pt-4">
-            <Link 
-              href="/" 
+            <Link
+              href="/"
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
               ← 홈으로 돌아가기

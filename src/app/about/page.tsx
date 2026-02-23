@@ -14,8 +14,7 @@ export default function AboutPage() {
         보팅맨 소개
       </h1>
       <p className="mt-4 text-muted-foreground">
-        투명한 재무 데이터로 검증한 투자 전략 플랫폼입니다. 자세한 소개가 곧
-        공개됩니다.
+        검증 가능한 투자 예측 시장 플랫폼입니다. 자세한 소개가 곧 공개됩니다.
       </p>
       <Link
         href="/"
