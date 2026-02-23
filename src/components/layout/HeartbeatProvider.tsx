@@ -18,10 +18,8 @@ export function HeartbeatProvider() {
   useEffect(() => {
     const runHeartbeat = async () => {
       const supabase = createClient();
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session?.user) return;
+      const { data: { user } } = await supabase.auth.getUser(); // ✅ getSession → getUser
+      if (!user) return;
 
       try {
         await fetch("/api/heartbeat", { method: "POST" });

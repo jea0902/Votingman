@@ -73,7 +73,7 @@ export function LandingSection() {
         <div
           className="pointer-events-none absolute left-1/2 top-0 z-[3] h-[140px] w-px -translate-x-1/2 bg-gradient-to-b from-transparent via-[rgba(96,165,250,0.7)] to-transparent"
           style={{ animation: "landing-glow-pulse 3s ease-in-out infinite" }}
-        aria-hidden
+          aria-hidden
         />
 
         {/* 콘텐츠 */}
@@ -88,7 +88,7 @@ export function LandingSection() {
             </span>
             <span className="mr-1 inline-block h-[7px] w-[7px] rounded-full bg-[#34d399] shadow-[0_0_0_2px_rgba(52,211,153,0.3)]" style={{ animation: "landing-live-pip 1.6s ease-in-out infinite" }} />
             실시간 예측 시장 플랫폼 &nbsp;·&nbsp; 4개 마켓 운영 중
-      </div>
+          </div>
 
           {/* 헤드라인 */}
           <h1
@@ -104,12 +104,12 @@ export function LandingSection() {
               말이 아닌 돈으로
             </span>
             <span
-  className={`${styles.headlineGradient} block font-black`}
-  style={{ letterSpacing: "-0.04em" }}
->
-  SHOW & PROVE
-</span>
-        </h1>
+              className={`${styles.headlineGradient} block font-black`}
+              style={{ letterSpacing: "-0.04em" }}
+            >
+              SHOW & PROVE
+            </span>
+          </h1>
 
           {/* 서브 카피 (수정된 문구) */}
           <p
@@ -136,10 +136,10 @@ export function LandingSection() {
               지금 투표하기
             </Link>
             <Link
-              href="/pro-positions"
+              href="/market-sentiments"
               className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-6 py-3.5 text-[15px] font-medium text-white/75 bg-white/10  transition-all duration-200 hover:bg-white/10 hover:text-white hover:-translate-y-0.5"
             >
-              실시간 고수 포지션
+              시장 분위기 지표
               <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
