@@ -12,7 +12,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
-import { LogIn, UserPlus, LogOut, User, ChevronDown, UserCircle, UserX, Trophy, Sun, Moon } from "lucide-react";
+import { LogIn, UserPlus, LogOut, User, ChevronDown, UserCircle, UserX, Trophy, Sun, Moon, Gift } from "lucide-react";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -188,6 +188,14 @@ export function Navbar() {
                         개인정보 조회/수정
                       </Link>
                       <Link
+                        href="/referral"
+                        className="flex items-center gap-2 px-3 py-2 text-sm text-foreground transition-colors hover:bg-muted"
+                        onClick={() => setUserMenuOpen(false)}
+                      >
+                        <Gift className="h-4 w-4 shrink-0" />
+                        레퍼럴
+                      </Link>
+                      <Link
                         href="/account/leave"
                         className="flex items-center gap-2 px-3 py-2 text-sm text-foreground transition-colors hover:bg-muted"
                         onClick={() => setUserMenuOpen(false)}
@@ -237,11 +245,10 @@ export function Navbar() {
           </div>
         </div>
 
-        {/* Row 2: 탭 (가로 스크롤, 모바일 스와이프, 그라디언트로 더 있음 표시) */}
+        {/* Row 2: 탭 */}
         <div className="relative bg-background">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="relative">
-              {/* 왼쪽 그라디언트: 스크롤 시 더 있음 표시 */}
               <div
                 className={cn(
                   "pointer-events-none absolute left-0 top-0 bottom-0 z-10 w-10 shrink-0 bg-gradient-to-r from-background via-background/95 to-transparent transition-opacity duration-200 sm:w-14",
@@ -249,7 +256,6 @@ export function Navbar() {
                 )}
                 aria-hidden
               />
-              {/* 오른쪽 그라디언트: 오른쪽에 탭이 더 있을 때 */}
               <div
                 className={cn(
                   "pointer-events-none absolute right-0 top-0 bottom-0 z-10 w-10 shrink-0 bg-gradient-to-l from-background via-background/95 to-transparent transition-opacity duration-200 sm:w-14",
