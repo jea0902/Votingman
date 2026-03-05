@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * HumanIndicatorSection – 투표 기능 (3개 섹션: 비트코인 | 미국 주식 | 한국 주식)
+ * VotingSection – 투표 기능 (3개 섹션: 비트코인 | 미국 주식 | 한국 주식)
  *
  * - GET /api/sentiment/polls 로 5개 시장 폴 일괄 조회
  * - 각 시장별 마감 시간 적용, 로그인 시 보팅코인 배팅·취소
@@ -29,7 +29,7 @@ type Props = {
   activeTab?: HomeTabKey;
 };
 
-export function HumanIndicatorSection({ activeTab }: Props = {}) {
+export function VotingSection({ activeTab }: Props = {}) {
   const [polls, setPolls] = useState<PollsData | null>(null);
 
   const fetchPolls = useCallback(async () => {
@@ -58,7 +58,7 @@ export function HumanIndicatorSection({ activeTab }: Props = {}) {
   const heading = section?.sectionLabel ?? "예측 투표";
 
   return (
-    <div className="space-y-8" aria-labelledby="human-indicator-heading">
+    <div className="space-y-8" aria-labelledby="voting-section-heading">
       <h3 className="mb-3 text-base font-semibold text-foreground">
         {heading}
       </h3>

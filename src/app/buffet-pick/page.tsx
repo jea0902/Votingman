@@ -63,20 +63,20 @@ const DUMMY_STOCKS: Stock[] = [
 async function getBuffettResults(): Promise<BuffettCardResponse[]> {
   try {
     const supabase = createSupabaseAdmin();
-    
+
     // 최신 run_id 조회
     const { data: runData, error: runError } = await supabase
       .from("buffett_run")
       .select("run_id")
       .order("run_date", { ascending: false })
       .limit(1);
-    
+
     if (runError || !runData || runData.length === 0) {
       return [];
     }
-    
+
     const runId = runData[0].run_id;
-    
+
     // 평가 결과 조회 (PASS만, 총점 내림차순)
     const { data, error } = await supabase
       .from("buffett_result")
@@ -105,11 +105,11 @@ async function getBuffettResults(): Promise<BuffettCardResponse[]> {
       `)
       .eq("run_id", runId)
       .order("total_score", { ascending: false });
-    
+
     if (error || !data) {
       return [];
     }
-    
+
     // 데이터 변환
     return data.map((row: any) => {
       const stock = Array.isArray(row.stocks) ? row.stocks[0] : row.stocks;
@@ -145,13 +145,13 @@ async function getBuffettResults(): Promise<BuffettCardResponse[]> {
 export default async function BuffetPickPage() {
   // DB에서 버핏 평가 결과 가져오기
   const buffettResults = await getBuffettResults();
-  
+
   // PASS 종목만 필터링
   const passedResults = buffettResults.filter(r => r.pass_status === "PASS");
-  
+
   // 저평가 우량주 (BUY)
   const undervaluedResults = passedResults.filter(r => r.recommendation === "BUY");
-  
+
   // 우량주 (WAIT)
   const qualityResults = passedResults.filter(r => r.recommendation === "WAIT");
 
@@ -162,11 +162,10 @@ export default async function BuffetPickPage() {
         {/* 헤드라인 */}
         <div className="mb-6 text-center sm:mb-12">
           <h1 className="mb-3 text-2xl font-bold tracking-tight text-[#3b82f6] sm:mb-4 sm:text-4xl lg:text-5xl">
-            워렌 버핏 기준 종목
+            장기-가치 투자의 전설 워렌 버핏의 기준
           </h1>
           <p className="text-base font-medium text-amber-700 dark:text-[#fbbf24] sm:text-xl lg:text-2xl">
-            감정 대신 숫자로 투자하세요.<br />
-            바로 저평가 우량주를 떠먹여 드립니다
+            감정 대신 숫자<br />
           </p>
 
           {/* 서비스 설명 문구 */}
@@ -236,8 +235,8 @@ export default async function BuffetPickPage() {
         {/* DB 데이터 없거나 더미 데이터 표시 */}
         <div className="mb-6 sm:mb-8">
           <h2 className="mb-4 text-base font-semibold text-muted-foreground sm:mb-6 sm:text-lg">
-            {buffettResults.length > 0 
-              ? "📋 한국 주식은 아직 미완성" 
+            {buffettResults.length > 0
+              ? "📋 한국 주식은 아직 미완성"
               : "📋 데이터 로딩 중... (예시 데이터)"}
           </h2>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-5">

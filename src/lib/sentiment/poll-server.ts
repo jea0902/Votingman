@@ -73,7 +73,20 @@ export async function getOrCreatePollByMarketAndCandleStartAt(
     .select()
     .single();
 
-  if (error) throw error;
+  // 동시 요청 시 중복 키 오류 처리 (23505)
+  if (error) {
+    if (error.code === "23505") {
+      // 이미 생성됨. 다시 조회
+      const { data: retry } = await admin
+        .from("sentiment_polls")
+        .select("*")
+        .eq("market", market)
+        .eq("candle_start_at", candleStartAt)
+        .single();
+      if (retry) return { poll: retry as SentimentPollRow, created: false };
+    }
+    throw error;
+  }
   return { poll: inserted as SentimentPollRow, created: true };
 }
 

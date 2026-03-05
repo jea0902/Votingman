@@ -136,9 +136,16 @@ html.dark {
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
+  /* 모바일 브라우저 다크모드 지원 */
+  min-height: 100vh;
+}
+
+/* 모바일 브라우저 다크모드 강제 적용 */
+html.dark body {
+  background-color: var(--background) !important;
 }
 
 /* --------------------------------------------------------------------------

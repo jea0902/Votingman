@@ -3,10 +3,10 @@
 /**
  * 홈 메인 콘텐츠 (로그인 시 노출)
  *
- * - UserInfoCard, HumanIndicatorSection, L3 플레이스홀더
+ * - UserInfoCard, VotingSection, L3 플레이스홀더
  */
 
-import { HumanIndicatorSection } from "@/components/home";
+import { VotingSection } from "@/components/home";
 
 export function HomeContent() {
   return (
@@ -16,7 +16,7 @@ export function HomeContent() {
         </div>
         <div className="min-w-0 w-full">
           <div className="w-full space-y-6">
-            <HumanIndicatorSection />
+            <VotingSection />
           </div>
         </div>
       </div>

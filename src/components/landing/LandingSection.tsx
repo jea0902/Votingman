@@ -22,7 +22,7 @@ const VALUE_PROPS = [
   {
     icon: Shield,
     title: "수정 불가",
-    desc: "한번 투표하면 영구 박제",
+    desc: "한번 배팅하면 영구 박제",
   },
   {
     icon: Trophy,
@@ -60,7 +60,7 @@ export function LandingSection() {
   return (
     <div className="relative w-full">
       {/* ═══ 새 히어로 (스타트업 스타일) ═══ */}
-      <section className="relative flex min-h-screen flex-col items-center justify-center px-4 pb-24 pt-[120px]">
+      <section className="relative flex min-h-screen flex-col items-center justify-center px-4 pb-24 pt-[100px]">
         {/* 배경 레이어 */}
         <div className={`${styles.heroBgBase} absolute inset-0 z-0`} aria-hidden />
         <div className={`${styles.heroNoise} pointer-events-none absolute inset-0 z-[1]`} aria-hidden />
@@ -71,13 +71,13 @@ export function LandingSection() {
           aria-hidden
         />
         <div
-          className="pointer-events-none absolute left-1/2 top-0 z-[3] h-[140px] w-px -translate-x-1/2 bg-gradient-to-b from-transparent via-[rgba(96,165,250,0.7)] to-transparent"
+          className="pointer-events-none absolute left-1/2 top-0 z-[3] h-12 w-px -translate-x-1/2 bg-gradient-to-b from-transparent via-[rgba(96,165,250,0.7)] to-transparent"
           style={{ animation: "landing-glow-pulse 3s ease-in-out infinite" }}
           aria-hidden
         />
 
         {/* 콘텐츠 */}
-        <div className="relative z-10 w-full max-w-[780px] text-center">
+        <div className="relative z-10 w-full max-w-[780px] text-center -mt-8">
           {/* 뱃지 */}
           <div
             className="mb-8 inline-flex items-center gap-2 rounded-full border border-[rgba(96,165,250,0.3)] bg-[rgba(37,99,235,0.15)] px-2 py-1.5 pl-2 pr-4 text-xs font-medium tracking-wide text-[#60a5fa] bg-[rgba(37,99,235,0.2)]"
@@ -87,7 +87,7 @@ export function LandingSection() {
               <ArrowRight className="h-3 w-3 text-[#60a5fa]" />
             </span>
             <span className="mr-1 inline-block h-[7px] w-[7px] rounded-full bg-[#34d399] shadow-[0_0_0_2px_rgba(52,211,153,0.3)]" style={{ animation: "landing-live-pip 1.6s ease-in-out infinite" }} />
-            실시간 예측 시장 플랫폼 &nbsp;·&nbsp; 4개 마켓 운영 중
+            실시간 예측 거래소 플랫폼 &nbsp;·&nbsp; 4개 마켓 운영 중
           </div>
 
           {/* 헤드라인 */}
@@ -101,27 +101,67 @@ export function LandingSection() {
             }}
           >
             <span className="mb-1 block font-extrabold tracking-tight opacity-90" style={{ letterSpacing: "-0.01em", fontSize: "0.88em" }}>
-              말이 아닌 돈으로
+              진실에 가장 가까운
+              <br />
+              <span className="whitespace-nowrap"><span className="text-blue-300">AI 기반</span> 집단 지성 예측 거래소</span>
             </span>
             <span
               className={`${styles.headlineGradient} block font-black`}
               style={{ letterSpacing: "-0.04em" }}
             >
-              SHOW & PROVE
+              한국의 Polymarket
             </span>
           </h1>
 
           {/* 서브 카피 (수정된 문구) */}
-          <p
-            className="mx-auto mb-10 max-w-[480px] text-[17px] font-light leading-relaxed tracking-wide text-white/45"
+          <div
+            className="mx-auto mb-10 max-w-[520px] space-y-4 text-[17px] font-light leading-relaxed tracking-wide text-white/45"
             style={{ animation: "landing-fade-up 0.7s 0.2s ease both" }}
           >
-            <strong className="font-semibold text-white/80">숫자로 증명하는, 리얼 트레이더들의 플랫폼</strong>
-            <br />
-            비트코인 방향 예측부터 고수 포지션 분석까지 —
-            <br />
-            데이터 기반의 투자 인사이트
-          </p>
+            {/* 핵심 가치 제안 */}
+            <p className="text-center">
+              <strong className="font-semibold text-white/80">
+                정치, 경제, 사회 등 <br className="sm:hidden" />
+                다양한 빅이벤트를
+                <br />
+                통계적 확률에 기반해 예측하는 집단 지성 플랫폼
+              </strong>
+            </p>
+
+            {/* 다큐 스타일 스토리텔링 */}
+            <div className="pt-8 mt-6 mx-auto max-w-[480px] space-y-8 text-[15px] leading-relaxed">
+              {/* Chapter 1: 현실의 문제 */}
+              <div className="relative">
+                <div className="absolute -left-6 top-0 w-1 h-full bg-gradient-to-b from-red-500 to-red-700 rounded-full opacity-60"></div>
+                <div className="pl-10">
+                  <p className="text-left italic text-white/70 leading-relaxed">
+                    "<span className="text-red-300 font-semibold not-italic">정보 우위에 있는 소수</span>가 수익을 독점하고,
+                    <br />
+                    <span className="text-yellow-300 font-semibold not-italic">99%의 개인 투자자</span>는 가짜 뉴스와 노이즈 속에서
+                    <br />
+                    <span className="text-white/90 font-semibold not-italic">지속적인 손실</span>을 반복하는
+                    <span className="text-white/80 font-bold not-italic border-b border-white/30"> '정보 비대칭'</span> 구조"
+                  </p>
+                </div>
+              </div>
+
+              {/* Transition */}
+              <div className="flex justify-center py-2">
+                <div className="w-px h-5 bg-gradient-to-b from-white/20 via-blue-400 to-white/20"></div>
+              </div>
+
+              {/* Chapter 2: 솔루션 */}
+              <div className="relative">
+                <div className="absolute -left-6 top-0 w-1 h-full bg-gradient-to-b from-blue-400 to-blue-600 rounded-full opacity-80"></div>
+                <div className="pl-10">
+                  <p className="text-left text-white/80 leading-relaxed">
+                    "<span className="text-blue-300 font-semibold">집단 지성</span>과 <span className="text-emerald-300 font-semibold">통계적 확률</span>로
+                    이를 해소하고자 한다.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* CTA */}
           <div
@@ -223,7 +263,7 @@ export function LandingSection() {
               letterSpacing: "-0.01em",
             }}
           >
-            왜 보팅맨이어야 하는가?
+            왜 보팅맨(Votingman)?
           </h2>
           <div className="mb-12 flex flex-col overflow-hidden rounded-[20px] border border-white/[0.07] bg-white/[0.035] backdrop-blur-xl sm:flex-row">
             {VALUE_PROPS.map(({ icon: Icon, title, desc }) => (

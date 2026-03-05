@@ -1,7 +1,9 @@
 /**
  * btc_ohlc 테이블 upsert
- * - Binance에서 수집한 OHLC를 btc_ohlc에 저장
- * - created_at, updated_at은 KST로 저장 (DB 확인 시 KST로 보이도록)
+ * - Binance에서 수집한 OHLC를 btc_ohlc에 저장 (네이티브 UTC 캔들 사용)
+ * - candle_start_at: UTC 시간 (Binance 표준)
+ * - candle_start_at_kst: KST 시간 (데이터 확인용)
+ * - created_at, updated_at: KST 시간 (관리 편의성)
  */
 
 import { nowKstString } from "@/lib/kst";
@@ -10,15 +12,23 @@ import type { BtcOhlcRow } from "@/lib/binance/btc-klines";
 
 /**
  * 단일 캔들 upsert (market, candle_start_at unique)
+ * candle_start_at_kst는 UTC → KST 변환하여 자동 저장
  */
 export async function upsertBtcOhlc(row: BtcOhlcRow): Promise<void> {
   const admin = createSupabaseAdmin();
+  
+  // UTC → KST 변환 (candle_start_at + 9시간)
+  const utcDate = new Date(row.candle_start_at);
+  const kstDate = new Date(utcDate.getTime() + 9 * 60 * 60 * 1000);
+  const candleStartAtKst = kstDate.toISOString().replace('T', ' ').substring(0, 19);
+  
   const { error } = await admin
     .from("btc_ohlc")
     .upsert(
       {
         market: row.market,
         candle_start_at: row.candle_start_at,
+        candle_start_at_kst: candleStartAtKst,
         open: row.open,
         close: row.close,
         high: row.high,
@@ -71,21 +81,30 @@ export async function getOhlcByMarketAndCandleStart(
 
 /**
  * 여러 캔들 일괄 upsert
+ * candle_start_at_kst는 UTC → KST 변환하여 자동 저장
  */
 export async function upsertBtcOhlcBatch(rows: BtcOhlcRow[]): Promise<{ inserted: number; errors: number }> {
   if (rows.length === 0) return { inserted: 0, errors: 0 };
 
   const admin = createSupabaseAdmin();
   const kstNow = nowKstString();
-  const payload = rows.map((r) => ({
-    market: r.market,
-    candle_start_at: r.candle_start_at,
-    open: r.open,
-    close: r.close,
-    high: r.high,
-    low: r.low,
-    updated_at: kstNow,
-  }));
+  const payload = rows.map((r) => {
+    // UTC → KST 변환 (candle_start_at + 9시간)
+    const utcDate = new Date(r.candle_start_at);
+    const kstDate = new Date(utcDate.getTime() + 9 * 60 * 60 * 1000);
+    const candleStartAtKst = kstDate.toISOString().replace('T', ' ').substring(0, 19);
+    
+    return {
+      market: r.market,
+      candle_start_at: r.candle_start_at,
+      candle_start_at_kst: candleStartAtKst,
+      open: r.open,
+      close: r.close,
+      high: r.high,
+      low: r.low,
+      updated_at: kstNow,
+    };
+  });
 
   const { data, error } = await admin
     .from("btc_ohlc")

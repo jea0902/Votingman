@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/btc-ohlc-daily",
-      "schedule": "1 15 * * *"
+      "schedule": "1 0 * * *"
     }
   ]
 }

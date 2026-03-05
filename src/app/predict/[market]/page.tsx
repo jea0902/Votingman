@@ -81,7 +81,11 @@ export default function PredictMarketPage() {
   const marketParam = typeof params?.market === "string" ? params.market : "";
   const market = normalizeToDbMarket(marketParam || "btc_1d");
 
-  const [poll, setPoll] = useState<(PollData & { price_open?: number; price_close?: number }) | null>(null);
+  const [poll, setPoll] = useState<(PollData & { 
+    price_open?: number; 
+    price_close?: number;
+    settlement_status?: "open" | "closed" | "settling" | "settled";
+  }) | null>(null);
   const [user, setUser] = useState<{
     nickname: string;
     voting_coin_balance?: number;
@@ -168,6 +172,7 @@ export default function PredictMarketPage() {
           my_vote: d.my_vote ?? null,
           price_open: d.price_open,
           price_close: d.price_close,
+          settlement_status: d.settlement_status ?? "open",
         });
       }
     } catch {
@@ -229,6 +234,37 @@ export default function PredictMarketPage() {
   useEffect(() => {
     fetchPoll();
   }, [fetchPoll]);
+
+  /** 정산 상태 실시간 폴링 - 마감된 투표에 대해서만 실행 */
+  useEffect(() => {
+    if (voteOpen || !poll || poll.settlement_status === "settled") {
+      // 투표 중이거나 poll이 없거나 이미 정산 완료된 경우 폴링하지 않음
+      return;
+    }
+
+    const pollSettlementStatus = () => {
+      fetch(`/api/sentiment/poll?market=${market}`)
+        .then((res) => res.json())
+        .then((json) => {
+          if (json?.success && json?.data) {
+            const d = json.data;
+            setPoll(prevPoll => {
+              if (!prevPoll) return null;
+              return {
+                ...prevPoll,
+                settlement_status: d.settlement_status ?? "closed",
+                price_close: d.price_close ?? prevPoll.price_close,
+              };
+            });
+          }
+        })
+        .catch(() => {});
+    };
+
+    // 5초마다 정산 상태 확인
+    const intervalId = setInterval(pollSettlementStatus, 5000);
+    return () => clearInterval(intervalId);
+  }, [voteOpen, poll?.settlement_status, market]);
 
   /** 마감↔오픈 전환 시 폴 재조회(새 round 데이터 반영) */
   useEffect(() => {
@@ -404,12 +440,6 @@ export default function PredictMarketPage() {
               </p>
             </div>
           </div>
-          {voteOpen && (
-            <div className="flex flex-col items-end">
-              <p className="text-xs text-muted-foreground">마감까지</p>
-              <CountdownTimer market={market} />
-            </div>
-          )}
         </div>
       </header>
 
@@ -444,6 +474,36 @@ export default function PredictMarketPage() {
                     ? "불러오는 중…"
                     : "—"}
               </p>
+            </div>
+            <div className="rounded-lg border border-border bg-card p-4">
+              {voteOpen ? (
+                <>
+                  <p className="text-xs font-medium uppercase text-muted-foreground">
+                    마감까지
+                  </p>
+                  <div className="mt-1">
+                    <CountdownTimer market={market} />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs font-medium uppercase text-muted-foreground">
+                    다음 투표
+                  </p>
+                  <div className="mt-1">
+                    <Link
+                      href={
+                        ACTIVE_MARKETS.find((m) => m !== market && isVotingOpenKST(m))
+                          ? `/predict/${ACTIVE_MARKETS.find((m) => m !== market && isVotingOpenKST(m))}`
+                          : "/"
+                      }
+                      className="rounded-md bg-amber-500/20 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-500/30 dark:text-amber-500"
+                    >
+                      Go to Live Market
+                    </Link>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -528,12 +588,30 @@ export default function PredictMarketPage() {
         {/* 2) 배팅 박스 (모바일: 차트 바로 아래, lg: 오른쪽) */}
         <div className="order-2 space-y-6">
           {!voteOpen && mounted && (
-            <div className="rounded-xl border-2 border-amber-500/40 bg-amber-500/10 p-4 text-center">
-              <p className="text-base font-semibold text-amber-700 dark:text-amber-500">
-                이 투표는 마감되었습니다.
+            <div className={`rounded-xl border-2 p-4 text-center ${
+              poll?.settlement_status === "settled" 
+                ? "border-emerald-500/40 bg-emerald-500/10" 
+                : poll?.settlement_status === "settling"
+                  ? "border-blue-500/40 bg-blue-500/10"
+                  : "border-amber-500/40 bg-amber-500/10"
+            }`}>
+              <p className={`text-base font-semibold ${
+                poll?.settlement_status === "settled" 
+                  ? "text-emerald-700 dark:text-emerald-500" 
+                  : poll?.settlement_status === "settling"
+                    ? "text-blue-700 dark:text-blue-500"
+                    : "text-amber-700 dark:text-amber-500"
+              }`}>
+                {poll?.settlement_status === "settled" 
+                  ? "정산이 완료되었습니다." 
+                  : poll?.settlement_status === "settling"
+                    ? "정산 중입니다..."
+                    : "이 투표는 마감되었습니다."}
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
-                {getNextOpenTimeKstString(market)}부터 다시 투표할 수 있습니다.
+                {poll?.settlement_status === "settled" || poll?.settlement_status === "settling"
+                  ? "결과는 프로필 > 전적에서 확인할 수 있습니다."
+                  : `${getNextOpenTimeKstString(market)}부터 다시 투표할 수 있습니다.`}
               </p>
             </div>
           )}

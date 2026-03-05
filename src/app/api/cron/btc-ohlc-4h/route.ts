@@ -43,8 +43,7 @@ export async function GET(request: Request) {
       settle = await settlePoll("", "btc_4h", justClosed.candle_start_at);
       if (
         settle.status === "settled" ||
-        settle.status === "one_side_refund" ||
-        settle.status === "draw_refund"
+        settle.status === "invalid_refund"
       ) {
         const seasonId = getCurrentSeasonId();
         await refreshMarketSeason(TIER_MARKET_ALL, seasonId);

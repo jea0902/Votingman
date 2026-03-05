@@ -9,7 +9,7 @@
  * - 접근성: role="tablist" / role="tab" / aria-selected / aria-controls
  */
 
-import type { HomeTabKey } from "./HumanIndicatorSection";
+import type { HomeTabKey } from "./VotingSection";
 
 export const TAB_ITEMS: { key: HomeTabKey; label: string; subLabel?: string }[] = [
   { key: "btc", label: "비트코인", subLabel: "BTC 시장 심리" },

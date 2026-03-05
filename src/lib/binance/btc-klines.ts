@@ -2,7 +2,8 @@
  * Binance 공개 API Klines - 다중 interval 지원
  *
  * btc_ohlc 테이블용: 15m, 1h, 4h, 1d, 1W, 1M, 12M
- * KST 00:00 기준: btc_1d, btc_4h, btc_1h, btc_15m, btc_1W, btc_1M, btc_12M (명세: docs/btc-ohlc-1w-1m-12m-spec.md)
+ * UTC 네이티브 캔들 사용: Binance 표준 시간대 (UTC 00:00 기준)
+ * KST 시간은 candle_start_at_kst 컬럼으로 별도 저장 (데이터 확인용)
  */
 
 import {
@@ -106,22 +107,7 @@ export async function fetchPreviousCandleClose(
   const periodMs = CANDLE_PERIOD_MS[market];
   if (periodMs == null) return null;
 
-  if (market === "btc_1d") {
-    const d = new Date(currentCandleStartAt);
-    const isKstMidnight = d.getUTCHours() === 15 && d.getUTCMinutes() === 0;
-    if (isKstMidnight) {
-      // KST 00:00 봉: 이전 봉 = 24h 전 15:00 UTC. 1h 24개 집계 후 마지막 봉 종가
-      const prevStartMs = d.getTime() - periodMs;
-      const rows = await fetchKlines("1h", prevStartMs, 24);
-      const last = rows[rows.length - 1];
-      return last && Number.isFinite(last.close) ? last.close : null;
-    }
-    const prevStartMs = d.getTime() - periodMs;
-    const rows = await fetchKlines("1d", prevStartMs, 1);
-    const prev = rows[0];
-    return prev && Number.isFinite(prev.close) ? prev.close : null;
-  }
-
+  // 모든 시간봉을 네이티브 캔들로 처리
   const interval = MARKET_TO_INTERVAL[market];
   if (!interval) return null;
   const prevStartMs = new Date(currentCandleStartAt).getTime() - periodMs;
@@ -131,18 +117,16 @@ export async function fetchPreviousCandleClose(
 }
 
 /**
- * btc_1d KST 00:00 봉의 현재 종가 (진행 중 봉). 1h 24개 조회 후 마지막 봉 close.
+ * btc_1d의 현재 종가 (진행 중 봉). Binance 네이티브 1일봉 직접 조회.
  * btc_ohlc에 없을 때 poll API에서 사용.
  */
 export async function fetchCurrentCandleCloseForBtc1dKst(
   candleStartAt: string
 ): Promise<number | null> {
-  const d = new Date(candleStartAt);
-  if (d.getUTCHours() !== 15 || d.getUTCMinutes() !== 0) return null;
-  const startMs = d.getTime();
-  const rows = await fetchKlines("1h", startMs, 24);
-  const last = rows[rows.length - 1];
-  return last && Number.isFinite(last.close) ? last.close : null;
+  const startMs = new Date(candleStartAt).getTime();
+  const rows = await fetchKlines("1d", startMs, 1);
+  const candle = rows[0];
+  return candle && Number.isFinite(candle.close) ? candle.close : null;
 }
 
 /**
@@ -189,61 +173,24 @@ export async function fetchOhlcForPollDate(
 
   const results: BtcOhlcRow[] = [];
 
-  if (m === "btc_1d") {
-    const startMs = new Date(startAts[0]).getTime();
-    const rows = await fetchKlines("1d", startMs, 1);
-    if (rows.length === 0) return [];
+  // 모든 시간봉을 Binance 네이티브 캔들로 직접 조회
+  const interval = MARKET_TO_INTERVAL[m];
+  if (!interval) return [];
+  
+  for (const startAt of startAts) {
+    const startMs = new Date(startAt).getTime();
+    const rows = await fetchKlines(interval, startMs, 1);
+    if (rows.length === 0) continue;
     const r = rows[0];
-    results.push({
-      market: m,
-      candle_start_at: r.candle_start_at,
-      open: r.open,
-      close: r.close,
-      high: r.high,
-      low: r.low,
-    });
-    return results;
+    results.push({ ...r, market: m });
   }
-
-  if (m === "btc_4h") {
-    for (const startAt of startAts) {
-      const startMs = new Date(startAt).getTime();
-      const rows = await fetchKlines("1h", startMs, 4);
-      if (rows.length < 4) continue;
-      const first = rows[0];
-      const last = rows[3];
-      results.push({
-        market: m,
-        candle_start_at: first.candle_start_at,
-        open: first.open,
-        close: last.close,
-        high: Math.round(Math.max(...rows.map((r) => r.high)) * 100) / 100,
-        low: Math.round(Math.min(...rows.map((r) => r.low)) * 100) / 100,
-      });
-    }
-    return results;
-  }
-
-  if (m === "btc_1h" || m === "btc_15m") {
-    const interval = m === "btc_1h" ? "1h" : "15m";
-    for (const startAt of startAts) {
-      const startMs = new Date(startAt).getTime();
-      const rows = await fetchKlines(interval, startMs, 1);
-      if (rows.length === 0) continue;
-      const r = rows[0];
-      results.push({ ...r, market: m });
-    }
-    return results;
-  }
-
-  return [];
+  return results;
 }
 
 /**
- * KST 00:00 기준 정렬 캔들 수집 (btc_1d, btc_4h, btc_1h, btc_15m)
- * - btc_1d: 1h 24개 집계
- * - btc_4h: 1h 4개 집계
- * - btc_1h, btc_15m: Binance 직접 조회 (startTime 사용)
+ * Binance 네이티브 캔들 수집 (btc_1d, btc_4h, btc_1h, btc_15m)
+ * - 모든 시간봉: Binance 표준 interval 직접 조회 (UTC 기준)
+ * - 집계 로직 제거: 연속성 보장 및 정확성 향상
  */
 export async function fetchKlinesKstAligned(
   market: string,
@@ -259,60 +206,19 @@ export async function fetchKlinesKstAligned(
 
   const results: BtcOhlcRow[] = [];
 
-  if (m === "btc_1d") {
-    for (const startAt of startAts) {
-      const startMs = new Date(startAt).getTime();
-      const rows = await fetchKlines("1h", startMs, 24);
-      if (rows.length < 24) continue;
-      const first = rows[0];
-      const last = rows[23];
-      results.push({
-        market: m,
-        candle_start_at: first.candle_start_at,
-        open: first.open,
-        close: last.close,
-        high: Math.round(Math.max(...rows.map((r) => r.high)) * 100) / 100,
-        low: Math.round(Math.min(...rows.map((r) => r.low)) * 100) / 100,
-      });
-    }
-    return results;
+  // 모든 시간봉을 Binance 네이티브 캔들로 직접 조회
+  const interval = MARKET_TO_INTERVAL[m];
+  if (!interval) return [];
+  
+  for (const startAt of startAts) {
+    const startMs = new Date(startAt).getTime();
+    const rows = await fetchKlines(interval, startMs, 1);
+    if (rows.length === 0) continue;
+    const r = rows[0];
+    results.push({ ...r, market: m });
   }
 
-  if (m === "btc_4h") {
-    for (const startAt of startAts) {
-      const startMs = new Date(startAt).getTime();
-      const rows = await fetchKlines("1h", startMs, 4);
-      if (rows.length < 4) continue;
-      const first = rows[0];
-      const last = rows[3];
-      results.push({
-        market: m,
-        candle_start_at: first.candle_start_at,
-        open: first.open,
-        close: last.close,
-        high: Math.round(Math.max(...rows.map((r) => r.high)) * 100) / 100,
-        low: Math.round(Math.min(...rows.map((r) => r.low)) * 100) / 100,
-      });
-    }
-    return results;
-  }
-
-  if (m === "btc_1h" || m === "btc_15m") {
-    const interval = m === "btc_1h" ? "1h" : "15m";
-    for (const startAt of startAts) {
-      const startMs = new Date(startAt).getTime();
-      const rows = await fetchKlines(interval, startMs, 1);
-      if (rows.length === 0) continue;
-      const r = rows[0];
-      results.push({
-        ...r,
-        market: m,
-      });
-    }
-    return results;
-  }
-
-  return [];
+  return results;
 }
 
 /**

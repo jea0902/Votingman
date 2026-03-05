@@ -89,6 +89,23 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // 정산 상태 확인 (마감 → 정산 중 → 정산 완료)
+    let settlement_status: "open" | "closed" | "settling" | "settled" = "open";
+    const isVotingOpen = require("@/lib/utils/sentiment-vote").isVotingOpenKST(market);
+    if (!isVotingOpen) {
+      if (price_close != null) {
+        // 종가가 있으면 데이터 수집 완료 → payout_history 확인
+        const admin = createSupabaseAdmin();
+        const { count } = await admin
+          .from("payout_history")
+          .select("*", { count: "exact", head: true })
+          .eq("poll_id", poll.id);
+        settlement_status = count && count > 0 ? "settled" : "settling";
+      } else {
+        settlement_status = "closed";
+      }
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -97,6 +114,7 @@ export async function GET(request: NextRequest) {
         poll_date: poll.poll_date,
         price_open,
         price_close,
+        settlement_status,
         long_count: poll.long_count,
         short_count: poll.short_count,
         total_count: (poll.long_count ?? 0) + (poll.short_count ?? 0),

@@ -20,7 +20,7 @@ import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
-type SignupStep = "social" | "nickname";
+type SignupStep = "social" | "nickname" | "privacy" | "phone";
 
 // 랜덤 8자리 영숫자 레퍼럴 코드 생성
 function generateReferralCode(): string {
@@ -30,6 +30,20 @@ function generateReferralCode(): string {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return result;
+}
+
+// 휴대폰 번호 형식 검증
+function validatePhoneNumber(phone: string): boolean {
+  const cleanPhone = phone.replace(/[^0-9]/g, '');
+  return /^010[0-9]{8}$/.test(cleanPhone);
+}
+
+// 휴대폰 번호 포맷팅 (010-0000-0000)
+function formatPhoneNumber(phone: string): string {
+  const cleanPhone = phone.replace(/[^0-9]/g, '');
+  if (cleanPhone.length <= 3) return cleanPhone;
+  if (cleanPhone.length <= 7) return `${cleanPhone.slice(0, 3)}-${cleanPhone.slice(3)}`;
+  return `${cleanPhone.slice(0, 3)}-${cleanPhone.slice(3, 7)}-${cleanPhone.slice(7, 11)}`;
 }
 
 export default function SignupPage() {
@@ -47,6 +61,21 @@ export default function SignupPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [nicknameError, setNicknameError] = useState<string>("");
   const [error, setError] = useState("");
+
+  // 개인정보 동의 관련 상태
+  const [privacyConsent, setPrivacyConsent] = useState(false);
+  const [termsConsent, setTermsConsent] = useState(false);
+  const [marketingConsent, setMarketingConsent] = useState(false);
+
+  // 휴대폰 인증 관련 상태
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
+  const [isVerificationSent, setIsVerificationSent] = useState(false);
+  const [isSendingSms, setIsSendingSms] = useState(false);
+  const [isVerifyingCode, setIsVerifyingCode] = useState(false);
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [smsTimer, setSmsTimer] = useState(0);
+  const [smsError, setSmsError] = useState("");
 
   const handleGoogleSignup = async () => {
     setIsGoogleLoading(true);
@@ -202,8 +231,117 @@ export default function SignupPage() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // SMS 발송 함수 (네이버 클라우드 SENS 구조)
+  const sendSmsVerification = async () => {
+    if (!validatePhoneNumber(phoneNumber)) {
+      setSmsError("올바른 휴대폰 번호를 입력해주세요. (010-0000-0000)");
+      return;
+    }
+
+    setIsSendingSms(true);
+    setSmsError("");
+
+    try {
+      const response = await fetch('/api/auth/send-sms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          phoneNumber: phoneNumber.replace(/[^0-9]/g, '') 
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setIsVerificationSent(true);
+        setSmsTimer(180); // 3분 타이머
+        
+        // 타이머 시작
+        const timer = setInterval(() => {
+          setSmsTimer(prev => {
+            if (prev <= 1) {
+              clearInterval(timer);
+              setIsVerificationSent(false);
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+
+      } else {
+        setSmsError(data.error || "SMS 발송에 실패했습니다.");
+      }
+    } catch (err) {
+      console.error("SMS send failed:", err);
+      setSmsError("네트워크 오류가 발생했습니다. 다시 시도해주세요.");
+    } finally {
+      setIsSendingSms(false);
+    }
+  };
+
+  // SMS 인증 확인 함수
+  const verifyPhoneCode = async () => {
+    if (!verificationCode || verificationCode.length !== 6) {
+      setSmsError("6자리 인증번호를 입력해주세요.");
+      return;
+    }
+
+    setIsVerifyingCode(true);
+    setSmsError("");
+
+    try {
+      const response = await fetch('/api/auth/verify-sms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phoneNumber: phoneNumber.replace(/[^0-9]/g, ''),
+          code: verificationCode
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.verified) {
+        setPhoneVerified(true);
+        setSmsTimer(0);
+        // 다음 단계로 자동 진행 또는 완료 처리
+      } else {
+        setSmsError(data.error || "인증번호가 일치하지 않습니다.");
+        setVerificationCode("");
+      }
+    } catch (err) {
+      console.error("SMS verify failed:", err);
+      setSmsError("인증 확인 중 오류가 발생했습니다.");
+    } finally {
+      setIsVerifyingCode(false);
+    }
+  };
+
+  // 다음 단계 진행 함수들
+  const proceedToPrivacy = () => {
+    setStep("privacy");
+  };
+
+  const proceedToPhone = () => {
+    if (!privacyConsent || !termsConsent) {
+      setError("필수 약관에 동의해주세요.");
+      return;
+    }
+    setStep("phone");
+    setError("");
+  };
+
+  const proceedToComplete = async () => {
+    if (!phoneVerified) {
+      setSmsError("휴대폰 인증을 완료해주세요.");
+      return;
+    }
+    
+    // 최종 회원가입 처리
+    await handleFinalSubmit();
+  };
+
+  const handleFinalSubmit = async () => {
 
     if (!nicknameAvailable) {
       setError("사용 가능한 닉네임을 입력해주세요.");
@@ -246,6 +384,10 @@ export default function SignupPage() {
             user_id: session.user.id,
             nickname: nickname.trim(),
             deleted_at: null,
+            phone_number: phoneNumber.replace(/[^0-9]/g, ''),
+            phone_verified_at: new Date().toISOString(),
+            privacy_agreed_at: new Date().toISOString(),
+            marketing_agreed: marketingConsent,
           })
           .eq('email', session.user.email!);
 
@@ -259,6 +401,10 @@ export default function SignupPage() {
             email: session.user.email!,
             nickname: nickname.trim(),
             referral_code: newReferralCode,
+            phone_number: phoneNumber.replace(/[^0-9]/g, ''),
+            phone_verified_at: new Date().toISOString(),
+            privacy_agreed_at: new Date().toISOString(),
+            marketing_agreed: marketingConsent,
           });
 
         if (insertError) {
@@ -297,10 +443,10 @@ export default function SignupPage() {
         <CardHeader className="space-y-1 text-center">
           <CardTitle className="text-2xl font-bold">회원가입</CardTitle>
           <CardDescription>
-            {step === "social"
-              ? "소셜 계정으로 간편하게 가입하세요"
-              : "닉네임을 설정해주세요"
-            }
+            {step === "social" && "소셜 계정으로 간편하게 가입하세요"}
+            {step === "nickname" && "닉네임을 설정해주세요"}
+            {step === "privacy" && "서비스 이용을 위한 필수 약관에 동의해주세요"}
+            {step === "phone" && "본인 인증을 위해 휴대폰 번호를 인증해주세요"}
           </CardDescription>
         </CardHeader>
 
@@ -379,7 +525,7 @@ export default function SignupPage() {
 
           {/* STEP 2: 닉네임 입력 */}
           {step === "nickname" && (
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-4">
               <div className="rounded-lg bg-muted/50 border border-border px-4 py-3">
                 <p className="text-xs text-muted-foreground mb-1">가입 계정</p>
                 <p className="text-sm font-medium text-foreground">{userEmail}</p>
@@ -444,21 +590,292 @@ export default function SignupPage() {
               )}
 
               <Button
-                type="submit"
-                disabled={isSubmitting || !nicknameAvailable || !!nicknameError}
+                type="button"
+                onClick={proceedToPrivacy}
+                disabled={!nicknameAvailable || !!nicknameError}
                 className="w-full"
                 size="lg"
               >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    가입 중...
-                  </>
-                ) : (
-                  "회원가입 완료"
-                )}
+                다음 단계
               </Button>
-            </form>
+            </div>
+          )}
+
+          {/* STEP 3: 개인정보 동의 */}
+          {step === "privacy" && (
+            <div className="space-y-6">
+              <div className="rounded-lg bg-muted/50 border border-border px-4 py-3">
+                <p className="text-xs text-muted-foreground mb-1">가입 계정</p>
+                <p className="text-sm font-medium text-foreground">{userEmail}</p>
+                <p className="text-xs text-muted-foreground mt-1">닉네임: {nickname}</p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="text-sm font-medium text-foreground mb-4">
+                  서비스 이용약관 및 개인정보 처리방침
+                </div>
+
+                {/* 필수 약관들 */}
+                <div className="space-y-3">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={privacyConsent}
+                      onChange={(e) => setPrivacyConsent(e.target.checked)}
+                      className="mt-1 h-4 w-4 rounded border-gray-300"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-foreground">[필수] 개인정보 수집·이용 동의</span>
+                        <button className="text-xs text-primary underline">보기</button>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        서비스 제공을 위한 필수 개인정보 수집에 동의합니다.
+                      </p>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={termsConsent}
+                      onChange={(e) => setTermsConsent(e.target.checked)}
+                      className="mt-1 h-4 w-4 rounded border-gray-300"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-foreground">[필수] 서비스 이용약관 동의</span>
+                        <button className="text-xs text-primary underline">보기</button>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        보팅맨 서비스 이용약관에 동의합니다.
+                      </p>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={marketingConsent}
+                      onChange={(e) => setMarketingConsent(e.target.checked)}
+                      className="mt-1 h-4 w-4 rounded border-gray-300"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-foreground">[선택] 마케팅 정보 수신 동의</span>
+                        <button className="text-xs text-primary underline">보기</button>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        이벤트, 혜택 정보 등 마케팅 알림을 받겠습니다. (이메일, SMS)
+                      </p>
+                    </div>
+                  </label>
+                </div>
+
+                {/* 전체 동의 */}
+                <div className="border-t border-border pt-4">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={privacyConsent && termsConsent && marketingConsent}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setPrivacyConsent(checked);
+                        setTermsConsent(checked);
+                        setMarketingConsent(checked);
+                      }}
+                      className="h-5 w-5 rounded border-gray-300"
+                    />
+                    <span className="text-sm font-semibold text-foreground">
+                      위 모든 약관에 동의합니다
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              {error && (
+                <div className="rounded-md bg-destructive/10 border border-destructive/20 px-3 py-2 text-sm text-destructive">
+                  {error}
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setStep("nickname")}
+                  className="flex-1"
+                  size="lg"
+                >
+                  이전
+                </Button>
+                <Button
+                  onClick={proceedToPhone}
+                  disabled={!privacyConsent || !termsConsent}
+                  className="flex-1"
+                  size="lg"
+                >
+                  다음 단계
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 4: 휴대폰 인증 */}
+          {step === "phone" && (
+            <div className="space-y-6">
+              <div className="rounded-lg bg-muted/50 border border-border px-4 py-3">
+                <p className="text-xs text-muted-foreground mb-1">가입 계정</p>
+                <p className="text-sm font-medium text-foreground">{userEmail}</p>
+                <p className="text-xs text-muted-foreground mt-1">닉네임: {nickname}</p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="phoneNumber">
+                    휴대폰 번호 <span className="text-destructive">*</span>
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="phoneNumber"
+                      type="tel"
+                      value={formatPhoneNumber(phoneNumber)}
+                      onChange={(e) => setPhoneNumber(e.target.value)}
+                      placeholder="010-0000-0000"
+                      maxLength={13}
+                      disabled={phoneVerified}
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      onClick={sendSmsVerification}
+                      disabled={isSendingSms || phoneVerified || !validatePhoneNumber(phoneNumber)}
+                      variant="outline"
+                      className="whitespace-nowrap"
+                    >
+                      {isSendingSms ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : phoneVerified ? (
+                        "인증완료"
+                      ) : isVerificationSent ? (
+                        "재전송"
+                      ) : (
+                        "인증번호"
+                      )}
+                    </Button>
+                  </div>
+
+                  {isVerificationSent && !phoneVerified && (
+                    <p className="text-xs text-primary">
+                      인증번호가 발송되었습니다. ({Math.floor(smsTimer / 60)}:{String(smsTimer % 60).padStart(2, '0')})
+                    </p>
+                  )}
+                </div>
+
+                {isVerificationSent && !phoneVerified && (
+                  <div className="space-y-2">
+                    <Label htmlFor="verificationCode">
+                      인증번호 <span className="text-destructive">*</span>
+                    </Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="verificationCode"
+                        type="text"
+                        value={verificationCode}
+                        onChange={(e) => setVerificationCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
+                        placeholder="6자리 인증번호 입력"
+                        maxLength={6}
+                        className="flex-1"
+                      />
+                      <Button
+                        type="button"
+                        onClick={verifyPhoneCode}
+                        disabled={isVerifyingCode || verificationCode.length !== 6}
+                        variant="default"
+                        className="whitespace-nowrap"
+                      >
+                        {isVerifyingCode ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          "인증확인"
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {phoneVerified && (
+                  <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                    <CheckCircle2 className="h-4 w-4" />
+                    <span className="text-sm">휴대폰 인증이 완료되었습니다</span>
+                  </div>
+                )}
+
+                {/* 개발 모드 안내 */}
+                {process.env.NODE_ENV === 'development' && (
+                  <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 px-3 py-2 space-y-2">
+                    <p className="text-xs text-blue-600 dark:text-blue-400">
+                      🔧 개발 모드: <strong>인증번호 123456</strong> 또는 콘솔에서 확인하세요
+                    </p>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          const response = await fetch('/api/auth/reset-sms', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ phoneNumber: phoneNumber.replace(/[^0-9]/g, '') })
+                          });
+                          if (response.ok) {
+                            setIsVerificationSent(false);
+                            setVerificationCode("");
+                            setPhoneVerified(false);
+                            setSmsTimer(0);
+                            setSmsError("테스트 데이터가 초기화되었습니다. 다시 시도해보세요.");
+                          }
+                        } catch (err) {
+                          console.error('Reset failed:', err);
+                        }
+                      }}
+                      className="text-xs px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                    >
+                      🔄 테스트 초기화
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {smsError && (
+                <div className="rounded-md bg-destructive/10 border border-destructive/20 px-3 py-2 text-sm text-destructive">
+                  {smsError}
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setStep("privacy")}
+                  className="flex-1"
+                  size="lg"
+                >
+                  이전
+                </Button>
+                <Button
+                  onClick={proceedToComplete}
+                  disabled={!phoneVerified}
+                  className="flex-1"
+                  size="lg"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      가입 중...
+                    </>
+                  ) : (
+                    "회원가입 완료"
+                  )}
+                </Button>
+              </div>
+            </div>
           )}
 
           {/* 로그인 링크 (소셜 단계에만 표시) */}

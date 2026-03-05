@@ -262,6 +262,42 @@ export type PayoutHistoryRow = {
 };
 
 // =========================================
+// 알림 시스템
+// =========================================
+
+/** notifications: 사용자 알림 테이블 */
+export type NotificationRow = {
+  id: string;
+  user_id: string;
+  type: 'payout' | 'vote_result' | 'system';
+  title: string;
+  content: string;
+  metadata: {
+    payout_id?: string;
+    poll_id?: string;
+    poll_date?: string;
+    market?: string;
+    bet_amount?: number;
+    payout_amount?: number;
+    profit?: number;
+    is_win?: boolean;
+    is_invalid?: boolean;
+    redirect_url?: string;
+  };
+  is_read: boolean;
+  created_at: string;
+  read_at: string | null;
+  related_payout_id: string | null;
+};
+
+/** API 응답: 알림 목록 */
+export type NotificationListResponse = {
+  notifications: NotificationRow[];
+  unread_count: number;
+  total_count: number;
+};
+
+// =========================================
 // 시장별 시즌 통계·MMR (user_season_stats)
 // =========================================
 

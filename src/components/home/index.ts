@@ -12,7 +12,7 @@ export { InfluencerPositions } from "./InfluencerPositions";
 export { StockCard } from "./StockCard";
 export { StrategyCard } from "./StrategyCard";
 export { BuffettCard } from "./BuffettCard";
-export { HumanIndicatorSection } from "./HumanIndicatorSection";
+export { VotingSection } from "./VotingSection";
 export { MarketTabCards } from "./MarketTabCards";
 export { UserInfoCard } from "./UserInfoCard";
 export { MarketVoteCard } from "./MarketVoteCard";

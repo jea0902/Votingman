@@ -34,10 +34,10 @@ export async function GET(request: NextRequest) {
 
   const userId = sessionData.session.user.id;
 
-  // users 테이블에서 사용자 확인 (닉네임 설정 여부 체크)
+  // users 테이블에서 사용자 확인 (인증 상태 체크)
   const { data: userData, error: userError } = await supabase
     .from('users')
-    .select('user_id, nickname, deleted_at')
+    .select('user_id, nickname, deleted_at, phone_number, phone_verified_at, privacy_agreed_at')
     .eq('user_id', userId)
     .maybeSingle();
 
@@ -57,6 +57,12 @@ export async function GET(request: NextRequest) {
         .from('users')
         .update({ deleted_at: null })
         .eq('user_id', userId);
+    }
+
+    // 미완료 인증 단계 체크 (기존 사용자용)
+    if (!userData.privacy_agreed_at || !userData.phone_verified_at) {
+      const missingStep = !userData.privacy_agreed_at ? 'privacy' : 'phone';
+      return NextResponse.redirect(`${origin}/signup?step=${missingStep}&existing=true`);
     }
     
     return NextResponse.redirect(`${origin}/home`);

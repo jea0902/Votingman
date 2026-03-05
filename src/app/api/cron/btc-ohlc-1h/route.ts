@@ -1,5 +1,6 @@
 /**
- * 매시 5분에 실행: btc_1h 최근 마감 캔들 수집 + 해당 봉 정산
+ * 매시 정각 실행: btc_1h 최근 마감 캔들 수집 + 해당 봉 정산
+ * - 실제: cron-job.org에서 정시 호출 (평균 13초 지연)
  *
  * GET /api/cron/btc-ohlc-1h
  * 인증: Authorization: Bearer <CRON_SECRET> 또는 x-cron-secret
@@ -42,8 +43,7 @@ export async function GET(request: Request) {
       settle = await settlePoll("", "btc_1h", justClosed.candle_start_at);
       if (
         settle.status === "settled" ||
-        settle.status === "one_side_refund" ||
-        settle.status === "draw_refund"
+        settle.status === "invalid_refund"
       ) {
         const seasonId = getCurrentSeasonId();
         await refreshMarketSeason(TIER_MARKET_ALL, seasonId);

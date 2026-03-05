@@ -1,13 +1,10 @@
 /**
  * 전적 및 승률 조회(vote-history)와 동일한 로직으로 누적 승률 계산
- * - sentiment_votes + sentiment_polls(정산됨) + btc_ohlc 기반
- * - 종가끼리 비교 정산 (reference_close vs settlement_close)
+ * - sentiment_votes + sentiment_polls(정산됨) + payout_history 기준
+ * - payout_amount > 0: 승리, payout_amount = 0: 환불/무효, 기록 없음: 패배
  */
 
 import { createSupabaseAdmin } from "@/lib/supabase/server";
-import { getOhlcByMarketAndCandleStart } from "@/lib/btc-ohlc/repository";
-
-const BTC_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m"] as const;
 
 /**
  * userIds에 해당하는 유저들의 누적 승률(%)
@@ -47,21 +44,44 @@ export async function getCumulativeWinRatesByUserIds(
 
   const pollMap = new Map(polls.map((p) => [p.id, p]));
 
+  // payout_history 조회
+  const { data: payouts } = await admin
+    .from("payout_history")
+    .select("user_id, poll_id, payout_amount")
+    .in("user_id", userIds)
+    .in("poll_id", pollIds);
+
+  // userId -> pollId -> payout_amount 맵핑
+  const payoutMap = new Map<string, Map<string, number>>();
+  for (const payout of payouts ?? []) {
+    if (!payout.user_id) continue;
+    
+    let userPayouts = payoutMap.get(payout.user_id);
+    if (!userPayouts) {
+      userPayouts = new Map();
+      payoutMap.set(payout.user_id, userPayouts);
+    }
+    userPayouts.set(payout.poll_id, Number(payout.payout_amount ?? 0));
+  }
+
   type VoteRow = (typeof votes)[0];
   type PollRow = (typeof polls)[0];
 
-  const byUser = new Map<string, Array<{ vote: VoteRow; poll: PollRow }>>();
+  const byUser = new Map<string, Array<{ vote: VoteRow; poll: PollRow; payout_amount: number }>>();
 
   for (const vote of votes) {
     const poll = pollMap.get(vote.poll_id);
     if (!poll?.poll_date) continue;
+
+    const userPayouts = payoutMap.get(vote.user_id);
+    const payout_amount = userPayouts?.get(vote.poll_id) ?? -1; // -1 = 기록 없음 (패배)
 
     let arr = byUser.get(vote.user_id);
     if (!arr) {
       arr = [];
       byUser.set(vote.user_id, arr);
     }
-    arr.push({ vote, poll });
+    arr.push({ vote, poll, payout_amount });
   }
 
   for (const userId of userIds) {
@@ -80,30 +100,23 @@ export async function getCumulativeWinRatesByUserIds(
     let wins = 0;
     let totalCounted = 0;
 
-    for (const { vote, poll } of arr) {
-      let open: number | null = null;
-      let close: number | null = null;
-      const market = poll.market ?? "";
-      const candleStartAt =
-        "candle_start_at" in poll && typeof poll.candle_start_at === "string"
-          ? poll.candle_start_at
-          : null;
-      if (
-        candleStartAt &&
-        BTC_MARKETS.includes(market as (typeof BTC_MARKETS)[number])
-      ) {
-        const ohlc = await getOhlcByMarketAndCandleStart(market, candleStartAt);
-        if (ohlc) {
-          open = ohlc.open;
-          close = ohlc.close;
+    for (const { vote, poll, payout_amount } of arr) {
+      // payout_history 기준 승부 판정 (정산 결과와 일치)
+      let resultType: "win" | "loss" | "invalid" = "invalid";
+      
+      if (payout_amount >= 0) {
+        // payout_history에 기록이 있는 경우
+        const bet = Number(vote.bet_amount ?? 0);
+        if (payout_amount > bet) {
+          resultType = "win";       // payout > bet_amount = 승리 (수익)
+        } else if (payout_amount === bet) {
+          resultType = "invalid";   // payout = bet_amount = 무효 (원금 반환)
+        } else {
+          resultType = "loss";      // payout < bet_amount = 패배 (손실)
         }
-      }
-
-      let resultType: "win" | "loss" | "refund" = "refund";
-      if (open != null && close != null && open !== close) {
-        const isLong = vote.choice === "long";
-        const priceUp = close > open;
-        resultType = isLong === priceUp ? "win" : "loss";
+      } else {
+        // payout_history에 기록이 없는 경우도 무효 처리 (과거 데이터 호환성)
+        resultType = "invalid";
       }
 
       if (resultType === "win") wins++;

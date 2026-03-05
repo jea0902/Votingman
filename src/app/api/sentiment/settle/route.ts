@@ -56,7 +56,7 @@ export async function POST(request: Request) {
     const result = await settlePoll(poll_date, market, candle_start_at);
 
     // 정산 성공 시 user_stats(누적 승률·MMR) 갱신
-    if (result.status === "settled" || result.status === "one_side_refund" || result.status === "draw_refund") {
+    if (result.status === "settled" || result.status === "invalid_refund") {
       const seasonId = getCurrentSeasonId();
       await refreshMarketSeason(TIER_MARKET_ALL, seasonId);
     }

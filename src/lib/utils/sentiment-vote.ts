@@ -14,7 +14,7 @@ import {
 } from "@/lib/constants/sentiment-markets";
 import { getCurrentCandleStartAt } from "@/lib/btc-ohlc/candle-utils";
 
-/** 4h/1h/15m: 주기 절반(마감 시각) — 밀리초 */
+/** 4h/1h/15m: 주기 절반(기존 마감 시각, 현재 사용하지 않음) — 밀리초 */
 const ROLLING_HALF_PERIOD_MS: Record<"btc_4h" | "btc_1h" | "btc_15m", number> = {
   btc_4h: 2 * 60 * 60 * 1000,
   btc_1h: 30 * 60 * 1000,
@@ -50,10 +50,10 @@ function formatKstDateTimeForMarket(utcMs: number, market: string): string {
   return `${y}년 ${mo}월 ${d}일 ${h}시`;
 }
 
-/** 롤링 시장: 현재 봉 마감 시각(UTC ms). 봉 시작 + 주기 절반 */
+/** 롤링 시장: 현재 봉 마감 시각(UTC ms). 봉 시작 + 주기 전체 (봉 종료 시점) */
 function getRollingCloseUtcMs(market: "btc_4h" | "btc_1h" | "btc_15m"): number {
   const startAt = getCurrentCandleStartAt(market);
-  return new Date(startAt).getTime() + ROLLING_HALF_PERIOD_MS[market];
+  return new Date(startAt).getTime() + ROLLING_FULL_PERIOD_MS[market];
 }
 
 /** 롤링 시장: 다음 봉 시작 시각(UTC ms) = 현재 봉 시작 + 주기 전체 */
@@ -72,7 +72,7 @@ export function getKSTMinutesSinceMidnight(): number {
 }
 
 /**
- * 해당 시장 마감 시각(KST)까지 분 단위. 0시 = 0, 12:00 = 12*60.
+ * 해당 시장 마감 시각(KST)까지 분 단위. 0시 = 0, 09:00 = 9*60.
  * 롤링 시장(4h/1h/15m)에서는 사용하지 않음.
  */
 function getCloseMinutes(market: SentimentMarket): number {
@@ -82,25 +82,38 @@ function getCloseMinutes(market: SentimentMarket): number {
 
 /**
  * 투표 허용 여부.
- * - 1일봉/주식: 당일 해당 시장 마감 시각 전이면 허용
- * - 4h/1h/15m: 현재 봉 시작 + 주기 절반 이전이면 허용
+ * - 1일봉: KST 09:01~다음날 09:00 허용 (정산 완료 후 새 투표 시작)
+ * - 주식: 당일 해당 시장 마감 시각 전이면 허용
+ * - 4h/1h/15m: 현재 봉 종료까지 허용
  */
 export function isVotingOpenKST(market?: string): boolean {
   const m: SentimentMarket = market && isSentimentMarket(market) ? market : "btc_1d";
   if (isRollingMarket(m)) {
     return Date.now() < getRollingCloseUtcMs(m);
   }
+  
+  // btc_1d 특별 처리: KST 09:01~다음날 09:00
+  if (m === "btc_1d") {
+    const mins = getKSTMinutesSinceMidnight();
+    const startAt = 9 * 60 + 1; // 09:01 = 541분
+    const closeAt = getCloseMinutes(m); // 09:00 = 540분
+    
+    // 09:01 이후이고 09:00 이전이면 투표 가능
+    return mins >= startAt || mins < closeAt;
+  }
+  
+  // 기타 시장 (ndq, sp500, kospi, kosdaq)
   const mins = getKSTMinutesSinceMidnight();
   const closeAt = getCloseMinutes(m);
   return mins < closeAt;
 }
 
-/** 마감 시각 라벨 (표기용). 4h/1h/15m은 "현재 봉 시작 후 N" 형식. */
+/** 마감 시각 라벨 (표기용). 4h/1h/15m은 봉 종료 시점 */
 export function getVotingCloseLabel(market?: string): string {
   const m: SentimentMarket = market && isSentimentMarket(market) ? market : "btc_1d";
-  if (m === "btc_4h") return "투표 마감: 현재 4시간봉 시작 후 2시간";
-  if (m === "btc_1h") return "투표 마감: 현재 1시간봉 시작 후 30분";
-  if (m === "btc_15m") return "투표 마감: 현재 15분봉 시작 후 7분 30초";
+  if (m === "btc_4h") return "투표 마감: 현재 4시간봉 종료 시";
+  if (m === "btc_1h") return "투표 마감: 현재 1시간봉 종료 시";
+  if (m === "btc_15m") return "투표 마감: 현재 15분봉 종료 시";
   const { hour, minute } = MARKET_CLOSE_KST[m];
   const h = String(hour).padStart(2, "0");
   const min = String(minute).padStart(2, "0");
@@ -112,7 +125,7 @@ export const VOTING_CLOSE_LABEL = "투표 마감 시간 12:00";
 
 /**
  * 해당 시장 마감 시각까지 남은 밀리초. 마감 후면 0 반환.
- * 롤링 시장(4h/1h/15m): 현재 봉 시작 + 주기 절반까지.
+ * 롤링 시장(4h/1h/15m): 현재 봉 종료까지.
  */
 export function getMillisUntilClose(market?: string): number {
   const m: SentimentMarket = market && isSentimentMarket(market) ? market : "btc_1d";
@@ -120,6 +133,7 @@ export function getMillisUntilClose(market?: string): number {
     const closeUtcMs = getRollingCloseUtcMs(m);
     return Math.max(0, closeUtcMs - Date.now());
   }
+  
   const utcMs = Date.now();
   const kstOffset = 9 * 60 * 60 * 1000;
   const kst = new Date(utcMs + kstOffset);
@@ -127,6 +141,24 @@ export function getMillisUntilClose(market?: string): number {
   const mo = kst.getUTCMonth();
   const d = kst.getUTCDate();
   const { hour, minute } = MARKET_CLOSE_KST[m];
+  
+  // btc_1d 특별 처리: KST 09:01 이후면 다음날 09:00 마감
+  if (m === "btc_1d") {
+    const currentKstMinutes = kst.getUTCHours() * 60 + kst.getUTCMinutes();
+    const nineAMOne = 9 * 60 + 1; // 09:01 = 541분
+    
+    let closeUtcMs;
+    if (currentKstMinutes >= nineAMOne) {
+      // 09:01 이후면 다음날 09:00 마감
+      closeUtcMs = Date.UTC(y, mo, d + 1, hour - 9, minute, 0, 0);
+    } else {
+      // 09:01 이전이면 오늘 09:00 마감
+      closeUtcMs = Date.UTC(y, mo, d, hour - 9, minute, 0, 0);
+    }
+    return Math.max(0, closeUtcMs - utcMs);
+  }
+  
+  // 기타 시장
   let closeUtcMs = Date.UTC(y, mo, d, hour - 9, minute, 0, 0);
   if (closeUtcMs <= utcMs) {
     closeUtcMs = Date.UTC(y, mo, d + 1, hour - 9, minute, 0, 0);
@@ -144,12 +176,31 @@ export function getCloseTimeKstString(market?: string): string {
     const closeUtcMs = getRollingCloseUtcMs(m);
     return `${formatKstDateTimeForMarket(closeUtcMs, m)}에 마감`;
   }
+  
   const utcMs = Date.now();
   const kst = new Date(utcMs + KST_OFFSET_MS);
   const y = kst.getUTCFullYear();
   const mo = kst.getUTCMonth();
   const d = kst.getUTCDate();
   const { hour, minute } = MARKET_CLOSE_KST[m];
+  
+  // btc_1d 특별 처리: KST 09:01 이후면 다음날 09:00 마감
+  if (m === "btc_1d") {
+    const currentKstMinutes = kst.getUTCHours() * 60 + kst.getUTCMinutes();
+    const nineAMOne = 9 * 60 + 1; // 09:01 = 541분
+    
+    let closeUtcMs;
+    if (currentKstMinutes >= nineAMOne) {
+      // 09:01 이후면 다음날 09:00 마감
+      closeUtcMs = Date.UTC(y, mo, d + 1, hour - 9, minute, 0, 0);
+    } else {
+      // 09:01 이전이면 오늘 09:00 마감
+      closeUtcMs = Date.UTC(y, mo, d, hour - 9, minute, 0, 0);
+    }
+    return `${formatKstDateTimeForMarket(closeUtcMs, m)}에 마감`;
+  }
+  
+  // 기타 시장
   let closeUtcMs = Date.UTC(y, mo, d, hour - 9, minute, 0, 0);
   if (closeUtcMs <= utcMs) {
     closeUtcMs = Date.UTC(y, mo, d + 1, hour - 9, minute, 0, 0);

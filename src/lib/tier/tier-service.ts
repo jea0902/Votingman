@@ -111,7 +111,8 @@ async function computeUserMarketSeason(
     .from("payout_history")
     .select("id", { count: "exact", head: true })
     .eq("user_id", userId)
-    .in("poll_id", participatedPollIds);
+    .in("poll_id", participatedPollIds)
+    .gt("payout_amount", 0); // payout_amount > 0인 경우만 승리로 카운트
 
   return {
     placement_matches_played,

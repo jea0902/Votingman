@@ -70,8 +70,7 @@ export async function GET(request: Request) {
     const anySettled = Object.values(settleResults).some(
       (r) =>
         r.status === "settled" ||
-        r.status === "one_side_refund" ||
-        r.status === "draw_refund"
+        r.status === "invalid_refund"
     );
     if (anySettled) {
       const seasonId = getCurrentSeasonId();

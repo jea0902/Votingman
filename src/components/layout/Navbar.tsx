@@ -12,30 +12,50 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
-import { LogIn, UserPlus, LogOut, User, ChevronDown, UserCircle, UserX, Trophy, Sun, Moon, Gift } from "lucide-react";
+import { LogIn, UserPlus, LogOut, User, ChevronDown, UserCircle, UserX, Trophy, Sun, Moon, Gift, TrendingUp, Brain, Zap } from "lucide-react";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 
-const NAV_LINKS = [
+type NavLink =
+  | { href: string; label: string; hasDropdown?: never; subItems?: never }
+  | {
+    label: string;
+    hasDropdown: true;
+    subItems: Array<{ href: string; label: string; icon: any }>;
+    href?: never;
+  };
+
+const NAV_LINKS: NavLink[] = [
   { href: "/home", label: "투표" },
-  { href: "/market-sentiment", label: "시장 분위기" },
+  { href: "/simulation", label: "모의 투자" },
+  {
+    label: "뉴스",
+    hasDropdown: true,
+    subItems: [
+      { href: "/breaking-news", label: "속보", icon: Zap },
+      { href: "/market-sentiment", label: "시장분위기", icon: TrendingUp },
+      { href: "/buffet-pick", label: "버핏 원픽", icon: Brain },
+    ]
+  },
+  { href: "/analysis", label: "분석" },
+  { href: "/leaderboard", label: "보상" },
   { href: "/arbitrage", label: "아비트라지" },
-  { href: "/leaderboard", label: "투표 보상" },
   { href: "/community", label: "건의" },
-  { href: "/simulation", label: "모의 선물 투자" },
-  { href: "/verified-strategies", label: "자동매매" },
-  { href: "/buffet-pick", label: "버핏 원픽" },
-] as const;
+];
 
 export function Navbar() {
   const pathname = usePathname();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [newsMenuOpen, setNewsMenuOpen] = useState(false);
+  const [newsMenuPosition, setNewsMenuPosition] = useState({ top: 0, left: 0 });
   const [user, setUser] = useState<{ id: string; email: string; nickname: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const newsMenuRef = useRef<HTMLDivElement>(null);
   const tabScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -57,15 +77,18 @@ export function Navbar() {
   }, [pathname]);
 
   useEffect(() => {
-    if (!userMenuOpen) return;
+    if (!userMenuOpen && !newsMenuOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
         setUserMenuOpen(false);
       }
+      if (newsMenuRef.current && !newsMenuRef.current.contains(e.target as Node)) {
+        setNewsMenuOpen(false);
+      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [userMenuOpen]);
+  }, [userMenuOpen, newsMenuOpen]);
 
   const loadUser = async () => {
     const supabase = createClient();
@@ -107,6 +130,18 @@ export function Navbar() {
     return () => window.removeEventListener("user-profile-updated", handler);
   }, []);
 
+  // 뉴스 메뉴 위치 계산
+  useEffect(() => {
+    if (newsMenuOpen && newsMenuRef.current) {
+      const rect = newsMenuRef.current.getBoundingClientRect();
+      setNewsMenuPosition({
+        top: rect.bottom + 4,
+        left: rect.left
+      });
+      console.log('드롭다운 위치 계산됨:', { top: rect.bottom + 4, left: rect.left });
+    }
+  }, [newsMenuOpen]);
+
   const toggleTheme = () => {
     const isDark = document.documentElement.classList.toggle("dark");
     localStorage.setItem("theme", isDark ? "dark" : "light");
@@ -126,7 +161,7 @@ export function Navbar() {
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border bg-background">
+    <header className="sticky top-0 z-[9998] w-full border-b border-border bg-background/95 backdrop-blur-md">
       <nav className="flex flex-col" aria-label="메인 네비게이션">
         {/* Row 1: 로고 | 유저 + 테마 */}
         <div className="mx-auto flex h-14 min-h-14 w-full max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
@@ -135,7 +170,7 @@ export function Navbar() {
             className="flex items-center gap-2 font-semibold text-foreground transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-sm shrink-0"
           >
             <Image
-              src="/images/logo-l.png"
+              src="/images/logo-light.png"
               alt="보팅맨 로고"
               width={160}
               height={56}
@@ -143,7 +178,7 @@ export function Navbar() {
               priority
             />
             <Image
-              src="/images/logo-d.png"
+              src="/images/logo-dark.png"
               alt="보팅맨 로고"
               width={160}
               height={56}
@@ -157,6 +192,9 @@ export function Navbar() {
               <div className="h-8 w-20 animate-pulse rounded bg-muted" />
             ) : user ? (
               <>
+                {/* 알림 종 */}
+                <NotificationBell userId={user.id} />
+                
                 <div className="relative flex items-center gap-2" ref={userMenuRef}>
                   <button
                     type="button"
@@ -170,7 +208,7 @@ export function Navbar() {
                     <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", userMenuOpen && "rotate-180")} />
                   </button>
                   {userMenuOpen && (
-                    <div className="absolute right-0 top-full z-[100] mt-1.5 min-w-[180px] rounded-lg border border-border bg-popover py-1 shadow-md">
+                    <div className="absolute right-0 top-full z-[9999] mt-1.5 min-w-[180px] rounded-lg border border-border bg-popover py-1 shadow-lg backdrop-blur-sm">
                       <Link
                         href="/profile/stats"
                         className="flex items-center gap-2 px-3 py-2 text-sm text-foreground transition-colors hover:bg-muted"
@@ -246,9 +284,9 @@ export function Navbar() {
         </div>
 
         {/* Row 2: 탭 */}
-        <div className="relative bg-background">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className="relative">
+        <div className="relative bg-background overflow-visible">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 overflow-visible">
+            <div className="relative overflow-visible">
               <div
                 className={cn(
                   "pointer-events-none absolute left-0 top-0 bottom-0 z-10 w-10 shrink-0 bg-gradient-to-r from-background via-background/95 to-transparent transition-opacity duration-200 sm:w-14",
@@ -265,28 +303,88 @@ export function Navbar() {
               />
               <div
                 ref={tabScrollRef}
-                className="overflow-x-auto scrollbar-hide -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"
+                className="overflow-x-auto overflow-y-visible scrollbar-hide -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"
+                style={{ overflowY: 'visible' }}
               >
                 <div className="flex items-center gap-2 py-2 flex-nowrap min-w-max sm:gap-4 lg:gap-6">
-                  {NAV_LINKS.map(({ href, label }) => {
-                    const isActive =
-                      pathname === href ||
-                      pathname.startsWith(href + "/") ||
-                      (href === "/home" && pathname === "/");
-                    return (
-                      <Link
-                        key={href}
-                        href={href}
-                        className={cn(
-                          "whitespace-nowrap rounded-sm px-2 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background shrink-0",
-                          isActive
-                            ? "text-foreground bg-muted/80"
-                            : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                        )}
-                      >
-                        {label}
-                      </Link>
-                    );
+                  {NAV_LINKS.map((item, index) => {
+                    if (item.hasDropdown && item.subItems) {
+                      // 뉴스 드롭다운 메뉴
+                      const isNewsActive = item.subItems.some(sub =>
+                        pathname === sub.href || pathname.startsWith(sub.href + "/")
+                      );
+                      return (
+                        <div key={`dropdown-${index}`} className="relative z-[9999]" ref={newsMenuRef}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newState = !newsMenuOpen;
+                              console.log('뉴스 버튼 클릭됨, 변경될 상태:', newState);
+                              setNewsMenuOpen(newState);
+                            }}
+                            className={cn(
+                              "flex items-center gap-1 whitespace-nowrap rounded-sm px-2 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background shrink-0",
+                              isNewsActive
+                                ? "text-foreground bg-muted/80"
+                                : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                            )}
+                            aria-expanded={newsMenuOpen}
+                            aria-haspopup="true"
+                          >
+                            {item.label}
+                            <ChevronDown className={cn("h-3 w-3 ml-1 transition-transform", newsMenuOpen && "rotate-180")} />
+                          </button>
+                          {newsMenuOpen && (
+                            <div
+                              className="min-w-[160px] rounded-lg border border-border py-1 shadow-lg"
+                              style={{
+                                position: 'fixed',
+                                zIndex: 2147483647,
+                                top: `${newsMenuPosition.top}px`,
+                                left: `${newsMenuPosition.left}px`,
+                                backgroundColor: document.documentElement.classList.contains('dark') ? '#1f2937' : 'white',
+                                color: document.documentElement.classList.contains('dark') ? 'white' : 'black'
+                              }}
+                            >
+                              {item.subItems.map((subItem) => (
+                                <Link
+                                  key={subItem.href}
+                                  href={subItem.href}
+                                  className="flex items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-muted"
+                                  style={{
+                                    color: document.documentElement.classList.contains('dark') ? 'white' : 'black'
+                                  }}
+                                  onClick={() => setNewsMenuOpen(false)}
+                                >
+                                  <subItem.icon className="h-4 w-4 shrink-0" />
+                                  {subItem.label}
+                                </Link>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    } else {
+                      // 일반 링크
+                      const isActive =
+                        pathname === item.href ||
+                        pathname.startsWith(item.href + "/") ||
+                        (item.href === "/home" && pathname === "/");
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          className={cn(
+                            "whitespace-nowrap rounded-sm px-2 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background shrink-0",
+                            isActive
+                              ? "text-foreground bg-muted/80"
+                              : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                          )}
+                        >
+                          {item.label}
+                        </Link>
+                      );
+                    }
                   })}
                 </div>
               </div>

@@ -29,8 +29,8 @@ export type VoteHistoryRow = {
   price_open: number | null;
   price_close: number | null;
   change_pct: number | null;
-  /** 승 | 패 | 무효(환불) */
-  result: "win" | "loss" | "refund";
+  /** 승 | 패 | 무효 */
+  result: "win" | "loss" | "invalid";
   payout_amount: number;
   /** 해당 행까지의 누적 승률 (0~100, 승패만 카운트) */
   cumulative_win_rate_pct: number;
@@ -160,15 +160,21 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      let result: "win" | "loss" | "refund" = "refund";
-      if (open == null || close == null) {
-        result = "refund";
-      } else if (open === close) {
-        result = "refund";
+      // payout_history 기준 승부 판정 (정산 결과와 일치)
+      let result: "win" | "loss" | "invalid" = "invalid";
+      if (payoutByPollId.has(vote.poll_id)) {
+        // payout_history에 기록이 있는 경우
+        const bet = Number(vote.bet_amount ?? 0);
+        if (payout_amount > bet) {
+          result = "win";       // payout > bet_amount = 승리 (수익)
+        } else if (payout_amount === bet) {
+          result = "invalid";   // payout = bet_amount = 무효 (원금 반환)
+        } else {
+          result = "loss";      // payout < bet_amount = 패배 (손실)
+        }
       } else {
-        const isLong = vote.choice === "long";
-        const priceUp = close > open;
-        result = isLong === priceUp ? "win" : "loss";
+        // payout_history에 기록이 없는 경우도 무효 처리 (과거 데이터 호환성)
+        result = "invalid";
       }
 
       const bet = Number(vote.bet_amount ?? 0);

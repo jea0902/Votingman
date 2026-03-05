@@ -2,9 +2,9 @@
  * 보팅맨 정산(마감 후 처리) 서비스
  * 명세: docs/votingman-implementation-phases.md 3단계
  *
- * - 단독 참여(무효판): 참여 1명 이하 → 전액 환불, payout_history 없음
- * - 한쪽 쏠림: 롱만 or 숏만 → 전원 원금 환불, payout_history 당첨자만 payout_amount=0
- * - 정상: 패자 풀을 승자에게 베팅 비율 분배, 당첨자 잔액 += (원금 + 수령분) × (1 - 1% 수수료)
+ * - 무효 판정: 1명 이하 참여 OR 한쪽 쏠림 OR 동일가 → 전원 원금 환불, payout_amount = bet_amount
+ * - 정상 승부: 패자 풀을 승자에게 베팅 비율 분배, 승자 잔액 += (원금 + 수령분) × (1 - 1% 수수료)
+ * - 패배자: payout_amount = 0, 잔액 변화 없음
  */
 
 import { nowKstString } from "@/lib/kst";
@@ -35,7 +35,7 @@ export type SettlementResult = {
   poll_id: string;
   poll_date: string;
   market: string | null;
-  status: "already_settled" | "invalid_refund" | "one_side_refund" | "draw_refund" | "settled";
+  status: "already_settled" | "invalid_refund" | "settled";
   participant_count: number;
   winner_side: "long" | "short" | null;
   refunded_user_count?: number;
@@ -185,12 +185,14 @@ export async function settlePoll(
   const participantIds = [...new Set((votes ?? []).map((v) => v.user_id as string))];
   const participantCount = participantIds.length;
 
-  // 단독 참여(무효판): 1명 이하 → 전액 환불, payout_history 없음
+  // 무효 판정: 1명 이하 참여 → 원금 환불
   if (participantCount <= 1) {
     for (const v of votes ?? []) {
       if (!v.user_id) continue;
       const refund = Number(v.bet_amount ?? 0);
       if (refund <= 0) continue;
+      
+      // 잔액에 환불 반영
       const { data: u } = await admin
         .from("users")
         .select("voting_coin_balance")
@@ -201,6 +203,15 @@ export async function settlePoll(
         .from("users")
         .update({ voting_coin_balance: current + refund })
         .eq("user_id", v.user_id);
+
+      // payout_history에 무효 기록 (payout_amount = bet_amount, 원금 반환)
+      await admin.from("payout_history").insert({
+        poll_id: pollId,
+        user_id: v.user_id,
+        market: pollRow.market ?? market,
+        bet_amount: refund,
+        payout_amount: refund, // 원금과 동일 (무효)
+      });
     }
     await admin
       .from("sentiment_polls")
@@ -217,12 +228,14 @@ export async function settlePoll(
     };
   }
 
-  // 한쪽 쏠림: 롱만 or 숏만 → 전원 원금 환불
+  // 무효 판정: 한쪽 쏠림 (롱만 or 숏만) → 원금 환불
   if (longCoinTotal === 0 || shortCoinTotal === 0) {
     for (const v of votes ?? []) {
       if (!v.user_id) continue;
       const refund = Number(v.bet_amount ?? 0);
       if (refund <= 0) continue;
+      
+      // 잔액에 환불 반영
       const { data: u } = await admin
         .from("users")
         .select("voting_coin_balance")
@@ -233,16 +246,14 @@ export async function settlePoll(
         .from("users")
         .update({ voting_coin_balance: current + refund })
         .eq("user_id", v.user_id);
-    }
-    const winnerChoice = longCoinTotal > 0 ? "long" : "short";
-    for (const v of votes ?? []) {
-      if (!v.user_id || v.choice !== winnerChoice) continue;
+
+      // payout_history에 무효 기록 (payout_amount = bet_amount, 원금 반환)
       await admin.from("payout_history").insert({
         poll_id: pollId,
         user_id: v.user_id,
         market: pollRow.market ?? market,
-        bet_amount: Number(v.bet_amount ?? 0),
-        payout_amount: 0,
+        bet_amount: refund,
+        payout_amount: refund, // 원금과 동일 (무효)
       });
     }
     await admin
@@ -253,9 +264,9 @@ export async function settlePoll(
       poll_id: pollId,
       poll_date: pollDateForResponse,
       market: pollRow.market ?? market,
-      status: "one_side_refund",
+      status: "invalid_refund",
       participant_count: participantCount,
-      winner_side: winnerChoice,
+      winner_side: null,
       refunded_user_count: votes?.length ?? 0,
     };
   }
@@ -278,12 +289,14 @@ export async function settlePoll(
     };
   }
 
-  // reference_close == settlement_close(동일가): 당첨자 없음, 전원 원금 환불
+  // 무효 판정: 동일가 (시가 == 종가) → 원금 환불
   if (reference_close === settlement_close) {
     for (const v of votes ?? []) {
       if (!v.user_id) continue;
       const refund = Number(v.bet_amount ?? 0);
       if (refund <= 0) continue;
+      
+      // 잔액에 환불 반영
       const { data: u } = await admin
         .from("users")
         .select("voting_coin_balance")
@@ -294,6 +307,15 @@ export async function settlePoll(
         .from("users")
         .update({ voting_coin_balance: current + refund })
         .eq("user_id", v.user_id);
+
+      // payout_history에 무효 기록 (payout_amount = bet_amount, 원금 반환)
+      await admin.from("payout_history").insert({
+        poll_id: pollId,
+        user_id: v.user_id,
+        market: pollRow.market ?? market,
+        bet_amount: refund,
+        payout_amount: refund, // 원금과 동일 (무효)
+      });
     }
     await admin
       .from("sentiment_polls")
@@ -303,7 +325,7 @@ export async function settlePoll(
       poll_id: pollId,
       poll_date: pollDateForResponse,
       market: pollRow.market ?? market,
-      status: "draw_refund",
+      status: "invalid_refund",
       participant_count: participantCount,
       winner_side: null,
       refunded_user_count: votes?.length ?? 0,
@@ -315,8 +337,11 @@ export async function settlePoll(
   const loserPool = winnerSide === "long" ? shortCoinTotal : longCoinTotal;
   const winnerTotalBet = winnerSide === "long" ? longCoinTotal : shortCoinTotal;
   const winnerVotes = (votes ?? []).filter((v) => v.choice === winnerSide);
+  const loserVotes = (votes ?? []).filter((v) => v.choice !== winnerSide);
 
   let payoutTotal = 0;
+  
+  // 승리자 정산 및 기록
   for (const v of winnerVotes) {
     if (!v.user_id) continue;
     const bet = Number(v.bet_amount ?? 0);
@@ -327,6 +352,7 @@ export async function settlePoll(
       Math.round(totalGross * (1 - PAYOUT_FEE_RATE) * 100) / 100;
     const payoutRecorded = totalAfterFee - bet;
     payoutTotal += payoutRecorded;
+    
     const { data: u } = await admin
       .from("users")
       .select("voting_coin_balance")
@@ -337,12 +363,27 @@ export async function settlePoll(
       .from("users")
       .update({ voting_coin_balance: current + totalAfterFee })
       .eq("user_id", v.user_id);
+    
     await admin.from("payout_history").insert({
       poll_id: pollId,
       user_id: v.user_id,
       market: pollRow.market ?? market,
       bet_amount: bet,
-      payout_amount: payoutRecorded,
+      payout_amount: payoutRecorded, // 수익 (양수)
+    });
+  }
+
+  // 패배자 기록 (payout_amount = 0, 잔액 변화 없음)
+  for (const v of loserVotes) {
+    if (!v.user_id) continue;
+    const bet = Number(v.bet_amount ?? 0);
+    
+    await admin.from("payout_history").insert({
+      poll_id: pollId,
+      user_id: v.user_id,
+      market: pollRow.market ?? market,
+      bet_amount: bet,
+      payout_amount: 0, // 패배: 아무것도 돌려받지 않음
     });
   }
 

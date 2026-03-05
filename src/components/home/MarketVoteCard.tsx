@@ -2,7 +2,7 @@
 
 /**
  * 시장별 투표 카드 1개 (롱/숏 + 보팅코인 배팅)
- * HumanIndicatorSection에서 비트코인|미국주식|한국주식 섹션별로 사용
+ * VotingSection에서 비트코인|미국주식|한국주식 섹션별로 사용
  * - 투표 시 "파이널앤서" 확인 팝업, 확정 후 수정·취소 불가
  */
 
@@ -44,6 +44,7 @@ export type PollData = {
   long_coin_total: number;
   short_coin_total: number;
   my_vote: { choice: "long" | "short"; bet_amount: number } | null;
+  settlement_status?: "open" | "closed" | "settling" | "settled";
 };
 
 function formatCoinRatio(
@@ -220,11 +221,29 @@ export function MarketVoteCard({ market, poll, user, onUpdate }: Props) {
       </h3>
 
       <div className="mb-3 flex flex-col gap-0.5 text-sm text-muted-foreground">
-        <span className="font-medium">{voteOpen ? "라이브" : "마감"}</span>
+        <span className={`font-medium ${
+          poll?.settlement_status === "settled" 
+            ? "text-emerald-600 dark:text-emerald-400"
+            : poll?.settlement_status === "settling"
+              ? "text-blue-600 dark:text-blue-400"
+              : voteOpen 
+                ? "text-green-600 dark:text-green-400"
+                : "text-amber-600 dark:text-amber-400"
+        }`}>
+          {voteOpen 
+            ? "라이브" 
+            : poll?.settlement_status === "settled" 
+              ? "정산완료"
+              : poll?.settlement_status === "settling"
+                ? "정산중"
+                : "마감"}
+        </span>
         <span className="text-xs">
           {voteOpen
             ? getCloseTimeKstString(market)
-            : `${getNextOpenTimeKstString(market)} 다시 투표 가능`}
+            : poll?.settlement_status === "settled" || poll?.settlement_status === "settling"
+              ? "결과는 프로필에서 확인 가능"
+              : `${getNextOpenTimeKstString(market)} 다시 투표 가능`}
         </span>
       </div>
 
