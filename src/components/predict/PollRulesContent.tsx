@@ -63,6 +63,10 @@ const RULES_BY_MARKET: Record<SentimentMarket, string> = {
     "총 풀을 당첨자가 배팅 비율대로 분배받습니다.",
 };
 
+/** 시장 규칙 맨 아래에 공통으로 붙이는 투표권 가격 안내 */
+const PREMIUM_RULE =
+  "· 투표권 가격: 마감 시간에 따라 변동됩니다. 마감 50% 이상 남음=1배, 25~50%=1.5배, 10~25%=3배, 10% 미만=5배. 일찍 투표할수록 유리합니다.";
+
 /** 시장 규칙 맨 아래에 공통으로 붙이는 수수료 안내 */
 const FEE_RULE =
   "· 수수료: 당첨 시 정산 금액(원금 + 수령분)의 1%가 수수료로 차감된 후 지급됩니다. 무효·환불 구간에는 수수료가 없습니다.";
@@ -79,6 +83,8 @@ export function PollRulesContent({ market }: Props) {
       <h4 className="mb-2 text-sm font-semibold text-foreground">시장 규칙</h4>
       <p className="whitespace-pre-line text-xs leading-relaxed text-muted-foreground">
         {rules}
+        {"\n\n"}
+        {PREMIUM_RULE}
         {"\n\n"}
         {FEE_RULE}
       </p>

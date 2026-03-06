@@ -8,7 +8,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { isVotingOpenKST, getCloseTimeKstString, getNextOpenTimeKstString } from "@/lib/utils/sentiment-vote";
-import { MARKET_LABEL } from "@/lib/constants/sentiment-markets";
+import { MARKET_LABEL, MIN_BET_VTC } from "@/lib/constants/sentiment-markets";
 import type { SentimentMarket } from "@/lib/constants/sentiment-markets";
 import {
   Dialog,
@@ -29,7 +29,6 @@ const POLL_QUESTION: Record<string, string> = {
 
 /** 가용 코인 대비 배팅 비율 버튼 (%) */
 const PERCENT_BUTTONS = [10, 25, 50, 75, 100] as const;
-const MIN_BET = 10;
 
 function stringifyBet(n: number): string {
   return n > 0 ? String(n) : "";
@@ -94,7 +93,7 @@ export function MarketVoteCard({ market, poll, user, onUpdate }: Props) {
   /** 확인 팝업: 롱/숏 클릭 시 확정 전 물어봄 */
   const [confirmingChoice, setConfirmingChoice] = useState<"long" | "short" | null>(null);
   /** 입력란 자유 입력용 (빈 문자열 가능). 제출 시에만 최소 10코인 검사 */
-  const [betAmountInput, setBetAmountInput] = useState(stringifyBet(MIN_BET));
+  const [betAmountInput, setBetAmountInput] = useState(stringifyBet(MIN_BET_VTC));
 
   const voteOpen = useMemo(() => isVotingOpenKST(market), [market]);
 
@@ -160,15 +159,15 @@ export function MarketVoteCard({ market, poll, user, onUpdate }: Props) {
   const balance = user?.voting_coin_balance ?? 0;
   const isAdditionalMode = myBetAmount > 0 && vote !== null;
   const availableBalance = isAdditionalMode ? balance : balance + myBetAmount;
-  const canBet = availableBalance >= MIN_BET;
+  const canBet = availableBalance >= MIN_BET_VTC;
   const maxBet = Math.max(0, Math.floor(availableBalance));
   const betNum = parseInt(betAmountInput, 10) || 0;
-  const effectiveBet = betNum >= MIN_BET ? Math.min(maxBet, betNum) : 0;
-  const canSubmitBet = canBet && effectiveBet >= MIN_BET;
-  const canSubmitAdditional = isAdditionalMode && balance >= MIN_BET && effectiveBet >= MIN_BET && effectiveBet <= balance;
+  const effectiveBet = betNum >= MIN_BET_VTC ? Math.min(maxBet, betNum) : 0;
+  const canSubmitBet = canBet && effectiveBet >= MIN_BET_VTC;
+  const canSubmitAdditional = isAdditionalMode && balance >= MIN_BET_VTC && effectiveBet >= MIN_BET_VTC && effectiveBet <= balance;
   const canSubmitForChoice = (choice: "long" | "short") =>
     isAdditionalMode ? choice === vote && canSubmitAdditional : canSubmitBet;
-  const showMinBetWarning = betAmountInput.trim() !== "" && betNum < MIN_BET;
+  const showMinBetWarning = betAmountInput.trim() !== "" && betNum < MIN_BET_VTC;
   const canVote = voteOpen && !!user;
 
   const handleVote = async (choice: "long" | "short") => {
@@ -293,14 +292,14 @@ export function MarketVoteCard({ market, poll, user, onUpdate }: Props) {
           </p>
           <div className="flex flex-wrap gap-2">
             {PERCENT_BUTTONS.map((pct) => {
-              const valueForPct = Math.max(MIN_BET, Math.min(maxBet, Math.floor((availableBalance * pct) / 100)));
+              const valueForPct = Math.max(MIN_BET_VTC, Math.min(maxBet, Math.floor((availableBalance * pct) / 100)));
               const isActive = betNum === valueForPct;
               return (
                 <button
                   key={pct}
                   type="button"
                   onClick={() => setBetAmountInput(stringifyBet(valueForPct))}
-                  disabled={maxBet < MIN_BET}
+                  disabled={maxBet < MIN_BET_VTC}
                   className={`rounded-lg border px-3 py-1.5 text-sm transition-colors disabled:opacity-50 ${
                     isActive
                       ? "border-primary bg-primary/20 text-primary"
@@ -332,7 +331,7 @@ export function MarketVoteCard({ market, poll, user, onUpdate }: Props) {
           </div>
           {showMinBetWarning && (
             <p className="mt-1.5 text-xs font-medium text-destructive" role="alert">
-              최소 10 VTC 이상 배팅해 주세요.
+              최소 {MIN_BET_VTC} VTC 이상 배팅해 주세요.
             </p>
           )}
         </div>

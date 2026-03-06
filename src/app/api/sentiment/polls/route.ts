@@ -11,6 +11,7 @@ import { getOrCreateTodayPollByMarket } from "@/lib/sentiment/poll-server";
 import { getPreviousCandleStartAt } from "@/lib/btc-ohlc/candle-utils";
 import { getOhlcByMarketAndCandleStart } from "@/lib/btc-ohlc/repository";
 import { fetchPreviousCandleClose } from "@/lib/binance/btc-klines";
+import { isVotingOpenKST } from "@/lib/utils/sentiment-vote";
 import { SENTIMENT_MARKETS } from "@/lib/constants/sentiment-markets";
 
 const BTC_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m"] as const;
@@ -21,6 +22,7 @@ type PollPayload = {
   poll_date: string;
   price_open: number | null;
   price_close: number | null;
+  settlement_status: "open" | "closed" | "settling" | "settled";
   long_count: number;
   short_count: number;
   total_count: number;
@@ -63,11 +65,20 @@ export async function GET() {
         .eq("poll_id", p.id)
         .gt("bet_amount", 0)
     );
+    const payoutCountPromises = polls.map((p) =>
+      admin
+        .from("payout_history")
+        .select("id", { count: "exact", head: true })
+        .eq("poll_id", p.id)
+    );
 
-    const [myVotesRes, ...countResults] = await Promise.all([
+    const [myVotesRes, ...restResults] = await Promise.all([
       myVotesPromise,
       ...countPromises,
+      ...payoutCountPromises,
     ]);
+    const countResults = restResults.slice(0, polls.length) as { count?: number }[];
+    const payoutCountResults = restResults.slice(polls.length) as { count?: number }[];
 
     const myVotesByPollId = new Map<string, { choice: "long" | "short"; bet_amount: number }>();
     if (myVotesRes.data?.length) {
@@ -109,10 +120,22 @@ export async function GET() {
     const pollsByMarket: Record<string, PollPayload> = {};
     for (let i = 0; i < SENTIMENT_MARKETS.length; i++) {
       const market = SENTIMENT_MARKETS[i];
-      const poll = polls[i];
+      const poll = polls[i] as typeof polls[0] & { settled_at?: string | null };
       const participantCount = countResults[i]?.count ?? 0;
+      const payoutCount = payoutCountResults[i]?.count ?? 0;
       const myVote = myVotesByPollId.get(poll.id) ?? null;
       const ohlc = ohlcByMarket.get(poll.market ?? market) ?? null;
+
+      let settlement_status: "open" | "closed" | "settling" | "settled" = "open";
+      if (poll.settled_at) {
+        settlement_status = "settled";
+      } else if (!isVotingOpenKST(market)) {
+        if (ohlc?.close != null) {
+          settlement_status = payoutCount > 0 ? "settled" : "settling";
+        } else {
+          settlement_status = "closed";
+        }
+      }
 
       pollsByMarket[market] = {
         market: poll.market ?? market,
@@ -120,6 +143,7 @@ export async function GET() {
         poll_date: poll.poll_date,
         price_open: ohlc?.open ?? null,
         price_close: ohlc?.close ?? null,
+        settlement_status,
         long_count: poll.long_count ?? 0,
         short_count: poll.short_count ?? 0,
         total_count: (poll.long_count ?? 0) + (poll.short_count ?? 0),

@@ -48,13 +48,13 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ symbol, period, count: 0, data: [] });
         }
 
-        // 2. OI 데이터의 첫 날짜 기준으로 BTC 가격 조회
-        //    candle_start_at은 UTC 타임스탬프이므로 날짜 비교를 위해 date() 캐스팅
+        // 2. BTC 1일봉 종가 조회 (cron-job.org에서 수집하는 btc_1d 데이터)
         const oiFirstDate = oiData[0].date; // "YYYY-MM-DD"
 
         const { data: priceData, error: priceError } = await supabase
             .from("btc_ohlc")
             .select("candle_start_at, close")
+            .eq("market", "btc_1d")
             .gte("candle_start_at", `${oiFirstDate}T00:00:00.000Z`)
             .order("candle_start_at", { ascending: true });
 

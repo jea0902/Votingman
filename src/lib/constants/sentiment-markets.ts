@@ -20,6 +20,9 @@ export type SentimentMarket = (typeof SENTIMENT_MARKETS)[number];
 /** 홈에 노출하는 시장. 비트코인 1일·4시간·1시간·15분봉 */
 export const ACTIVE_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m"] as const;
 
+/** 모든 투표지 최소 배팅 금액 (VTC) */
+export const MIN_BET_VTC = 500;
+
 /** API/UI 입력 "btc"를 DB용 "btc_1d"로 정규화 */
 export function normalizeToDbMarket(market: string): SentimentMarket {
   const normalized = market === "btc" ? "btc_1d" : market;

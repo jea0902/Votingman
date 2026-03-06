@@ -8,10 +8,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/lib/supabase/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrCreateTodayPollByMarket } from "@/lib/sentiment/poll-server";
-import { isVotingOpenKST, getVotingCloseLabel } from "@/lib/utils/sentiment-vote";
-import { isSentimentMarket } from "@/lib/constants/sentiment-markets";
-
-const MIN_BET = 10;
+import {
+  isVotingOpenKST,
+  getVotingCloseLabel,
+  getLateVotingMultiplier,
+} from "@/lib/utils/sentiment-vote";
+import { isSentimentMarket, MIN_BET_VTC } from "@/lib/constants/sentiment-markets";
 
 export async function POST(request: NextRequest) {
   try {
@@ -68,13 +70,15 @@ export async function POST(request: NextRequest) {
     }
 
     const betAmount = Number(betAmountRaw);
-    if (!Number.isFinite(betAmount) || betAmount < MIN_BET) {
+    const multiplier = getLateVotingMultiplier(market);
+    const minCharge = Math.ceil(MIN_BET_VTC * multiplier);
+    if (!Number.isFinite(betAmount) || betAmount < minCharge) {
       return NextResponse.json(
         {
           success: false,
           error: {
             code: "VALIDATION_ERROR",
-            message: `배팅 코인은 최소 ${MIN_BET}코인 이상이어야 합니다.`,
+            message: `현재 투표권 ${multiplier}배 적용. 최소 ${minCharge} VTC 이상이어야 합니다.`,
           },
         },
         { status: 400 }
@@ -117,7 +121,11 @@ export async function POST(request: NextRequest) {
         );
       }
     }
-    const prevChoice = existingVote?.choice as "long" | "short" | undefined;
+    // oldBet=0이면 무효 처리 후 재투표 등으로 이전 투표가 없는 것과 동일 → prevChoice 무시
+    const prevChoice =
+      existingVote && oldBet > 0
+        ? (existingVote.choice as "long" | "short")
+        : undefined;
     const availableBalance = balance + oldBet;
 
     if (betAmount > availableBalance) {

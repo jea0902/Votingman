@@ -93,8 +93,16 @@ export function Navbar() {
   const loadUser = async () => {
     const supabase = createClient();
     try {
+      console.log('[Navbar] loadUser 호출됨');
       const { data: { session } } = await supabase.auth.getSession();
+      console.log('[Navbar] 세션 확인:', { 
+        hasSession: !!session, 
+        hasUser: !!session?.user,
+        userId: session?.user?.id 
+      });
+      
       if (!session?.user) {
+        console.log('[Navbar] 세션/사용자 없음 - null로 설정');
         setUser(null);
         setIsLoading(false);
         return;
@@ -107,11 +115,19 @@ export function Navbar() {
         .single();
 
       if (!error && userData) {
+        console.log('[Navbar] 사용자 로드 성공:', {
+          id: session.user.id,
+          email: session.user.email,
+          nickname: userData.nickname
+        });
+        
         setUser({
           id: session.user.id,
           email: session.user.email || "",
           nickname: userData.nickname,
         });
+      } else {
+        console.log('[Navbar] 사용자 로드 실패:', { error, userData, sessionUserId: session.user.id });
       }
     } catch (err) {
       console.error("[Navbar] Error loading user:", err);

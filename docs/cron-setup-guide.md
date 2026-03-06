@@ -20,7 +20,7 @@
 
 **예. “자동화만” 하면 됩니다.**
 
-- 할 일: **매일 KST 00:01**에 `GET /api/cron/btc-ohlc-daily` 를 **한 번 호출**해 주면 됩니다.
+- 할 일: **매일 KST 09:00**에 `GET /api/cron/btc-ohlc-daily` 를 **한 번 호출**해 주면 됩니다. (1d 봉 UTC 00:00 마감 직후)
 - 그 API가 내부에서 어제/오늘 폴 생성·갱신과 시가·종가 조회·저장까지 모두 수행합니다.
 - 별도로 “새로 구현”할 프로세스는 없고, **호출을 예약하는 방법**만 정하면 됩니다.
 
@@ -35,7 +35,8 @@
 ## 방법 A: Vercel Cron 사용 (같은 프로젝트에서 자동 실행)
 
 프로젝트를 **Vercel**에 배포했다면, Vercel이 제공하는 Cron만 써서 자동화할 수 있습니다.  
-이미 `vercel.json`에 “매일 15:01 UTC (= KST 00:01)”에 `/api/cron/btc-ohlc-daily` 를 부르도록 설정해 두었습니다.
+> **참고**: 현재 btc_1d는 **cron-job.org**로 매일 09:00 KST에 호출 중입니다. Vercel Cron은 Pro 플랜 이상에서만 동작합니다.  
+> 기존에는 `vercel.json`에 “매일 15:01 UTC (= KST 00:01)”에 `/api/cron/btc-ohlc-daily` 를 부르도록 설정해 두었습니다.
 
 ### 1단계: 비밀 값(CRON_SECRET) 만들기
 

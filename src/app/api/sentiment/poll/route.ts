@@ -73,8 +73,8 @@ export async function GET(request: NextRequest) {
     const {
       data: { user },
     } = await serverClient.auth.getUser();
+    const admin = createSupabaseAdmin();
     if (user?.id) {
-      const admin = createSupabaseAdmin();
       const { data: vote } = await admin
         .from("sentiment_votes")
         .select("choice, bet_amount")
@@ -89,12 +89,25 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // sentiment_votes 기준으로 롱/숏 인원 수 계산 (무효 후 재투표 등으로 sentiment_polls 집계와 불일치 시 실제 데이터 우선)
+    const { data: voteCounts } = await admin
+      .from("sentiment_votes")
+      .select("choice")
+      .eq("poll_id", poll.id)
+      .gt("bet_amount", 0);
+    const longCount = (voteCounts ?? []).filter((v) => v.choice === "long").length;
+    const shortCount = (voteCounts ?? []).filter((v) => v.choice === "short").length;
+
     // 정산 상태 확인 (마감 → 정산 중 → 정산 완료)
     let settlement_status: "open" | "closed" | "settling" | "settled" = "open";
+    const pollRow = poll as { settled_at?: string | null };
     const isVotingOpen = require("@/lib/utils/sentiment-vote").isVotingOpenKST(market);
-    if (!isVotingOpen) {
+
+    if (pollRow.settled_at) {
+      // DB에 settled_at 있으면 정산 완료 (무효 포함). btc_ohlc 없어도 settled로 표시
+      settlement_status = "settled";
+    } else if (!isVotingOpen) {
       if (price_close != null) {
-        // 종가가 있으면 데이터 수집 완료 → payout_history 확인
         const admin = createSupabaseAdmin();
         const { count } = await admin
           .from("payout_history")
@@ -115,9 +128,9 @@ export async function GET(request: NextRequest) {
         price_open,
         price_close,
         settlement_status,
-        long_count: poll.long_count,
-        short_count: poll.short_count,
-        total_count: (poll.long_count ?? 0) + (poll.short_count ?? 0),
+        long_count: longCount,
+        short_count: shortCount,
+        total_count: longCount + shortCount,
         long_coin_total: poll.long_coin_total ?? 0,
         short_coin_total: poll.short_coin_total ?? 0,
         total_coin: (poll.long_coin_total ?? 0) + (poll.short_coin_total ?? 0),

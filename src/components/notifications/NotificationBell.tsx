@@ -29,17 +29,48 @@ export function NotificationBell({ userId }: NotificationBellProps) {
   const [showMore, setShowMore] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  console.log('NotificationBell 렌더링:', { userId });
+
   // 로그인하지 않은 사용자는 알림 표시 안함
   if (!userId) {
+    console.log('NotificationBell: userId 없음 - null 반환');
     return null;
   }
 
   // 알림 목록 조회
   const fetchNotifications = async (loadMore = false) => {
     try {
+      // 추가 안전장치: userId 없으면 조기 리턴
+      if (!userId) {
+        console.warn('NotificationBell: userId가 없어서 API 호출을 건너뜁니다.');
+        return;
+      }
+      
+      console.log('NotificationBell: API 호출 시작', { userId, loadMore });
+      
       const limit = loadMore ? 20 : 5;
-      const response = await fetch(`/api/notifications?limit=${limit}`);
+      const response = await fetch(`/api/notifications?limit=${limit}`, {
+        credentials: 'include', // 쿠키 포함
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      console.log('NotificationBell: API 응답 상태', { 
+        status: response.status, 
+        ok: response.ok
+      });
+
+      // 401 에러 (인증 실패)인 경우 조용히 처리
+      if (response.status === 401) {
+        console.log('NotificationBell: 401 인증 에러 - 조용히 처리');
+        setNotifications([]);
+        setUnreadCount(0);
+        return;
+      }
+      
       const result = await response.json();
+      console.log('NotificationBell: API 응답 데이터', result);
 
       if (!response.ok || !result.success) {
         throw new Error(result.error || 'API 호출 실패');
@@ -49,9 +80,13 @@ export function NotificationBell({ userId }: NotificationBellProps) {
       setNotifications(notifications);
       setUnreadCount(result.data.unread_count);
     } catch (error) {
-      console.error('Failed to fetch notifications:', error);
-      // 개발 환경에서는 빈 배열로 폴백
-      if (process.env.NODE_ENV === 'development') {
+      // 401 관련 에러는 조용히 처리
+      if (error instanceof Error && error.message.includes('인증이 필요')) {
+        console.log('NotificationBell: 인증 에러 - 조용히 처리됨');
+        setNotifications([]);
+        setUnreadCount(0);
+      } else {
+        console.error('NotificationBell: 예상치 못한 에러:', error);
         setNotifications([]);
         setUnreadCount(0);
       }
@@ -77,8 +112,15 @@ export function NotificationBell({ userId }: NotificationBellProps) {
       const response = await fetch('/api/notifications', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // 쿠키 포함
         body: JSON.stringify({ notification_id: notificationId })
       });
+
+      // 401 에러인 경우 조용히 처리
+      if (response.status === 401) {
+        console.log('NotificationBell: markAsRead 401 에러 - 조용히 처리');
+        return;
+      }
 
       const result = await response.json();
       
@@ -96,7 +138,12 @@ export function NotificationBell({ userId }: NotificationBellProps) {
       );
       setUnreadCount(prev => Math.max(0, prev - 1));
     } catch (error) {
-      console.error('Failed to mark notification as read:', error);
+      // 인증 관련 에러는 조용히 처리
+      if (error instanceof Error && error.message.includes('인증이 필요')) {
+        console.log('NotificationBell: markAsRead 인증 에러 - 조용히 처리');
+      } else {
+        console.error('NotificationBell: markAsRead 예상치 못한 에러:', error);
+      }
     }
   };
 
@@ -123,13 +170,57 @@ export function NotificationBell({ userId }: NotificationBellProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // 초기 로드 및 폴링
+  // Supabase Auth 상태 변화 감지
   useEffect(() => {
-    fetchNotifications();
+    if (!userId) return;
+
+    const supabase = createClient();
     
-    // 30초마다 새 알림 체크
-    const interval = setInterval(fetchNotifications, 30000);
-    return () => clearInterval(interval);
+    // 현재 세션 확인 후 API 호출
+    const initializeNotifications = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user?.id === userId) {
+          console.log('NotificationBell: 세션 확인됨, API 호출 시작');
+          await fetchNotifications();
+        } else {
+          console.warn('NotificationBell: 세션과 userId 불일치', { 
+            sessionUserId: session?.user?.id, 
+            propsUserId: userId 
+          });
+        }
+      } catch (error) {
+        console.error('NotificationBell: 세션 확인 실패:', error);
+      }
+    };
+
+    initializeNotifications();
+
+    // Auth 상태 변화 감지
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('NotificationBell: Auth 상태 변화:', event, session?.user?.id);
+        if (event === 'SIGNED_IN' && session?.user?.id === userId) {
+          await fetchNotifications();
+        } else if (event === 'SIGNED_OUT') {
+          setNotifications([]);
+          setUnreadCount(0);
+        }
+      }
+    );
+    
+    // 30초마다 새 알림 체크 (세션이 있을 때만)
+    const interval = setInterval(async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.id === userId) {
+        await fetchNotifications();
+      }
+    }, 30000);
+    
+    return () => {
+      subscription?.unsubscribe();
+      clearInterval(interval);
+    };
   }, [userId]);
 
   // 상대시간 포맷

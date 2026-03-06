@@ -16,9 +16,11 @@ export async function GET(request: NextRequest) {
     
     // 현재 로그인 사용자 확인
     const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
     if (authError || !user) {
+      console.log('알림 API: 인증 실패 - 401 반환');
       return NextResponse.json(
-        { error: "인증이 필요합니다." },
+        { success: false, error: "인증이 필요합니다." },
         { status: 401 }
       );
     }

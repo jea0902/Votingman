@@ -1,0 +1,17 @@
+# 4시간봉 수동 백필 명령어들
+# 터미널에서 하나씩 복사해서 실행하세요
+
+# 2026-03-04 (어제) 백필
+curl -X POST -H "x-cron-secret: 9nysIzkyOPR3WkhAmyelqF6RjAR9MXAn5AvCxITzW5Y=" -H "Content-Type: application/json" -d "{\"poll_dates\":[\"2026-03-04\"],\"markets\":[\"btc_4h\"]}" https://www.votingman.com/api/cron/btc-ohlc-backfill
+
+# 2026-03-03 백필
+curl -X POST -H "x-cron-secret: 9nysIzkyOPR3WkhAmyelqF6RjAR9MXAn5AvCxITzW5Y=" -H "Content-Type: application/json" -d "{\"poll_dates\":[\"2026-03-03\"],\"markets\":[\"btc_4h\"]}" https://www.votingman.com/api/cron/btc-ohlc-backfill
+
+# 2026-03-02 백필
+curl -X POST -H "x-cron-secret: 9nysIzkyOPR3WkhAmyelqF6RjAR9MXAn5AvCxITzW5Y=" -H "Content-Type: application/json" -d "{\"poll_dates\":[\"2026-03-02\"],\"markets\":[\"btc_4h\"]}" https://www.votingman.com/api/cron/btc-ohlc-backfill
+
+# 2026-03-01 백필
+curl -X POST -H "x-cron-secret: 9nysIzkyOPR3WkhAmyelqF6RjAR9MXAn5AvCxITzW5Y=" -H "Content-Type: application/json" -d "{\"poll_dates\":[\"2026-03-01\"],\"markets\":[\"btc_4h\"]}" https://www.votingman.com/api/cron/btc-ohlc-backfill
+
+# 2026-02-28 백필
+curl -X POST -H "x-cron-secret: 9nysIzkyOPR3WkhAmyelqF6RjAR9MXAn5AvCxITzW5Y=" -H "Content-Type: application/json" -d "{\"poll_dates\":[\"2026-02-28\"],\"markets\":[\"btc_4h\"]}" https://www.votingman.com/api/cron/btc-ohlc-backfill

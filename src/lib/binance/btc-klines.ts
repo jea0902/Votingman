@@ -96,6 +96,22 @@ export async function fetchKlines(
 }
 
 /**
+ * 특정 candle_start_at에 해당하는 단일 캔들 조회 (백필용)
+ * - Binance API: startTime으로 해당 캔들 시작 시각 지정
+ */
+export async function fetchCandleByStartAt(
+  market: string,
+  candleStartAt: string
+): Promise<BtcOhlcRow | null> {
+  const interval = MARKET_TO_INTERVAL[market];
+  if (!interval) return null;
+  const startMs = new Date(candleStartAt).getTime();
+  const rows = await fetchKlines(interval, startMs, 1);
+  const r = rows[0];
+  return r ? { ...r, market } : null;
+}
+
+/**
  * 목표가 = 이전 봉 종가. Binance에서 이전 봉(마감됨) 조회 후 close 반환.
  * btc_ohlc에 없을 때 사용.
  * btc_1d: Binance 1d는 UTC 자정 정렬이라 KST 00:00 봉과 불일치 → 1h 24개 집계해 마지막 봉 종가 사용.
@@ -240,6 +256,7 @@ function aggregate1hToOhlc(rows: BtcOhlcRow[], market: string): BtcOhlcRow | nul
 
 /**
  * 1W 봉: 월요일 00:00 KST 기준 7일치 1h 집계 (명세: docs/btc-ohlc-1w-1m-12m-spec.md)
+ * @deprecated 미사용. btc_1d만 수집·정산함.
  */
 export async function fetchBtc1wKstAligned(): Promise<BtcOhlcRow | null> {
   const startIso = getLastMonday00KstIso();
@@ -250,6 +267,7 @@ export async function fetchBtc1wKstAligned(): Promise<BtcOhlcRow | null> {
 
 /**
  * 1M 봉: 매월 1일 00:00 KST 기준 해당 월 1h 집계 (명세: docs/btc-ohlc-1w-1m-12m-spec.md)
+ * @deprecated 미사용. btc_1d만 수집·정산함.
  */
 export async function fetchBtc1mKstAligned(): Promise<BtcOhlcRow | null> {
   const startIso = getLastMonthFirst00KstIso();
@@ -265,6 +283,7 @@ export async function fetchBtc1mKstAligned(): Promise<BtcOhlcRow | null> {
 
 /**
  * 12M 봉: 매년 1월 1일 00:00 KST 기준 12개월 1h 집계 (명세: docs/btc-ohlc-1w-1m-12m-spec.md)
+ * @deprecated 미사용. btc_1d만 수집·정산함.
  */
 export async function fetchBtc12mKstAligned(): Promise<BtcOhlcRow | null> {
   const startIso = getLastJan100KstIso();
@@ -342,12 +361,8 @@ export async function fetchAllMarketsOhlc(): Promise<BtcOhlcRow[]> {
 }
 
 /**
- * Vercel daily cron 전용: 1d + (해당 날만) 1W + 1M + 12M 수집 (KST 00:00 기준)
- * - 1d: 매일 수집
- * - 1W: 월요일만 수집 (방금 마감된 주봉)
- * - 1M: 매월 1일만 수집 (방금 마감된 월봉)
- * - 12M: 매년 1월 1일만 수집 (방금 마감된 연봉)
- * 명세: docs/btc-ohlc-1w-1m-12m-spec.md
+ * 1d + 1W + 1M + 12M 수집 (레거시)
+ * @deprecated 미사용. btc-ohlc-daily는 fetchKlinesKstAligned("btc_1d", 1)만 사용. 1W/1M/12M 미사용.
  */
 export async function fetchOhlcForDailyCron(): Promise<BtcOhlcRow[]> {
   const yesterdayUtc = getYesterdayUtcDateString();

@@ -16,12 +16,15 @@ import {
   isVotingOpenKST,
   getCloseTimeKstString,
   getNextOpenTimeKstString,
+  getLateVotingMultiplier,
+  getLateVotingMultiplierLabel,
 } from "@/lib/utils/sentiment-vote";
 import {
   MARKET_LABEL,
   ACTIVE_MARKETS,
   isSentimentMarket,
   normalizeToDbMarket,
+  MIN_BET_VTC,
 } from "@/lib/constants/sentiment-markets";
 import { createClient } from "@/lib/supabase/client";
 import dynamic from "next/dynamic";
@@ -53,7 +56,6 @@ import type { PollData } from "@/components/home/MarketVoteCard";
 import type { TodayResultItem } from "@/app/api/sentiment/polls/today-results/route";
 
 const PERCENT_BUTTONS = [10, 25, 50, 75, 100] as const;
-const MIN_BET = 10;
 const FINAL_ANSWER_LINE1 = "투표는 한번하면, 절대 번복할 수 없습니다.";
 const FINAL_ANSWER_LINE2 = "확정하시겠습니까?";
 
@@ -91,7 +93,7 @@ export default function PredictMarketPage() {
     voting_coin_balance?: number;
   } | null>(null);
   const [activeTab, setActiveTab] = useState<"rules" | "context">("rules");
-  const [betAmountInput, setBetAmountInput] = useState(stringifyBet(MIN_BET));
+  const [betAmountInput, setBetAmountInput] = useState(stringifyBet(MIN_BET_VTC));
   const [voteLoading, setVoteLoading] = useState(false);
   const [voteError, setVoteError] = useState<string | null>(null);
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
@@ -334,18 +336,25 @@ export default function PredictMarketPage() {
   const vote = poll?.my_vote && poll.my_vote.bet_amount > 0 ? poll.my_vote.choice : null;
   const isAdditionalMode = myBetAmount > 0 && vote !== null;
   const availableBalance = isAdditionalMode ? balance : balance + myBetAmount;
-  const maxBet = Math.max(0, Math.floor(availableBalance));
+  const multiplier = voteOpen ? getLateVotingMultiplier(market) : 1;
+  const maxBase = multiplier > 0 ? Math.max(0, Math.floor(availableBalance / multiplier)) : 0;
+  const maxBet = maxBase;
   const betNum = parseInt(betAmountInput, 10) || 0;
   const effectiveBet =
-    betNum >= MIN_BET ? Math.min(maxBet, betNum) : 0;
-  const canSubmitBet = availableBalance >= MIN_BET && effectiveBet >= MIN_BET;
+    betNum >= MIN_BET_VTC ? Math.min(maxBet, betNum) : 0;
+  const chargeAmount = Math.ceil(effectiveBet * multiplier);
+  const canSubmitBet =
+    multiplier > 0 &&
+    effectiveBet >= MIN_BET_VTC &&
+    chargeAmount <= availableBalance;
   const canSubmitAdditional =
     isAdditionalMode &&
-    balance >= MIN_BET &&
-    effectiveBet >= MIN_BET &&
-    effectiveBet <= balance;
+    multiplier > 0 &&
+    effectiveBet >= MIN_BET_VTC &&
+    chargeAmount <= balance;
   const canSubmitForChoice = (choice: "long" | "short") =>
     isAdditionalMode ? choice === vote && canSubmitAdditional : canSubmitBet;
+  const insufficientBalance = effectiveBet >= MIN_BET_VTC && chargeAmount > availableBalance;
   const canVote = voteOpen && !!user;
   const longPct =
     poll && (poll.long_coin_total ?? 0) + (poll.short_coin_total ?? 0) > 0
@@ -357,10 +366,10 @@ export default function PredictMarketPage() {
       : 50;
 
   const handleVote = async (choice: "long" | "short") => {
-    const totalBet =
-      isAdditionalMode && choice === vote ? myBetAmount + effectiveBet : effectiveBet;
+    const totalCharge =
+      isAdditionalMode && choice === vote ? myBetAmount + chargeAmount : chargeAmount;
     if (!canVote || !canSubmitForChoice(choice)) return;
-    if (vote === choice && myBetAmount === totalBet) return;
+    if (vote === choice && isAdditionalMode && myBetAmount + chargeAmount === totalCharge) return;
     setVoteError(null);
     setVoteLoading(true);
     setConfirmingChoice(null);
@@ -371,7 +380,7 @@ export default function PredictMarketPage() {
         body: JSON.stringify({
           market,
           choice,
-          bet_amount: totalBet,
+          bet_amount: totalCharge,
         }),
       });
       const json = await res.json();
@@ -391,8 +400,14 @@ export default function PredictMarketPage() {
   };
 
   const onVoteButtonClick = (choice: "long" | "short") => {
-    if (!canVote || !canSubmitForChoice(choice)) return;
+    if (!canVote) return;
     if (myBetAmount > 0 && choice !== vote) return;
+    if (insufficientBalance) {
+      setVoteError(`잔액이 부족합니다. 프리미엄 포함 ${chargeAmount.toLocaleString()} VTC가 필요합니다.`);
+      return;
+    }
+    if (!canSubmitForChoice(choice)) return;
+    setVoteError(null);
     setConfirmingChoice(choice);
   };
 
@@ -668,16 +683,19 @@ export default function PredictMarketPage() {
 
             {canVote && (
               <>
+                <p className="mb-1 text-xs font-medium text-amber-700 dark:text-amber-500">
+                  {getLateVotingMultiplierLabel(market)}
+                </p>
                 <p className="mb-2 text-sm font-medium text-foreground">
-                  {isAdditionalMode ? "추가할 VTC" : "Amount (VTC)"}
+                  {isAdditionalMode ? "추가할 투표권 (기본 VTC)" : "Amount (기본 VTC)"}
                 </p>
                 <div className="mb-3 flex flex-wrap gap-2">
                   {PERCENT_BUTTONS.map((pct) => {
                     const val = Math.max(
-                      MIN_BET,
+                      MIN_BET_VTC,
                       Math.min(
                         maxBet,
-                        Math.floor((availableBalance * pct) / 100)
+                        Math.floor((maxBase * pct) / 100)
                       )
                     );
                     const isActive = betNum === val;
@@ -686,7 +704,7 @@ export default function PredictMarketPage() {
                         key={pct}
                         type="button"
                         onClick={() => setBetAmountInput(stringifyBet(val))}
-                        disabled={maxBet < MIN_BET}
+                        disabled={maxBase < MIN_BET_VTC}
                         className={`rounded-lg border px-3 py-1.5 text-sm disabled:opacity-50 ${
                           isActive
                             ? "border-primary bg-primary/20 text-primary"
@@ -698,17 +716,29 @@ export default function PredictMarketPage() {
                     );
                   })}
                 </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={betAmountInput}
-                    onChange={(e) =>
-                      setBetAmountInput(e.target.value.replace(/\D/g, ""))
-                    }
-                    placeholder="VTC"
-                    className="h-10 w-28 rounded-lg border border-border bg-background px-3 text-sm tabular-nums"
-                  />
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={betAmountInput}
+                      onChange={(e) =>
+                        setBetAmountInput(e.target.value.replace(/\D/g, ""))
+                      }
+                      placeholder="VTC"
+                      className="h-10 w-28 rounded-lg border border-border bg-background px-3 text-sm tabular-nums"
+                    />
+                    {multiplier > 1 && effectiveBet >= MIN_BET_VTC && (
+                      <span className="text-xs text-muted-foreground">
+                        → {chargeAmount.toLocaleString(FIXED_LOCALE)} VTC
+                      </span>
+                    )}
+                  </div>
+                  {insufficientBalance && (
+                    <p className="text-xs font-medium text-destructive">
+                      잔액 부족 (프리미엄 포함 {chargeAmount.toLocaleString()} VTC 필요)
+                    </p>
+                  )}
                 </div>
               </>
             )}
@@ -739,6 +769,13 @@ export default function PredictMarketPage() {
                 <DialogHeader>
                   <DialogTitle>투표 확정</DialogTitle>
                 </DialogHeader>
+                <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm font-semibold text-amber-700 dark:text-amber-500">
+                  {multiplier > 1 ? (
+                    <>프리미엄 포함 <strong>{chargeAmount.toLocaleString(FIXED_LOCALE)} VTC</strong>를 배팅하시겠습니까?</>
+                  ) : (
+                    <><strong>{chargeAmount.toLocaleString(FIXED_LOCALE)} VTC</strong>를 배팅하시겠습니까?</>
+                  )}
+                </p>
                 <p className="text-sm font-medium text-red-500">{FINAL_ANSWER_LINE1}</p>
                 <p className="text-sm font-medium text-white">{FINAL_ANSWER_LINE2}</p>
                 <DialogFooter className="gap-2 sm:gap-0">

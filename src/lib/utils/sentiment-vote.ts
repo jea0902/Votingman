@@ -209,6 +209,46 @@ export function getCloseTimeKstString(market?: string): string {
 }
 
 /**
+ * 늦은 투표 프리미엄 배수 (구간별 고정)
+ * - 50% 이상 남음: 1배
+ * - 25~50%: 1.5배
+ * - 10~25%: 3배
+ * - 0~10%: 5배
+ * - 0%: 마감 (투표 불가)
+ */
+export function getLateVotingMultiplier(market?: string): number {
+  const m: SentimentMarket = market && isSentimentMarket(market) ? market : "btc_1d";
+  const remainingMs = getMillisUntilClose(m);
+  if (remainingMs <= 0) return 0; // 마감됨
+
+  let totalMs: number;
+  if (isRollingMarket(m)) {
+    totalMs = ROLLING_FULL_PERIOD_MS[m];
+  } else if (m === "btc_1d") {
+    totalMs = 24 * 60 * 60 * 1000 - 60 * 1000; // 09:01~다음날 09:00
+  } else {
+    totalMs = 24 * 60 * 60 * 1000; // ndq 등: 대략 24h
+  }
+
+  const ratio = remainingMs / totalMs;
+  if (ratio >= 0.5) return 1;
+  if (ratio >= 0.25) return 1.5;
+  if (ratio >= 0.1) return 3;
+  return 5;
+}
+
+/** 프리미엄 배수 설명 라벨 (UI용) */
+export function getLateVotingMultiplierLabel(market?: string): string {
+  const mult = getLateVotingMultiplier(market);
+  if (mult <= 0) return "마감됨";
+  if (mult === 1) return "투표권 1배 (마감 시간 50% 이상 남음)";
+  if (mult === 1.5) return "투표권 1.5배 (마감 시간 25~50% 남음)";
+  if (mult === 3) return "투표권 3배 (마감 시간 10~25% 남음)";
+  if (mult === 5) return "투표권 5배 (마감 시간 10% 미만 남음)";
+  return `투표권 ${mult}배`;
+}
+
+/**
  * 다음 투표 가능 시각을 "연/월/일/시/분부터" 형식(KST)으로 반환.
  * CLOSED 옆에 표기용.
  */

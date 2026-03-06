@@ -1,24 +1,17 @@
 /**
- * 매일 KST 00:01에 실행: 1d·1W·1M·12M 수집 + 해당 날만 정산
+ * 매일 KST 09:00에 실행: btc_1d 최근 마감 캔들 수집 + 해당 봉 정산
  *
- * 수집: 1d 매일 / 1W 월요일만 / 1M 매월 1일만 / 12M 매년 1월 1일만
- * 정산: 1d 매일 / 1W 월요일만 / 1M 1일만 / 12M 1월 1일만 (수집과 동일한 날)
+ * 4h/1h/15m과 동일한 로직: fetchKlinesKstAligned → upsertBtcOhlcBatch → settlePoll
+ * 수집 시간만 다름 (1d: 매일 09:00 KST = UTC 00:00 마감 직후)
  *
- * Vercel cron: "1 15 * * *" = 15:01 UTC = KST 00:01
+ * 1W, 1M, 12M: 미사용 (수집·정산 없음)
+ *
+ * cron-job.org: 매일 09:00 KST
  * 인증: Authorization: Bearer <CRON_SECRET> 또는 x-cron-secret
  */
 
 import { NextResponse } from "next/server";
-import { fetchOhlcForDailyCron } from "@/lib/binance/btc-klines";
-import {
-  getYesterdayUtcDateString,
-  getLastMonday00KstIso,
-  getLastMonthFirst00KstIso,
-  getLastJan100KstIso,
-  isTodayMondayKst,
-  isTodayFirstOfMonthKst,
-  isTodayJan1Kst,
-} from "@/lib/binance/btc-kst";
+import { fetchKlinesKstAligned } from "@/lib/binance/btc-klines";
 import { upsertBtcOhlcBatch } from "@/lib/btc-ohlc/repository";
 import { settlePoll } from "@/lib/sentiment/settlement-service";
 import { refreshMarketSeason } from "@/lib/tier/tier-service";
@@ -45,46 +38,30 @@ export async function GET(request: Request) {
   }
 
   try {
-    const rows = await fetchOhlcForDailyCron();
+    const rows = await fetchKlinesKstAligned("btc_1d", 1);
     const { inserted, errors } = await upsertBtcOhlcBatch(rows);
 
-    const yesterdayUtc = getYesterdayUtcDateString();
-    const settleResults: Record<string, Awaited<ReturnType<typeof settlePoll>>> = {};
-
-    // 1d: 매일 정산 (UTC 00:00 기준, Binance 1d와 동일)
-    settleResults.btc_1d = await settlePoll(yesterdayUtc, "btc_1d");
-
-    // 1W: 월요일만 정산 (방금 마감된 주봉)
-    if (isTodayMondayKst()) {
-      settleResults.btc_1W = await settlePoll("", "btc_1W", getLastMonday00KstIso());
-    }
-    // 1M: 매월 1일만 정산 (방금 마감된 월봉)
-    if (isTodayFirstOfMonthKst()) {
-      settleResults.btc_1M = await settlePoll("", "btc_1M", getLastMonthFirst00KstIso());
-    }
-    // 12M: 매년 1월 1일만 정산 (방금 마감된 연봉)
-    if (isTodayJan1Kst()) {
-      settleResults.btc_12M = await settlePoll("", "btc_12M", getLastJan100KstIso());
-    }
-
-    const anySettled = Object.values(settleResults).some(
-      (r) =>
-        r.status === "settled" ||
-        r.status === "invalid_refund"
-    );
-    if (anySettled) {
-      const seasonId = getCurrentSeasonId();
-      await refreshMarketSeason(TIER_MARKET_ALL, seasonId);
+    let settle = null;
+    if (rows.length > 0) {
+      const justClosed = rows[0];
+      settle = await settlePoll("", "btc_1d", justClosed.candle_start_at);
+      if (
+        settle.status === "settled" ||
+        settle.status === "invalid_refund"
+      ) {
+        const seasonId = getCurrentSeasonId();
+        await refreshMarketSeason(TIER_MARKET_ALL, seasonId);
+      }
     }
 
     return NextResponse.json({
       success: true,
       data: {
-        message: "btc_ohlc 수집 및 정산 완료",
+        message: "btc_1d 수집 및 정산 완료",
         total_fetched: rows.length,
         upserted: inserted,
         errors,
-        settle: settleResults,
+        settle,
       },
     });
   } catch (e) {
