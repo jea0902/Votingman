@@ -15,6 +15,7 @@ const TV_SYMBOL: Record<SentimentMarket, string> = {
   btc_4h: "BINANCE:BTCUSDT",
   btc_1h: "BINANCE:BTCUSDT",
   btc_15m: "BINANCE:BTCUSDT",
+  btc_5m: "BINANCE:BTCUSDT",
   ndq: "TVC:NDX",
   sp500: "TVC:SPX",
   kospi: "KRX:KOSPI",

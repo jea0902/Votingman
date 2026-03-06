@@ -30,6 +30,7 @@ const SYMBOL = "BTCUSDT";
 
 /** btc_ohlc.market → Binance interval (12M 제외) */
 export const MARKET_TO_INTERVAL: Record<string, string> = {
+  btc_5m: "5m",
   btc_15m: "15m",
   btc_1h: "1h",
   btc_4h: "4h",
@@ -161,8 +162,8 @@ export async function fetchLatestCandles(
   return rows.map((r) => ({ ...r, market }));
 }
 
-/** KST 00:00 정렬 시장 (15m, 1h, 4h, 1d) */
-const KST_ALIGNED_MARKETS = ["btc_15m", "btc_1h", "btc_4h", "btc_1d"] as const;
+/** KST 00:00 정렬 시장 (5m, 15m, 1h, 4h, 1d) */
+const KST_ALIGNED_MARKETS = ["btc_5m", "btc_15m", "btc_1h", "btc_4h", "btc_1d"] as const;
 
 const POLL_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -338,7 +339,7 @@ export async function fetchAllMarketsOhlc(): Promise<BtcOhlcRow[]> {
   const yesterdayUtc = getYesterdayUtcDateString();
 
   const day1d = await fetchOhlcForPollDate("btc_1d", yesterdayUtc);
-  const kstMarkets = ["btc_4h", "btc_1h", "btc_15m"] as const;
+  const kstMarkets = ["btc_4h", "btc_1h", "btc_15m", "btc_5m"] as const;
   const kstResults = await Promise.all(
     kstMarkets.map((m) => fetchOhlcForPollDate(m, yesterdayKst))
   );

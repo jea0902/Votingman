@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     
     // 각 시장별로 개별 쿼리 실행 (Supabase는 GROUP BY 미지원)
     const markets = [];
-    for (const market of ["btc_15m", "btc_1h", "btc_4h", "btc_1d"]) {
+    for (const market of ["btc_5m", "btc_15m", "btc_1h", "btc_4h", "btc_1d"]) {
       const { data } = await admin
         .from("btc_ohlc")
         .select("candle_start_at")
@@ -46,6 +46,10 @@ export async function GET(request: NextRequest) {
       let missingCandles: number;
       
       switch (market.market) {
+        case "btc_5m":
+          expectedInterval = 5;
+          missingCandles = Math.floor(minutesSince / 5);
+          break;
         case "btc_15m":
           expectedInterval = 15;
           missingCandles = Math.floor(minutesSince / 15);

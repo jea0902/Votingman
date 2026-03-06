@@ -49,6 +49,7 @@ const ALL_MARKETS: SentimentMarket[] = [
   "btc_4h",
   "btc_1h",
   "btc_15m",
+  "btc_5m",
   "ndq",
   "sp500",
   "kospi",

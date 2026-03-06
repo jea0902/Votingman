@@ -31,14 +31,14 @@ export async function POST(request: Request) {
       );
     }
 
-    const btcMarkets = ["btc_1d", "btc_4h", "btc_1h", "btc_15m"];
+    const btcMarkets = ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"];
     if (!btcMarkets.includes(market)) {
       return NextResponse.json(
         {
           success: false,
           error: {
             code: "VALIDATION_ERROR",
-            message: "btc_1d, btc_4h, btc_1h, btc_15m 시장만 지원합니다.",
+            message: "btc_1d, btc_4h, btc_1h, btc_15m, btc_5m 시장만 지원합니다.",
           },
         },
         { status: 400 }

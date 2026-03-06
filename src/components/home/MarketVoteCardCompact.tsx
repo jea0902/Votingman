@@ -20,6 +20,7 @@ const CARD_TITLE_SHORT: Record<string, string> = {
   btc_4h: "4시간 후 BTC 상승 or 하락",
   btc_1h: "1시간 후 BTC 상승 or 하락",
   btc_15m: "15분 후 BTC 상승 or 하락",
+  btc_5m: "5분 후 BTC 상승 or 하락",
   ndq: "NDQ 상승 or 하락",
   sp500: "SPX 상승 or 하락",
   kospi: "코스피 상승 or 하락",
@@ -32,10 +33,11 @@ const TIMEFRAME_LABEL: Record<string, string> = {
   btc_4h: "4H",
   btc_1h: "1H",
   btc_15m: "15m",
+  btc_5m: "5m",
 };
 
 /** btc 계열 여부 */
-const BTC_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m"] as const;
+const BTC_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"] as const;
 function isBtcMarket(m: string): m is (typeof BTC_MARKETS)[number] {
   return BTC_MARKETS.includes(m as (typeof BTC_MARKETS)[number]);
 }

@@ -33,13 +33,14 @@
 
 ---
 
-## 2. 비트코인 5분봉 추가
+## 2. 비트코인 5분봉 추가 ✅
 
-- [ ] **목표**: 현재 BTC 1일/4시간/1시간/15분 → 5분봉 1개 추가
-- [ ] Binance API 5분봉 데이터 수집
-- [ ] sentiment_markets 상수 추가
-- [ ] cron job 설정 (5분봉 수집/정산)
-- [ ] 투표 UI 연동
+- [x] **목표**: 현재 BTC 1일/4시간/1시간/15분 → 5분봉 1개 추가
+- [x] Binance API 5분봉 데이터 수집 (btc_5m → "5m" interval)
+- [x] sentiment_markets 상수 추가
+- [x] cron route: `GET /api/cron/btc-ohlc-5m` (5분마다 실행)
+- [x] 투표 UI 연동
+- [ ] **cron-job.org**: 5분마다 `https://<도메인>/api/cron/btc-ohlc-5m` 호출 추가 (Header: x-cron-secret)
 
 ---
 
@@ -113,9 +114,74 @@
 
 ---
 
+## 11. 유저 경험 E2E 테스트 (처음부터 끝까지)
+
+- [ ] **목표**: 투표 기능이 회원가입부터 정산·전적 확인까지 전 구간에서 정상 동작하는지 검증
+
+### 11.1 회원가입·로그인
+
+- [ ] 회원가입 (이메일/비밀번호 또는 소셜 로그인)
+- [ ] 로그인 후 메인/프로필 접근
+- [ ] VTC 초기 지급 확인 (있다면)
+
+### 11.2 투표 플로우
+
+- [ ] 시장 선택 (btc_1d, btc_4h, btc_1h, btc_15m 중 1개)
+- [ ] 롱/숏 선택 + 배팅 금액 입력
+- [ ] 확정 버튼 클릭 → 투표 완료
+- [ ] 추가 투표 (같은 폴에 추가 배팅) → 확정 버튼 동작
+- [ ] 마감 임박 시 배수 표시 확인 (1.5배, 3배, 5배 등)
+- [ ] 잔액 부족 시 에러 처리
+
+### 11.3 정산 대기·결과 확인
+
+- [ ] 봉 마감 후 cron 실행 대기 (15m: 15분, 1h: 1시간, 4h: 4시간, 1d: 09:00 KST)
+- [ ] 알림: 승리 시 `+X.XX VTC`, 패배 시 `-X.XX VTC`, 무효 시 `원금 반환` 표시
+- [ ] 프로필 전적: 승/패/무효 정확히 표시
+- [ ] 프로필 전적: payout_amount (+수익 / -배팅) 표시
+- [ ] 누적 승률 반영
+
+### 11.4 VTC 잔액·지급 검증
+
+- [ ] 승리 시: users.voting_coin_balance += (원금 + 수익) × 0.99
+- [ ] 패배 시: 잔액 변화 없음
+- [ ] 무효 시: 원금 환불
+
+### 11.5 검증 SQL (Supabase)
+
+```sql
+-- 최근 정산 + 승자/패자 + 지급액 확인
+WITH recent AS (
+  SELECT id, market, candle_start_at, settled_at
+  FROM sentiment_polls
+  WHERE settled_at IS NOT NULL
+  ORDER BY settled_at DESC
+  LIMIT 10
+)
+SELECT p.market, p.candle_start_at, v.choice, v.bet_amount,
+  ph.payout_amount AS profit,
+  CASE WHEN ph.payout_amount > 0 THEN v.bet_amount + ph.payout_amount ELSE 0 END AS should_receive
+FROM recent p
+JOIN sentiment_votes v ON v.poll_id = p.id AND v.bet_amount > 0
+LEFT JOIN payout_history ph ON ph.poll_id = p.id AND ph.user_id = v.user_id
+ORDER BY p.settled_at DESC, ph.payout_amount DESC NULLS LAST;
+```
+
+### 11.6 체크리스트 요약
+
+| 단계 | 확인 항목 |
+|------|----------|
+| 1. 회원가입 | 가입·로그인 성공 |
+| 2. 투표 | 롱/숏 선택, 배팅, 확정, 추가 투표 |
+| 3. 정산 | 알림 수신, 전적 반영, payout 표시 |
+| 4. VTC | 잔액 증가(승리), 검증 SQL |
+
+---
+
 ## 참고
 
 - **뉴스 탭 속보 페이지**: 필터링 UI 참고용
 - **reset-all-users-for-sens.sql**: 계정 초기화용 (이미 준비됨)
 - **btc-ohlc-backfill API**: `/api/cron/btc-ohlc-backfill` - 과거 OHLC 백필용
 - **cron-health API**: `/api/monitor/cron-health` - cron 수집 상태 모니터링
+- **docs/voting-spec.md**: 투표·정산 명세 및 트러블슈팅

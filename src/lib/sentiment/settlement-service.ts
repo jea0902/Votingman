@@ -64,6 +64,7 @@ const BTC_MARKETS_SETTLE = [
   "btc_4h",
   "btc_1h",
   "btc_15m",
+  "btc_5m",
   "btc_1W",
   "btc_1M",
   "btc_12M",
@@ -127,7 +128,7 @@ export async function settlePoll(
       status: "already_settled",
       participant_count: 0,
       winner_side: null,
-      error: "지원 market: btc_1d, btc_4h, btc_1h, btc_15m, btc_1W, btc_1M, btc_12M",
+      error: "지원 market: btc_1d, btc_4h, btc_1h, btc_15m, btc_5m, btc_1W, btc_1M, btc_12M",
     };
   }
 
@@ -176,9 +177,6 @@ export async function settlePoll(
   const reference_close = ohlcPrices?.reference_close ?? null;
   const settlement_close = ohlcPrices?.settlement_close ?? null;
 
-  const longCoinTotal = Number(pollRow.long_coin_total ?? 0);
-  const shortCoinTotal = Number(pollRow.short_coin_total ?? 0);
-
   const { data: votes } = await admin
     .from("sentiment_votes")
     .select("user_id, choice, bet_amount")
@@ -188,6 +186,13 @@ export async function settlePoll(
 
   const participantIds = [...new Set((votes ?? []).map((v) => v.user_id as string))];
   const participantCount = participantIds.length;
+  // 실제 votes에서 집계 (폴 캐시 누락/동시성 이슈 방지)
+  const longCoinTotal = (votes ?? [])
+    .filter((v) => v.choice === "long")
+    .reduce((sum, v) => sum + Number(v.bet_amount ?? 0), 0);
+  const shortCoinTotal = (votes ?? [])
+    .filter((v) => v.choice === "short")
+    .reduce((sum, v) => sum + Number(v.bet_amount ?? 0), 0);
 
   // 무효 판정: 1명 이하 참여 → 원금 환불
   if (participantCount <= 1) {
@@ -338,10 +343,17 @@ export async function settlePoll(
 
   const winnerSide: "long" | "short" =
     settlement_close > reference_close ? "long" : "short";
-  const loserPool = winnerSide === "long" ? shortCoinTotal : longCoinTotal;
-  const winnerTotalBet = winnerSide === "long" ? longCoinTotal : shortCoinTotal;
   const winnerVotes = (votes ?? []).filter((v) => v.choice === winnerSide);
   const loserVotes = (votes ?? []).filter((v) => v.choice !== winnerSide);
+  // 폴 캐시(long_coin_total 등) 대신 실제 votes에서 집계 (동시성·누락 방지)
+  const winnerTotalBet = winnerVotes.reduce(
+    (sum, v) => sum + Number(v.bet_amount ?? 0),
+    0
+  );
+  const loserPool = loserVotes.reduce(
+    (sum, v) => sum + Number(v.bet_amount ?? 0),
+    0
+  );
 
   let payoutTotal = 0;
   
@@ -517,7 +529,7 @@ export async function invalidatePollAsAdmin(
 }
 
 /** 백필 후 정산 지원 시장 (btc만, Binance OHLC 사용) */
-const BACKFILL_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m"] as const;
+const BACKFILL_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"] as const;
 
 export type BackfillAndSettleResult =
   | (SettlementResult & { backfilled?: boolean })
@@ -586,7 +598,7 @@ export async function backfillAndSettlePoll(
       status: "unsupported_market",
       participant_count: 0,
       winner_side: null,
-      error: `백필 지원: btc_1d, btc_4h, btc_1h, btc_15m만 가능. (${market})`,
+      error: `백필 지원: btc_1d, btc_4h, btc_1h, btc_15m, btc_5m만 가능. (${market})`,
     };
   }
 

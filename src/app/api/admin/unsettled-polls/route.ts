@@ -9,7 +9,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdmin } from "@/lib/supabase/server";
 
 const MARKET_FILTER_TO_DB: Record<string, readonly string[]> = {
-  btc: ["btc_1d", "btc_4h", "btc_1h", "btc_15m"],
+  btc: ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"],
   kospi: ["kospi"],
   kosdaq: ["kosdaq"],
   nasdaq: ["ndq"],

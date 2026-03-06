@@ -11,6 +11,7 @@ export const SENTIMENT_TO_TIER_MARKET: Record<SentimentMarket, TierMarket> = {
   btc_4h: "btc",
   btc_1h: "btc",
   btc_15m: "btc",
+  btc_5m: "btc",
   ndq: "us",
   sp500: "us",
   kospi: "kr",

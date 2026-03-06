@@ -10,6 +10,7 @@ export const SENTIMENT_MARKETS = [
   "btc_4h",
   "btc_1h",
   "btc_15m",
+  "btc_5m",
   "ndq",
   "sp500",
   "kospi",
@@ -17,8 +18,8 @@ export const SENTIMENT_MARKETS = [
 ] as const;
 export type SentimentMarket = (typeof SENTIMENT_MARKETS)[number];
 
-/** 홈에 노출하는 시장. 비트코인 1일·4시간·1시간·15분봉 */
-export const ACTIVE_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m"] as const;
+/** 홈에 노출하는 시장. 비트코인 1일·4시간·1시간·15분·5분봉 */
+export const ACTIVE_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"] as const;
 
 /** 모든 투표지 최소 배팅 금액 (VTC) */
 export const MIN_BET_VTC = 500;
@@ -38,6 +39,7 @@ export const MARKET_CLOSE_KST: Record<SentimentMarket, { hour: number; minute: n
   btc_4h: { hour: 20, minute: 30 },
   btc_1h: { hour: 20, minute: 30 },
   btc_15m: { hour: 20, minute: 30 },
+  btc_5m: { hour: 20, minute: 30 },
   ndq: { hour: 3, minute: 30 },
   sp500: { hour: 3, minute: 30 },
   kospi: { hour: 13, minute: 0 },
@@ -50,6 +52,7 @@ export const MARKET_LABEL: Record<SentimentMarket, string> = {
   btc_4h: "비트코인 4시간",
   btc_1h: "비트코인 1시간",
   btc_15m: "비트코인 15분",
+  btc_5m: "비트코인 5분",
   ndq: "나스닥",
   sp500: "S&P 500",
   kospi: "코스피",
@@ -58,7 +61,7 @@ export const MARKET_LABEL: Record<SentimentMarket, string> = {
 
 /** 섹션 그룹: 비트코인 | 미국 주식 | 한국 주식 */
 export const MARKET_SECTIONS: { sectionLabel: string; markets: SentimentMarket[] }[] = [
-  { sectionLabel: "비트코인", markets: ["btc_1d", "btc_4h", "btc_1h", "btc_15m"] },
+  { sectionLabel: "비트코인", markets: ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"] },
   /* 사용예정
   { sectionLabel: "미국 주식", markets: ["ndq", "sp500"] },
   { sectionLabel: "한국 주식", markets: ["kospi", "kosdaq"] },

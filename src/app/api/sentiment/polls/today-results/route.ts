@@ -2,7 +2,7 @@
  * GET /api/sentiment/polls/today-results?market=btc_15m
  * 당일(KST) 봉 결과: btc_ohlc만 사용. 각 봉은 [이전 봉 종가 vs 이 봉 종가]로 상승/하락/동일가 계산.
  * - open = 이전 봉 종가(reference), close = 이 봉 종가(settlement) → close > open: long, close < open: short, 같으면 draw
- * btc_1d, btc_4h, btc_1h, btc_15m 만 지원.
+ * btc_1d, btc_4h, btc_1h, btc_15m, btc_5m 지원.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -13,7 +13,7 @@ import {
 } from "@/lib/binance/btc-kst";
 import { getCandlesForPollDate } from "@/lib/btc-ohlc/candle-utils";
 
-const BTC_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m"] as const;
+const BTC_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"] as const;
 
 export type TodayResultItem = {
   candle_start_at: string;

@@ -2,7 +2,7 @@
  * POST /api/admin/backfill-and-settle
  * 관리자 전용: 미정산 폴에 대해 OHLC 백필 후 정산
  * - btc_ohlc에 데이터가 없으면 Binance에서 수집 후 정산
- * - btc_1d, btc_4h, btc_1h, btc_15m만 지원
+ * - btc_1d, btc_4h, btc_1h, btc_15m, btc_5m 지원
  * body: { pollIds: string[] }
  */
 

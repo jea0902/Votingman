@@ -14,7 +14,7 @@ import { getOhlcByMarketAndCandleStart } from "@/lib/btc-ohlc/repository";
 import { MARKET_LABEL } from "@/lib/constants/sentiment-markets";
 import { getPollDateDisplayForKst } from "@/lib/utils/poll-date-display";
 
-const BTC_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m"] as const;
+const BTC_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"] as const;
 
 export type VoteHistoryRow = {
   /** 예측 대상일 (poll_date, DB 저장값) */
@@ -161,16 +161,16 @@ export async function GET(request: NextRequest) {
       }
 
       // payout_history 기준 승부 판정 (정산 결과와 일치)
+      // payout_amount 의미: 승리=수익(양수), 패배=0, 무효=bet(원금반환)
       let result: "win" | "loss" | "invalid" = "invalid";
       if (payoutByPollId.has(vote.poll_id)) {
-        // payout_history에 기록이 있는 경우
         const bet = Number(vote.bet_amount ?? 0);
-        if (payout_amount > bet) {
-          result = "win";       // payout > bet_amount = 승리 (수익)
+        if (payout_amount === 0) {
+          result = "loss";       // payout=0 = 패배
         } else if (payout_amount === bet) {
-          result = "invalid";   // payout = bet_amount = 무효 (원금 반환)
+          result = "invalid";   // payout=bet = 무효 (원금 반환)
         } else {
-          result = "loss";      // payout < bet_amount = 패배 (손실)
+          result = "win";       // payout>0 && payout!==bet = 승리 (수익)
         }
       } else {
         // payout_history에 기록이 없는 경우도 무효 처리 (과거 데이터 호환성)

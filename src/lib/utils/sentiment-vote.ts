@@ -14,29 +14,31 @@ import {
 } from "@/lib/constants/sentiment-markets";
 import { getCurrentCandleStartAt } from "@/lib/btc-ohlc/candle-utils";
 
-/** 4h/1h/15m: 주기 절반(기존 마감 시각, 현재 사용하지 않음) — 밀리초 */
-const ROLLING_HALF_PERIOD_MS: Record<"btc_4h" | "btc_1h" | "btc_15m", number> = {
+/** 4h/1h/15m/5m: 주기 절반(기존 마감 시각, 현재 사용하지 않음) — 밀리초 */
+const ROLLING_HALF_PERIOD_MS: Record<"btc_4h" | "btc_1h" | "btc_15m" | "btc_5m", number> = {
   btc_4h: 2 * 60 * 60 * 1000,
   btc_1h: 30 * 60 * 1000,
   btc_15m: 7.5 * 60 * 1000,
+  btc_5m: 2.5 * 60 * 1000,
 };
 
-const ROLLING_MARKETS: SentimentMarket[] = ["btc_4h", "btc_1h", "btc_15m"];
+const ROLLING_MARKETS: SentimentMarket[] = ["btc_4h", "btc_1h", "btc_15m", "btc_5m"];
 
-function isRollingMarket(m: SentimentMarket): m is "btc_4h" | "btc_1h" | "btc_15m" {
+function isRollingMarket(m: SentimentMarket): m is "btc_4h" | "btc_1h" | "btc_15m" | "btc_5m" {
   return ROLLING_MARKETS.includes(m);
 }
 
 /** 롤링 시장: 주기 전체(다음 봉 시작까지) — 밀리초 */
-const ROLLING_FULL_PERIOD_MS: Record<"btc_4h" | "btc_1h" | "btc_15m", number> = {
+const ROLLING_FULL_PERIOD_MS: Record<"btc_4h" | "btc_1h" | "btc_15m" | "btc_5m", number> = {
   btc_4h: 4 * 60 * 60 * 1000,
   btc_1h: 60 * 60 * 1000,
   btc_15m: 15 * 60 * 1000,
+  btc_5m: 5 * 60 * 1000,
 };
 
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
-/** 1d/4h/1h는 분 생략, 15m는 분 포함 */
+/** 1d/4h/1h는 분 생략, 15m/5m는 분 포함 */
 function formatKstDateTimeForMarket(utcMs: number, market: string): string {
   const kst = new Date(utcMs + KST_OFFSET_MS);
   const y = kst.getUTCFullYear();
@@ -44,20 +46,20 @@ function formatKstDateTimeForMarket(utcMs: number, market: string): string {
   const d = kst.getUTCDate();
   const h = kst.getUTCHours();
   const min = kst.getUTCMinutes();
-  if (market === "btc_15m") {
+  if (market === "btc_15m" || market === "btc_5m") {
     return `${y}년 ${mo}월 ${d}일 ${h}시 ${min}분`;
   }
   return `${y}년 ${mo}월 ${d}일 ${h}시`;
 }
 
 /** 롤링 시장: 현재 봉 마감 시각(UTC ms). 봉 시작 + 주기 전체 (봉 종료 시점) */
-function getRollingCloseUtcMs(market: "btc_4h" | "btc_1h" | "btc_15m"): number {
+function getRollingCloseUtcMs(market: "btc_4h" | "btc_1h" | "btc_15m" | "btc_5m"): number {
   const startAt = getCurrentCandleStartAt(market);
   return new Date(startAt).getTime() + ROLLING_FULL_PERIOD_MS[market];
 }
 
 /** 롤링 시장: 다음 봉 시작 시각(UTC ms) = 현재 봉 시작 + 주기 전체 */
-function getNextCandleStartUtcMs(market: "btc_4h" | "btc_1h" | "btc_15m"): number {
+function getNextCandleStartUtcMs(market: "btc_4h" | "btc_1h" | "btc_15m" | "btc_5m"): number {
   const startAt = getCurrentCandleStartAt(market);
   return new Date(startAt).getTime() + ROLLING_FULL_PERIOD_MS[market];
 }
@@ -108,12 +110,13 @@ export function isVotingOpenKST(market?: string): boolean {
   return mins < closeAt;
 }
 
-/** 마감 시각 라벨 (표기용). 4h/1h/15m은 봉 종료 시점 */
+/** 마감 시각 라벨 (표기용). 4h/1h/15m/5m은 봉 종료 시점 */
 export function getVotingCloseLabel(market?: string): string {
   const m: SentimentMarket = market && isSentimentMarket(market) ? market : "btc_1d";
   if (m === "btc_4h") return "투표 마감: 현재 4시간봉 종료 시";
   if (m === "btc_1h") return "투표 마감: 현재 1시간봉 종료 시";
   if (m === "btc_15m") return "투표 마감: 현재 15분봉 종료 시";
+  if (m === "btc_5m") return "투표 마감: 현재 5분봉 종료 시";
   const { hour, minute } = MARKET_CLOSE_KST[m];
   const h = String(hour).padStart(2, "0");
   const min = String(minute).padStart(2, "0");

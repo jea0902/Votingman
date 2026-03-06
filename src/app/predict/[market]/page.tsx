@@ -72,6 +72,7 @@ const CARD_TITLE: Record<string, string> = {
   btc_4h: "[4시간 후] 비트코인 상승/하락",
   btc_1h: "[1시간 후] 비트코인 상승/하락",
   btc_15m: "[15분 후] 비트코인 상승/하락",
+  btc_5m: "[5분 후] 비트코인 상승/하락",
   ndq: "나스닥100 상승/하락",
   sp500: "S&P 500 상승/하락",
   kospi: "코스피 상승/하락",
@@ -183,7 +184,7 @@ export default function PredictMarketPage() {
   }, [market]);
 
   /** btc 계열 현재가 조회 (Binance 공개 API) */
-  const isBtcMarket = ["btc_1d", "btc_4h", "btc_1h", "btc_15m"].includes(market);
+  const isBtcMarket = ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"].includes(market);
   useEffect(() => {
     if (!isBtcMarket) return;
     let cancelled = false;
@@ -369,7 +370,6 @@ export default function PredictMarketPage() {
     const totalCharge =
       isAdditionalMode && choice === vote ? myBetAmount + chargeAmount : chargeAmount;
     if (!canVote || !canSubmitForChoice(choice)) return;
-    if (vote === choice && isAdditionalMode && myBetAmount + chargeAmount === totalCharge) return;
     setVoteError(null);
     setVoteLoading(true);
     setConfirmingChoice(null);
@@ -418,8 +418,9 @@ export default function PredictMarketPage() {
     btc_4h: "4H",
     btc_1h: "1H",
     btc_15m: "15m",
+    btc_5m: "5m",
   };
-  const isBtcMarketHeader = ["btc_1d", "btc_4h", "btc_1h", "btc_15m"].includes(market);
+  const isBtcMarketHeader = ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"].includes(market);
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">

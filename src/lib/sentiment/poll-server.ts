@@ -19,7 +19,7 @@ export type TodayPollResult = {
   created: boolean;
 };
 
-const BTC_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m"] as const;
+const BTC_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"] as const;
 
 /**
  * 오늘(KST) 현재 진행 중인 캔들에 해당하는 폴 조회/생성

@@ -5,7 +5,7 @@
  * POST /api/cron/btc-ohlc-backfill
  * body: {
  *   "poll_dates": ["2025-02-04", "2025-02-05"],
- *   "markets"?: ["btc_1d", "btc_4h", "btc_1h", "btc_15m"]  // 생략 시 전체
+ *   "markets"?: ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"]  // 생략 시 전체
  * }
  * 인증: Authorization: Bearer <CRON_SECRET> 또는 x-cron-secret
  */
@@ -16,7 +16,7 @@ import { upsertBtcOhlcBatch } from "@/lib/btc-ohlc/repository";
 import { getOrCreatePollByDateAndMarket } from "@/lib/sentiment/poll-server";
 
 const POLL_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
-const BACKFILL_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m"] as const;
+const BACKFILL_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"] as const;
 
 function isAuthorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET;

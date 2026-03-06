@@ -14,7 +14,7 @@ import { fetchPreviousCandleClose } from "@/lib/binance/btc-klines";
 import { isVotingOpenKST } from "@/lib/utils/sentiment-vote";
 import { SENTIMENT_MARKETS } from "@/lib/constants/sentiment-markets";
 
-const BTC_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m"] as const;
+const BTC_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"] as const;
 
 type PollPayload = {
   market: string;

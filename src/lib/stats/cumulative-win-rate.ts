@@ -1,7 +1,7 @@
 /**
  * 전적 및 승률 조회(vote-history)와 동일한 로직으로 누적 승률 계산
  * - sentiment_votes + sentiment_polls(정산됨) + payout_history 기준
- * - payout_amount > 0: 승리, payout_amount = 0: 환불/무효, 기록 없음: 패배
+ * - payout_amount 의미: 승리=수익(양수), 패배=0, 무효=bet(원금반환)
  */
 
 import { createSupabaseAdmin } from "@/lib/supabase/server";
@@ -101,22 +101,17 @@ export async function getCumulativeWinRatesByUserIds(
     let totalCounted = 0;
 
     for (const { vote, poll, payout_amount } of arr) {
-      // payout_history 기준 승부 판정 (정산 결과와 일치)
+      // payout_history 기준 승부 판정 (payout_amount: 승리=수익, 패배=0, 무효=bet)
       let resultType: "win" | "loss" | "invalid" = "invalid";
-      
-      if (payout_amount >= 0) {
-        // payout_history에 기록이 있는 경우
-        const bet = Number(vote.bet_amount ?? 0);
-        if (payout_amount > bet) {
-          resultType = "win";       // payout > bet_amount = 승리 (수익)
-        } else if (payout_amount === bet) {
-          resultType = "invalid";   // payout = bet_amount = 무효 (원금 반환)
-        } else {
-          resultType = "loss";      // payout < bet_amount = 패배 (손실)
-        }
+      const bet = Number(vote.bet_amount ?? 0);
+      if (payout_amount < 0) {
+        resultType = "invalid";   // 기록 없음 (과거 데이터 호환성)
+      } else if (payout_amount === 0) {
+        resultType = "loss";      // 패배
+      } else if (payout_amount === bet) {
+        resultType = "invalid";   // 무효 (원금 반환)
       } else {
-        // payout_history에 기록이 없는 경우도 무효 처리 (과거 데이터 호환성)
-        resultType = "invalid";
+        resultType = "win";       // 승리 (수익)
       }
 
       if (resultType === "win") wins++;
