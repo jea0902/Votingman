@@ -96,7 +96,12 @@ export async function POST(request: NextRequest) {
     ).length;
 
     if (settled.length > 0) {
-      await refreshMarketStats(TIER_MARKET_ALL);
+      try {
+        await refreshMarketStats(TIER_MARKET_ALL);
+      } catch (refreshErr) {
+        console.error("[admin/backfill-and-settle] refreshMarketStats failed", refreshErr);
+        // 정산은 완료했으므로 200 반환, 메시지에 경고만 추가
+      }
     }
 
     return NextResponse.json({
@@ -112,10 +117,11 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
     console.error("[admin/backfill-and-settle]", err);
+    // 200으로 내려서 클라이언트가 무조건 본문 볼 수 있게 (500이면 PowerShell 등에서 본문 안 보임)
     return NextResponse.json(
-      { success: false, error: { code: "INTERNAL_ERROR", message: String(err) } },
-      { status: 500 }
+      { success: false, error: { code: "INTERNAL_ERROR", message } }
     );
   }
 }
