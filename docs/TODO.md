@@ -40,17 +40,18 @@
 - [x] sentiment_markets 상수 추가
 - [x] cron route: `GET /api/cron/btc-ohlc-5m` (5분마다 실행)
 - [x] 투표 UI 연동
-- [ ] **cron-job.org**: 5분마다 `https://<도메인>/api/cron/btc-ohlc-5m` 호출 추가 (Header: x-cron-secret)
+- [x] **cron-job.org**: 5분마다 `https://<도메인>/api/cron/btc-ohlc-5m` 호출 추가 (Header: x-cron-secret)
+- **2026-03-07**: cron-job.org 설정 완료. 2번 항목 전부 해결.
 
 ---
 
 ## 3. 코스피(KOSPI) 시장 추가
 
 - [ ] **목표**: KOSPI 1일봉, 4시간봉, 1시간봉, 15분봉, 5분봉
-- [ ] OHLC 데이터 소스 확정 (한국거래소/외부 API)
-- [ ] btc_ohlc → 시장별 테이블 또는 market 컬럼 확장
-- [ ] sentiment_polls 생성 로직
-- [ ] cron job 설정
+- [ ] **차트**: TradingView 위젯 (투표 상세 페이지)
+- [ ] **지수 데이터**: KRX(한국거래소) → DB(btc_ohlc) 저장
+- [ ] **운영**: BTC와 동일 (cron 수집 → 정산)
+- [ ] **로드맵**: `docs/kospi-roadmap.md` 참고 (구현 전 단계별 계획)
 
 ---
 
@@ -185,3 +186,4 @@ ORDER BY p.settled_at DESC, ph.payout_amount DESC NULLS LAST;
 - **btc-ohlc-backfill API**: `/api/cron/btc-ohlc-backfill` - 과거 OHLC 백필용
 - **cron-health API**: `/api/monitor/cron-health` - cron 수집 상태 모니터링
 - **docs/voting-spec.md**: 투표·정산 명세 및 트러블슈팅
+- **docs/kospi-roadmap.md**: KOSPI 시장 추가 로드맵 (3번 TODO)

@@ -10,7 +10,7 @@
  */
 
 import { useState, useEffect } from "react";
-import { UserInfoCard } from "@/components/home";
+import { UserInfoCard, type StatsOverride } from "@/components/home";
 
 type VoteHistoryRow = {
   poll_date: string;
@@ -19,6 +19,8 @@ type VoteHistoryRow = {
   settled_at: string;
   market: string;
   market_label: string;
+  /** UP(롱) | DOWN(숏) */
+  choice: "UP" | "DOWN";
   bet_amount: number;
   price_open: number | null;
   price_close: number | null;
@@ -59,6 +61,7 @@ function formatDateTime(iso: string): string {
 
 export default function ProfileStatsPage() {
   const [rows, setRows] = useState<VoteHistoryRow[]>([]);
+  const [statsSummary, setStatsSummary] = useState<StatsOverride | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [startDate, setStartDate] = useState("");
@@ -76,17 +79,22 @@ export default function ProfileStatsPage() {
     const url = `/api/profile/vote-history${qs ? `?${qs}` : ""}`;
 
     fetch(url, { credentials: "include" })
-      .then((res) => res.json())
-      .then((json) => {
+      .then(async (res) => {
+        const json = await res.json().catch(() => ({}));
         if (cancelled) return;
-        if (json?.success && json?.data) {
+        if (res.ok && json?.success && json?.data) {
           setRows(Array.isArray(json.data.rows) ? json.data.rows : []);
+          setStatsSummary(json.data.summary ?? null);
         } else {
-          setError(json?.error?.message ?? "데이터를 불러오는데 실패했습니다.");
+          setStatsSummary(null);
+          setError(json?.error?.message ?? (res.ok ? "데이터를 불러오는데 실패했습니다." : "서버 오류가 발생했습니다."));
         }
       })
       .catch(() => {
-        if (!cancelled) setError("네트워크 오류가 발생했습니다.");
+        if (!cancelled) {
+          setStatsSummary(null);
+          setError("네트워크 오류가 발생했습니다.");
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -104,7 +112,7 @@ export default function ProfileStatsPage() {
           </h1>
 
           <div className="mb-8 max-w-sm">
-            <UserInfoCard />
+            <UserInfoCard statsOverride={statsSummary} />
           </div>
 
           <section aria-label="정산 이력">
@@ -178,6 +186,12 @@ export default function ProfileStatsPage() {
                       <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
                         <dt className="text-muted-foreground">시장</dt>
                         <dd className="text-right font-medium">{r.market_label}</dd>
+                        <dt className="text-muted-foreground">선택</dt>
+                        <dd className="text-right font-medium">
+                          <span className={r.choice === "UP" ? "text-[#3b82f6]" : "text-rose-500"}>
+                            {r.choice === "UP" ? "UP" : "DOWN"}
+                          </span>
+                        </dd>
                         <dt className="text-muted-foreground">배팅 코인</dt>
                         <dd className="text-right tabular-nums">{r.bet_amount.toLocaleString()}</dd>
                         <dt className="text-muted-foreground">payout</dt>
@@ -215,6 +229,7 @@ export default function ProfileStatsPage() {
                         <th className="px-3 py-2 font-medium">예측 대상일</th>
                         <th className="px-3 py-2 font-medium">정산 날짜</th>
                         <th className="px-3 py-2 font-medium">시장</th>
+                        <th className="px-3 py-2 font-medium text-center">선택</th>
                         <th className="px-3 py-2 font-medium text-right">배팅 코인</th>
                         <th className="px-3 py-2 font-medium text-right">시가</th>
                         <th className="px-3 py-2 font-medium text-right">종가</th>
@@ -237,6 +252,17 @@ export default function ProfileStatsPage() {
                             <td className="max-w-[6rem] truncate px-3 py-2" title={dateStr}>{dateStr}</td>
                             <td className="max-w-[8rem] truncate px-3 py-2 text-muted-foreground" title={dateTimeStr}>{dateTimeStr}</td>
                             <td className="max-w-[7rem] truncate px-3 py-2" title={r.market_label}>{r.market_label}</td>
+                            <td className="px-3 py-2 text-center">
+                              <span
+                                className={
+                                  r.choice === "UP"
+                                    ? "font-medium text-[#3b82f6]"
+                                    : "font-medium text-rose-500"
+                                }
+                              >
+                                {r.choice === "UP" ? "UP" : "DOWN"}
+                              </span>
+                            </td>
                             <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{r.bet_amount.toLocaleString()}</td>
                             <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
                               {r.price_open != null ? r.price_open.toLocaleString(undefined, { minimumFractionDigits: 2 }) : "—"}

@@ -71,8 +71,9 @@
 
 ### 3.2 getCurrentCandleStartAt 규칙
 
-- **btc_1d**: UTC 00:00 정렬. KST 09:00 이전 → 어제 UTC, 09:01 이후 → 오늘 UTC.
+- **btc_1d**: UTC 00:00 정렬. **항상** `getTodayUtcDateString()` 사용. 현재 UTC 날짜의 캔들 = 다음 00:00 UTC에 마감.
 - **btc_4h/1h/15m/5m**: UTC 기준 (Binance와 동일).
+- **btc_1d 투표 허용**: `isVotingOpenKST`도 UTC 기준 (`candle_start_at + 24h`). KST 분 계산 사용 금지.
 
 ### 3.3 sentiment_polls
 
@@ -119,9 +120,7 @@
 - Cron 정산 대상: `2026-03-06 00:00 UTC` (Binance 1d)
 - 결과: 폴이 cron 정산 대상과 달라서 자동 정산되지 않음.
 
-**수정**: `getCurrentCandleStartAt(btc_1d)`를 UTC 00:00 정렬로 변경.
-- KST 09:00 이전 → `getYesterdayUtcDateString()`
-- KST 09:01 이후 → `getTodayUtcDateString()`
+**수정**: `getCurrentCandleStartAt(btc_1d)`를 UTC 00:00 정렬로 변경. (※ 6.11에서 추가 수정됨)
 
 ### 6.2 목표가(시가) 실시간 변동
 
@@ -186,6 +185,97 @@ if (vote === choice && isAdditionalMode && myBetAmount + chargeAmount === totalC
 - `src/lib/stats/cumulative-win-rate.ts`: 동일 로직
 - `payout_notification_trigger`: `scripts/fix-payout-notification-trigger.sql` 또는 `supabase/migrations/20260307000000_fix_payout_notification_trigger.sql` 실행
 
+### 6.8 btc_5m 목표가(시가) 수정
+
+**증상**: btc_5m 목표가가 5분 전 캔들 종가와 맞지 않음.
+
+**원인**: btc_5m이 KST 정렬을 사용했으나 Binance 5분봉은 UTC 00, 05, 10, 15... 기준.
+
+**수정**: btc_5m을 btc_4h처럼 UTC 정렬로 변경.
+- `getBtc5mCandleStartAtUtc` 추가
+- `getCurrentCandleStartAt`, `getRecentCandleStartAts`에서 btc_5m UTC 정렬 사용
+
+### 6.9 Go to Live Market 버튼 안 나오는 문제 (롤링 시장)
+
+**증상**: btc_5m 등 롤링 시장에서 마감 시간이 지나도 "Go to Live Market" 버튼이 안 나옴.
+
+**원인**: 롤링 시장은 마감 직후 바로 다음 캔들로 전환되어 `voteOpen`이 true로 유지됨. 마감 박스는 `!voteOpen`일 때만 표시되어, btc_5m에서는 거의 표시되지 않음.
+
+**수정**:
+- `hasPollClosed`: `poll.candle_start_at + CANDLE_PERIOD_MS` 기준으로 폴 마감 여부 판단
+- `showClosedBox`: `!voteOpen || hasPollClosed`일 때 마감 박스 표시
+- Poll API: `candle_start_at` 쿼리 파라미터 지원, 응답에 `candle_start_at` 포함
+- 정산 폴링: poll 캔들 마감 시에도 `candle_start_at`으로 해당 폴 조회하여 settlement_status 갱신
+
+### 6.10 "다시 투표할 수 있습니다" 문구 제거
+
+**이유**: Go to Live Market 클릭 시 새로고침되어 새 투표에 참여 가능하므로 불필요.
+
+**수정**: "~부터 다시 투표할 수 있습니다" / "~다시 투표 가능" 문구 전부 제거. 마감 시 "마감"만 표시.
+
+### 6.11 btc_1d 조기 마감 (UTC 00:00 전에 마감됨)
+
+**증상**: UTC 03-07 00:00 전인데 "정산중입니다...", "결과는 프로필>전적에서 확인할 수 있습니다" 표시되고 투표 불가.
+
+**원인**: `getCurrentCandleStartAt(btc_1d)`에서 09:01 KST 이전에 `getYesterdayUtcDateString()` 사용.
+- 예: UTC 03-06 15:00 (KST 03-07 00:00) → yesterday UTC = 03-05 → 03-05 캔들(03-06 00:00 마감) → 이미 마감된 폴 표시
+
+**수정**: 09:01 이전/이후 구분 제거. **항상** `getTodayUtcDateString()` 사용.
+- 현재 UTC 날짜의 캔들 = 다음 00:00 UTC에 마감
+- 예: UTC 03-06 15:00 → 03-06 캔들(03-07 00:00 마감) ✓
+
+### 6.12 마감 시 UI 동작
+
+**동작**:
+- **마감 박스 표시**: `!voteOpen` 또는 `hasPollClosed`일 때 "이 투표는 마감되었습니다" / "정산 중입니다..." / "정산이 완료되었습니다." 박스 표시
+- **Go to Live Market 버튼**: 마감 박스 내 버튼 클릭 시 `window.location.reload()` → 새 투표지 로드
+- **투표 불가**: `canVote = voteOpen && !hasPollClosed && !!user` → 마감 시 투표 버튼 비활성화
+- **다음 투표 링크**: 마감 시 "다음 투표" 영역에 다른 시장으로 이동하는 "Go to Live Market" 링크 표시
+
+### 6.13 btc_1d 마감 시 투표/VTC 사라짐 (초기화처럼 보임)
+
+**증상**: 1일봉 마감(09:00 KST) 시 투표한 VTC, 인원 수가 사라짐.
+
+**원인**: `voteOpen`이 false로 바뀔 때마다 `fetchPoll()` 호출. 09:00 KST에 API가 **새 폴**(다음날 캔들)을 반환 → 기존 폴(투표 있음) 대신 새 폴(0표) 표시.
+
+**수정**: `voteOpen` true→false 전환 시 refetch 하지 않음. 마감된 폴을 정산 완료까지 유지. 새 폴로 전환은 "Go to Live Market" 클릭(새로고침) 시에만.
+
+### 6.15 btc_ohlc(DB) 단일 기준 — 시간 계산 제거
+
+**원칙**: cron이 수집·저장한 btc_ohlc만 기준. 마감/정산/새 poll은 DB 상태로 판단.
+
+**수정**:
+- **Poll API settlement_status**: `isVotingOpen`, `isPollCandleClosed`(시간) 제거. `price_close != null`(btc_ohlc 존재) = 마감.
+- **Vote API**: btc 시장은 `getOhlcByMarketAndCandleStart`로 마감 여부 검사. btc_ohlc에 행 있으면 투표 거부.
+- **fetchCurrentCandleCloseForBtc1dKst 폴백 제거**: Binance 직접 조회 금지. btc_ohlc만 사용.
+- **클라이언트**: btc 시장은 `poll.settlement_status`만 사용. 시간 기반 `voteOpen`/`hasPollClosed` 미사용.
+
+### 6.14 btc_1d UTC 기준 통일 (조기 마감·KST 불일치 방지)
+
+**증상**: cron이 1일봉 데이터를 수집하기도 전에 마감 표시. 마감 풀었더니 poll이 새것으로 바뀌어 투표/VTC 사라짐.
+
+**원인**: `isVotingOpenKST`가 KST 분(mins) 계산 사용, `getCurrentCandleStartAt`은 UTC 사용 → 두 로직 불일치.
+
+**수정**: btc_1d를 **UTC 단일 기준**으로 통일.
+- `isVotingOpenKST(btc_1d)`: `Date.now() < getCurrentCandleStartAt + CANDLE_PERIOD_MS` (롤링 시장과 동일 패턴)
+- `getMillisUntilClose`, `getCloseTimeKstString`, `getNextOpenTimeKstString`: `getBtc1dCloseUtcMs()` 사용
+- 마감 시각 = candle_start_at + 24h = UTC 00:00 = cron 수집 시각과 동일
+
+### 6.16 백필로 진행 중 캔들 저장 → 조기 마감 (병신같은 사례)
+
+**증상**: KST 07:52에 btc_1d 투표가 마감됨. cron은 09:00에만 실행되는데 왜?
+
+**원인**: **백필을 마감 시각(KST 09:00) 이전에 실행**함.
+- 바이낸스 API는 진행 중인 캔들도 반환함. `close` = 요청 시점의 현재가 (실제 종가 아님).
+- 백필 시 22:19 KST 03-06에 03-06 캔들(마감 09:00 KST 03-07) 수집 → 아직 진행 중인 캔들이 btc_ohlc에 저장됨.
+- `price_close != null` → 시스템이 마감으로 판단 → 투표 조기 마감.
+
+**교훈**:
+- btc_1d 백필은 **해당 캔들 마감 시각(KST 09:00) 이후**에만 실행할 것.
+- 진행 중 캔들 = 미래 데이터 아님. 바이낸스가 그 시점 현재가를 close로 줌. 그걸 저장하면 잘못된 종가 + 조기 마감.
+
+**수정**: Poll API에 **마감 시각 검증** 추가. `price_close != null`이어도 `Date.now() >= candle_start_at + CANDLE_PERIOD_MS`일 때만 마감 처리. DB에 잘못 들어간 데이터가 있어도 09:00 이전에는 "open" 유지.
+
 ---
 
 ## 7. 정산 시스템 트러블슈팅
@@ -219,7 +309,34 @@ sentiment_polls (market, candle_start_at) 조회 → btc_ohlc 가격 조회 → 
 패배자: payout_history(payout_amount=0)
 ```
 
-### 7.4 정산 검증 SQL
+### 7.5 승자 VTC 미지급 (payout_history·알림은 정상, 잔액 미증가)
+
+**증상**: payout_history에 승자 기록됨, 알림도 발송됨. 하지만 승자 `users.voting_coin_balance`가 증가하지 않음.
+
+**원인**:
+- `users` 조회 시 `.single()` 사용 → 사용자 없으면 에러지만 `{ data: u }`만 받아 에러 미검사
+- Supabase `update`는 0 rows affected여도 `error`를 반환하지 않음
+- update 실패해도 `payout_history` insert가 그대로 진행됨
+
+**수정** (`settlement-service.ts`):
+- users 조회: `.maybeSingle()` 사용, 사용자 없으면 throw
+- users update: `.select("user_id")`로 결과 확인, 0 rows면 throw
+- 무효/환불/관리자 무효 처리에도 동일 검증 적용
+
+**수동 보정** (이미 발생한 건):
+1. `scripts/debug-winner-vtc-not-credited.sql` 1번 쿼리로 poll_id·승자·users 매칭 확인
+2. Supabase SQL Editor에서 아래 실행 (poll_id 교체):
+```sql
+UPDATE users u
+SET voting_coin_balance = u.voting_coin_balance + ph.bet_amount + ph.payout_amount
+FROM payout_history ph
+WHERE u.user_id = ph.user_id
+  AND ph.poll_id = '해당_poll_id'
+  AND ph.payout_amount > 0;
+```
+- 주의: 이미 지급된 경우 중복 지급되므로, 1번 쿼리에서 `users_exists='OK'`인데 잔액이 안 올랐는지 확인 후 실행
+
+### 7.6 정산 검증 SQL
 
 ```sql
 -- 최근 정산된 폴 + 승자/패자 + 지급액 확인
@@ -248,6 +365,8 @@ ORDER BY p.settled_at DESC, ph.payout_amount DESC NULLS LAST;
 ## 8. 검증 쿼리
 
 - `scripts/verify-btc1d-settlement.sql`: 폴·투표·정산·알림 검증용 SQL
+- `scripts/debug-winner-vtc-not-credited.sql`: 승자 VTC 미지급 디버깅·수동 보정용 (7.5)
+- `docs/profile-stats-spec.md`: 전적 및 승률 조회 페이지 명세
 
 ---
 
@@ -255,10 +374,12 @@ ORDER BY p.settled_at DESC, ph.payout_amount DESC NULLS LAST;
 
 | 파일 | 역할 |
 |------|------|
-| `src/lib/btc-ohlc/candle-utils.ts` | getCurrentCandleStartAt, 캔들 시각 |
+| `src/lib/btc-ohlc/candle-utils.ts` | getCurrentCandleStartAt, CANDLE_PERIOD_MS, 캔들 시각 |
 | `src/lib/utils/sentiment-vote.ts` | 투표 허용 여부, 마감 시각 |
 | `src/lib/sentiment/settlement-service.ts` | 정산 로직 |
 | `src/app/api/sentiment/vote/route.ts` | 투표 API |
+| `src/app/api/sentiment/poll/route.ts` | 폴 조회 (candle_start_at 파라미터 지원) |
+| `src/app/predict/[market]/page.tsx` | 투표 상세 페이지, 마감 박스·Go to Live Market 버튼 |
 | `src/app/api/cron/btc-ohlc-daily/route.ts` | btc_1d cron |
 | `scripts/fix-payout-notification-trigger.sql` | 알림 트리거 수정 |
 
@@ -274,3 +395,9 @@ ORDER BY p.settled_at DESC, ph.payout_amount DESC NULLS LAST;
 | 2026-03-07 | btc_ohlc_backfill.py 추가, btc-ohlc-4h cron 주석 수정 |
 | 2026-03-07 | payout_amount 해석 수정 (vote-history, cumulative-win-rate, 알림 트리거) |
 | 2026-03-07 | 정산 시스템 트러블슈팅 섹션 추가 |
+| 2026-03-07 | btc_5m UTC 정렬, Go to Live Market 버튼(hasPollClosed), "다시 투표" 문구 제거, btc_1d 조기 마감 수정, 마감 시 UI 동작 명세 |
+| 2026-03-07 | btc_1d 마감 시 refetch 제거(투표/VTC 유지, 6.13) |
+| 2026-03-07 | btc_1d isVotingOpen/getMillisUntilClose 등 UTC 기준 통일 (6.14) |
+| 2026-03-07 | btc_ohlc(DB) 단일 기준, 시간 계산 제거 (6.15) |
+| 2026-03-07 | 백필로 진행 중 캔들 저장 → 조기 마감 트러블슈팅 (6.16), Poll API 마감 시각 검증 추가 |
+| 2026-03-07 | 승자 VTC 미지급 트러블슈팅 (7.5), settlement-service update 검증 추가 |

@@ -200,18 +200,36 @@ export async function settlePoll(
       if (!v.user_id) continue;
       const refund = Number(v.bet_amount ?? 0);
       if (refund <= 0) continue;
-      
-      // 잔액에 환불 반영
-      const { data: u } = await admin
+
+      const { data: u, error: selectErr } = await admin
         .from("users")
         .select("voting_coin_balance")
         .eq("user_id", v.user_id)
-        .single();
-      const current = Number(u?.voting_coin_balance ?? 0);
-      await admin
+        .maybeSingle();
+      if (selectErr || u == null) {
+        console.error("[settlement] User not found for refund", {
+          poll_id: pollId,
+          user_id: v.user_id,
+          error: selectErr?.message,
+        });
+        throw new Error(`환불 대상(user_id=${v.user_id})가 users 테이블에 없습니다.`);
+      }
+
+      const current = Number(u.voting_coin_balance ?? 0);
+      const { data: updated, error: updateErr } = await admin
         .from("users")
         .update({ voting_coin_balance: current + refund })
-        .eq("user_id", v.user_id);
+        .eq("user_id", v.user_id)
+        .select("user_id");
+      if (updateErr || !updated || updated.length === 0) {
+        console.error("[settlement] Failed to refund", {
+          poll_id: pollId,
+          user_id: v.user_id,
+          refund,
+          error: updateErr?.message,
+        });
+        throw new Error(`환불(user_id=${v.user_id}) 반영 실패.`);
+      }
 
       // payout_history에 무효 기록 (payout_amount = bet_amount, 원금 반환)
       await admin.from("payout_history").insert({
@@ -243,18 +261,36 @@ export async function settlePoll(
       if (!v.user_id) continue;
       const refund = Number(v.bet_amount ?? 0);
       if (refund <= 0) continue;
-      
-      // 잔액에 환불 반영
-      const { data: u } = await admin
+
+      const { data: u, error: selectErr } = await admin
         .from("users")
         .select("voting_coin_balance")
         .eq("user_id", v.user_id)
-        .single();
-      const current = Number(u?.voting_coin_balance ?? 0);
-      await admin
+        .maybeSingle();
+      if (selectErr || u == null) {
+        console.error("[settlement] User not found for refund", {
+          poll_id: pollId,
+          user_id: v.user_id,
+          error: selectErr?.message,
+        });
+        throw new Error(`환불 대상(user_id=${v.user_id})가 users 테이블에 없습니다.`);
+      }
+
+      const current = Number(u.voting_coin_balance ?? 0);
+      const { data: updated, error: updateErr } = await admin
         .from("users")
         .update({ voting_coin_balance: current + refund })
-        .eq("user_id", v.user_id);
+        .eq("user_id", v.user_id)
+        .select("user_id");
+      if (updateErr || !updated || updated.length === 0) {
+        console.error("[settlement] Failed to refund", {
+          poll_id: pollId,
+          user_id: v.user_id,
+          refund,
+          error: updateErr?.message,
+        });
+        throw new Error(`환불(user_id=${v.user_id}) 반영 실패.`);
+      }
 
       // payout_history에 무효 기록 (payout_amount = bet_amount, 원금 반환)
       await admin.from("payout_history").insert({
@@ -304,18 +340,36 @@ export async function settlePoll(
       if (!v.user_id) continue;
       const refund = Number(v.bet_amount ?? 0);
       if (refund <= 0) continue;
-      
-      // 잔액에 환불 반영
-      const { data: u } = await admin
+
+      const { data: u, error: selectErr } = await admin
         .from("users")
         .select("voting_coin_balance")
         .eq("user_id", v.user_id)
-        .single();
-      const current = Number(u?.voting_coin_balance ?? 0);
-      await admin
+        .maybeSingle();
+      if (selectErr || u == null) {
+        console.error("[settlement] User not found for refund", {
+          poll_id: pollId,
+          user_id: v.user_id,
+          error: selectErr?.message,
+        });
+        throw new Error(`환불 대상(user_id=${v.user_id})가 users 테이블에 없습니다.`);
+      }
+
+      const current = Number(u.voting_coin_balance ?? 0);
+      const { data: updated, error: updateErr } = await admin
         .from("users")
         .update({ voting_coin_balance: current + refund })
-        .eq("user_id", v.user_id);
+        .eq("user_id", v.user_id)
+        .select("user_id");
+      if (updateErr || !updated || updated.length === 0) {
+        console.error("[settlement] Failed to refund", {
+          poll_id: pollId,
+          user_id: v.user_id,
+          refund,
+          error: updateErr?.message,
+        });
+        throw new Error(`환불(user_id=${v.user_id}) 반영 실패.`);
+      }
 
       // payout_history에 무효 기록 (payout_amount = bet_amount, 원금 반환)
       await admin.from("payout_history").insert({
@@ -368,18 +422,42 @@ export async function settlePoll(
       Math.round(totalGross * (1 - PAYOUT_FEE_RATE) * 100) / 100;
     const payoutRecorded = totalAfterFee - bet;
     payoutTotal += payoutRecorded;
-    
-    const { data: u } = await admin
+
+    const { data: u, error: selectErr } = await admin
       .from("users")
       .select("voting_coin_balance")
       .eq("user_id", v.user_id)
-      .single();
-    const current = Number(u?.voting_coin_balance ?? 0);
-    await admin
+      .maybeSingle();
+    if (selectErr || u == null) {
+      console.error("[settlement] Winner user not found in users table", {
+        poll_id: pollId,
+        user_id: v.user_id,
+        error: selectErr?.message,
+      });
+      throw new Error(
+        `승자(user_id=${v.user_id})가 users 테이블에 없습니다. 정산 중단.`
+      );
+    }
+
+    const current = Number(u.voting_coin_balance ?? 0);
+    const { data: updated, error: updateErr } = await admin
       .from("users")
       .update({ voting_coin_balance: current + totalAfterFee })
-      .eq("user_id", v.user_id);
-    
+      .eq("user_id", v.user_id)
+      .select("user_id");
+
+    if (updateErr || !updated || updated.length === 0) {
+      console.error("[settlement] Failed to credit winner VTC", {
+        poll_id: pollId,
+        user_id: v.user_id,
+        totalAfterFee,
+        error: updateErr?.message,
+      });
+      throw new Error(
+        `승자(user_id=${v.user_id}) VTC 지급 실패. 정산 중단.`
+      );
+    }
+
     await admin.from("payout_history").insert({
       poll_id: pollId,
       user_id: v.user_id,
@@ -474,16 +552,35 @@ export async function invalidatePollAsAdmin(
       const refund = Number(v.bet_amount ?? 0);
       if (refund <= 0) continue;
 
-      const { data: u } = await admin
+      const { data: u, error: selectErr } = await admin
         .from("users")
         .select("voting_coin_balance")
         .eq("user_id", v.user_id)
-        .single();
-      const current = Number(u?.voting_coin_balance ?? 0);
-      await admin
+        .maybeSingle();
+      if (selectErr || u == null) {
+        console.error("[invalidatePoll] User not found for refund", {
+          poll_id: pollId,
+          user_id: v.user_id,
+          error: selectErr?.message,
+        });
+        throw new Error(`환불 대상(user_id=${v.user_id})가 users 테이블에 없습니다.`);
+      }
+
+      const current = Number(u.voting_coin_balance ?? 0);
+      const { data: updated, error: updateErr } = await admin
         .from("users")
         .update({ voting_coin_balance: current + refund })
-        .eq("user_id", v.user_id);
+        .eq("user_id", v.user_id)
+        .select("user_id");
+      if (updateErr || !updated || updated.length === 0) {
+        console.error("[invalidatePoll] Failed to refund", {
+          poll_id: pollId,
+          user_id: v.user_id,
+          refund,
+          error: updateErr?.message,
+        });
+        throw new Error(`환불(user_id=${v.user_id}) 반영 실패.`);
+      }
 
       await admin.from("payout_history").insert({
         poll_id: pollId,

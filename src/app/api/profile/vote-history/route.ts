@@ -25,6 +25,8 @@ export type VoteHistoryRow = {
   settled_at: string;
   market: string;
   market_label: string;
+  /** UP(롱) | DOWN(숏) */
+  choice: "UP" | "DOWN";
   bet_amount: number;
   price_open: number | null;
   price_close: number | null;
@@ -73,7 +75,7 @@ export async function GET(request: NextRequest) {
     if (votesError || !votes?.length) {
       return NextResponse.json({
         success: true,
-        data: { rows: [], current_balance: 0 },
+        data: { rows: [], current_balance: 0, summary: { wins: 0, losses: 0, win_rate_pct: 0 } },
       });
     }
 
@@ -97,7 +99,7 @@ export async function GET(request: NextRequest) {
     if (pollsError || !polls?.length) {
       return NextResponse.json({
         success: true,
-        data: { rows: [], current_balance: 0 },
+        data: { rows: [], current_balance: 0, summary: { wins: 0, losses: 0, win_rate_pct: 0 } },
       });
     }
 
@@ -128,15 +130,16 @@ export async function GET(request: NextRequest) {
       joined.push({ vote, poll, payout_amount });
     }
 
-    // 예측 대상일 오름차순 (오래된 것 먼저) → 누적 승률 계산용
+    // 정산 시각 오름차순 (오래된 것 먼저) → 누적 승률 계산용 (DB 기준 일관성)
     joined.sort(
       (a, b) =>
+        (a.poll.settled_at ?? "").localeCompare(b.poll.settled_at ?? "") ||
         a.poll.poll_date.localeCompare(b.poll.poll_date) ||
         (a.poll.market ?? "").localeCompare(b.poll.market ?? "")
     );
 
     const rows: VoteHistoryRow[] = [];
-    let wins = 0;
+    let winCount = 0;
     let totalCounted = 0;
 
     // 1차: 결과·누적승률 계산 및 net 변동 수집
@@ -184,11 +187,13 @@ export async function GET(request: NextRequest) {
       // 표시용 payout: 승리 시 실제 지급액, 패배 시 -배팅 코인 수, 무효 시 0
       const displayPayout = result === "win" ? payout_amount : result === "loss" ? -bet : 0;
 
-      if (result === "win") wins++;
+      if (result === "win") winCount++;
       if (result === "win" || result === "loss") totalCounted++;
 
       const cumulative_win_rate_pct =
-        totalCounted > 0 ? Math.round((wins / totalCounted) * 1000) / 10 : 0;
+        totalCounted > 0 ? Math.round((winCount / totalCounted) * 1000) / 10 : 0;
+
+      const choiceLabel = vote.choice === "long" ? "UP" : "DOWN";
 
       rows.push({
         poll_date: poll.poll_date,
@@ -196,6 +201,7 @@ export async function GET(request: NextRequest) {
         settled_at: poll.settled_at,
         market: poll.market ?? vote.market ?? "—",
         market_label: MARKET_LABEL[poll.market as keyof typeof MARKET_LABEL] ?? poll.market ?? "—",
+        choice: choiceLabel,
         bet_amount: bet,
         price_open: open,
         price_close: close,
@@ -227,14 +233,26 @@ export async function GET(request: NextRequest) {
       rows[i].balance_after = Math.round(runningBalance * 100) / 100;
     }
 
-    // 표시용: 최신이 위로 (예측 대상일 내림차순)
-    rows.reverse();
+    // 표시용: 정산 날짜 최신순 (settled_at 내림차순)
+    rows.sort((a, b) => (b.settled_at ?? "").localeCompare(a.settled_at ?? ""));
 
     const current_balance = currentBalanceVal;
 
+    // 테이블 최상단 행 누적승률·UserInfoCard와 동일한 summary (단일 소스)
+    const summaryWins = rows.filter((r) => r.result === "win").length;
+    const summaryLosses = rows.filter((r) => r.result === "loss").length;
+    const summary =
+      summaryWins + summaryLosses > 0
+        ? {
+            wins: summaryWins,
+            losses: summaryLosses,
+            win_rate_pct: Math.round((summaryWins / (summaryWins + summaryLosses)) * 1000) / 10,
+          }
+        : { wins: 0, losses: 0, win_rate_pct: 0 };
+
     return NextResponse.json({
       success: true,
-      data: { rows, current_balance },
+      data: { rows, current_balance, summary },
     });
   } catch (error) {
     console.error("[profile/vote-history] GET error:", error);

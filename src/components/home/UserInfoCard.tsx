@@ -12,8 +12,8 @@ import { createClient } from "@/lib/supabase/client";
 
 type RankMarketData = {
   market: string;
-  season_win_count: number;
-  season_total_count: number;
+  win_count: number;
+  total_count: number;
   win_rate: number;
   mmr: number;
   /** 해당 시장 내 상위 몇 % (0~100, 소수 둘째자리) */
@@ -22,8 +22,14 @@ type RankMarketData = {
   rank?: number | null;
 };
 
+/** vote-history와 동일한 전적·승률 (단일 소스) */
+export type StatsOverride = {
+  wins: number;
+  losses: number;
+  win_rate_pct: number;
+};
+
 type RankMeData = {
-  season_id: string;
   markets: RankMarketData[];
 };
 
@@ -60,7 +66,12 @@ async function fetchUserAndRank(): Promise<{
   return { user, rankData };
 }
 
-export function UserInfoCard() {
+type UserInfoCardProps = {
+  /** 전적·승률 override (vote-history summary와 동기화용) */
+  statsOverride?: StatsOverride | null;
+};
+
+export function UserInfoCard({ statsOverride }: UserInfoCardProps = {}) {
   const [user, setUser] = useState<{ id: string; nickname: string; voting_coin_balance?: number } | null>(null);
   const [rankData, setRankData] = useState<RankMeData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -163,15 +174,21 @@ export function UserInfoCard() {
             <div className="flex flex-wrap items-center gap-x-2 text-[10px] lg:text-xs">
               <span className="text-foreground">
                 승률 <span className="font-medium text-[#3b82f6]">
-                  {rep && rep.season_total_count > 0
-                    ? (rep.win_rate != null
-                        ? Number(rep.win_rate).toFixed(1)
-                        : ((rep.season_win_count / rep.season_total_count) * 100).toFixed(1))
-                    : "0.0"}%
+                  {statsOverride != null
+                    ? statsOverride.win_rate_pct.toFixed(1)
+                    : rep && rep.total_count > 0
+                      ? (rep.win_rate != null
+                          ? Number(rep.win_rate).toFixed(1)
+                          : ((rep.win_count / rep.total_count) * 100).toFixed(1))
+                      : "0.0"}%
                 </span>
               </span>
               <span className="text-muted-foreground">
-                {rep ? `${rep.season_win_count}승 ${Math.max(0, rep.season_total_count - rep.season_win_count)}패` : "—"}
+                {statsOverride != null
+                  ? `${statsOverride.wins}승 ${statsOverride.losses}패`
+                  : rep
+                    ? `${rep.win_count}승 ${Math.max(0, rep.total_count - rep.win_count)}패`
+                    : "—"}
               </span>
             </div>
             <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-500 lg:text-xs">

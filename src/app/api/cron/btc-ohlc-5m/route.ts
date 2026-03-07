@@ -13,8 +13,7 @@ import { NextResponse } from "next/server";
 import { fetchKlinesKstAligned } from "@/lib/binance/btc-klines";
 import { upsertBtcOhlcBatch } from "@/lib/btc-ohlc/repository";
 import { settlePoll } from "@/lib/sentiment/settlement-service";
-import { refreshMarketSeason } from "@/lib/tier/tier-service";
-import { getCurrentSeasonId } from "@/lib/constants/seasons";
+import { refreshMarketStats } from "@/lib/tier/tier-service";
 import { TIER_MARKET_ALL } from "@/lib/tier/constants";
 
 function isAuthorized(request: Request): boolean {
@@ -48,8 +47,7 @@ export async function GET(request: Request) {
         settle.status === "settled" ||
         settle.status === "invalid_refund"
       ) {
-        const seasonId = getCurrentSeasonId();
-        await refreshMarketSeason(TIER_MARKET_ALL, seasonId);
+        await refreshMarketStats(TIER_MARKET_ALL);
       }
     }
 

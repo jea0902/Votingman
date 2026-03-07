@@ -11,11 +11,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
+import { MarketIcon } from "@/components/market/MarketIcon";
 import {
   isVotingOpenKST,
   getCloseTimeKstString,
-  getNextOpenTimeKstString,
   getLateVotingMultiplier,
   getLateVotingMultiplierLabel,
 } from "@/lib/utils/sentiment-vote";
@@ -31,6 +30,22 @@ import dynamic from "next/dynamic";
 
 const BtcChart = dynamic(
   () => import("@/components/predict/BtcChart").then((m) => ({ default: m.BtcChart })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-[500px] flex-col items-center justify-center gap-4 rounded-lg border border-border bg-card">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" />
+        <span className="text-sm text-muted-foreground">차트 불러오는 중…</span>
+      </div>
+    ),
+  }
+);
+
+const KospiChart = dynamic(
+  () =>
+    import("@/components/predict/KospiChart").then((m) => ({
+      default: m.KospiChart,
+    })),
   {
     ssr: false,
     loading: () => (
@@ -85,6 +100,7 @@ export default function PredictMarketPage() {
   const market = normalizeToDbMarket(marketParam || "btc_1d");
 
   const [poll, setPoll] = useState<(PollData & { 
+    candle_start_at?: string;
     price_open?: number; 
     price_close?: number;
     settlement_status?: "open" | "closed" | "settling" | "settled";
@@ -133,7 +149,17 @@ export default function PredictMarketPage() {
     return () => ro.disconnect();
   }, [todayResults.length]);
 
-  const voteOpen = isVotingOpenKST(market);
+  // btc 시장: poll.settlement_status(btc_ohlc 기준)만 사용. 시간 계산 금지.
+  const isBtcMarketForVote = ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"].includes(market);
+  const voteOpen =
+    isBtcMarketForVote && poll?.settlement_status !== undefined
+      ? poll.settlement_status === "open"
+      : isVotingOpenKST(market);
+  const hasPollClosed =
+    isBtcMarketForVote && poll?.settlement_status
+      ? poll.settlement_status !== "open"
+      : !voteOpen;
+  const showClosedBox = (!voteOpen || hasPollClosed) && mounted;
   const title = CARD_TITLE[market] ?? `${MARKET_LABEL[market]} 상승/하락`;
 
   const refetchUser = useCallback(async () => {
@@ -168,6 +194,7 @@ export default function PredictMarketPage() {
         setPoll({
           market: d.market,
           poll_id: d.poll_id,
+          candle_start_at: d.candle_start_at,
           long_count: d.long_count ?? 0,
           short_count: d.short_count ?? 0,
           long_coin_total: d.long_coin_total ?? 0,
@@ -185,6 +212,9 @@ export default function PredictMarketPage() {
 
   /** btc 계열 현재가 조회 (Binance 공개 API) */
   const isBtcMarket = ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"].includes(market);
+
+  /** 코스피 시장: TradingView 차트 (KRX API 미승인으로 차트만 우선 구현) */
+  const isKospiMarket = market === "kospi";
   useEffect(() => {
     if (!isBtcMarket) return;
     let cancelled = false;
@@ -238,15 +268,16 @@ export default function PredictMarketPage() {
     fetchPoll();
   }, [fetchPoll]);
 
-  /** 정산 상태 실시간 폴링 - 마감된 투표에 대해서만 실행 */
+  /** 정산 상태 폴링 - settled 전까지 주기 조회 (btc: btc_ohlc 기준, cron 수집 후 갱신) */
   useEffect(() => {
-    if (voteOpen || !poll || poll.settlement_status === "settled") {
-      // 투표 중이거나 poll이 없거나 이미 정산 완료된 경우 폴링하지 않음
-      return;
-    }
+    if (!poll || poll.settlement_status === "settled") return;
 
     const pollSettlementStatus = () => {
-      fetch(`/api/sentiment/poll?market=${market}`)
+      // 항상 현재 보는 폴 조회 (candle_start_at 전달). 새 폴로 바뀌는 것 방지
+      const url = poll.candle_start_at
+        ? `/api/sentiment/poll?market=${market}&candle_start_at=${encodeURIComponent(poll.candle_start_at)}`
+        : `/api/sentiment/poll?market=${market}`;
+      fetch(url)
         .then((res) => res.json())
         .then((json) => {
           if (json?.success && json?.data) {
@@ -264,10 +295,10 @@ export default function PredictMarketPage() {
         .catch(() => {});
     };
 
-    // 5초마다 정산 상태 확인
+    pollSettlementStatus(); // 즉시 1회 조회
     const intervalId = setInterval(pollSettlementStatus, 5000);
     return () => clearInterval(intervalId);
-  }, [voteOpen, poll?.settlement_status, market]);
+  }, [poll?.settlement_status, poll?.candle_start_at, market]);
 
   /** 마감↔오픈 전환 시 폴 재조회(새 round 데이터 반영) */
   useEffect(() => {
@@ -277,17 +308,20 @@ export default function PredictMarketPage() {
     }
     if (prevVoteOpenRef.current !== voteOpen) {
       prevVoteOpenRef.current = voteOpen;
-      fetchPoll();
-      if (voteOpen && isBtcMarket) {
-        setTodayResultsLoading(true);
-        fetch(`/api/sentiment/polls/today-results?market=${market}`)
-          .then((res) => res.json())
-          .then((json) => {
-            if (json?.success && Array.isArray(json?.data?.results)) {
-              setTodayResults(json.data.results);
-            }
-          })
-          .finally(() => setTodayResultsLoading(false));
+      // voteOpen true→false(마감): 현재 폴 유지(정산 대기). refetch 시 새 폴로 바뀌어 투표/VTC가 사라짐
+      if (voteOpen) {
+        fetchPoll();
+        if (isBtcMarket) {
+          setTodayResultsLoading(true);
+          fetch(`/api/sentiment/polls/today-results?market=${market}`)
+            .then((res) => res.json())
+            .then((json) => {
+              if (json?.success && Array.isArray(json?.data?.results)) {
+                setTodayResults(json.data.results);
+              }
+            })
+            .finally(() => setTodayResultsLoading(false));
+        }
       }
     }
   }, [voteOpen, fetchPoll, market, isBtcMarket]);
@@ -356,7 +390,7 @@ export default function PredictMarketPage() {
   const canSubmitForChoice = (choice: "long" | "short") =>
     isAdditionalMode ? choice === vote && canSubmitAdditional : canSubmitBet;
   const insufficientBalance = effectiveBet >= MIN_BET_VTC && chargeAmount > availableBalance;
-  const canVote = voteOpen && !!user;
+  const canVote = voteOpen && !hasPollClosed && !!user;
   const longPct =
     poll && (poll.long_coin_total ?? 0) + (poll.short_coin_total ?? 0) > 0
       ? Math.round(
@@ -413,45 +447,19 @@ export default function PredictMarketPage() {
 
   const relatedMarkets = ACTIVE_MARKETS.filter((m) => m !== market);
 
-  const timeframeLabels: Record<string, string> = {
-    btc_1d: "1D",
-    btc_4h: "4H",
-    btc_1h: "1H",
-    btc_15m: "15m",
-    btc_5m: "5m",
-  };
-  const isBtcMarketHeader = ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"].includes(market);
-
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">
       <header className="mb-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-center gap-2">
-            {isBtcMarketHeader ? (
-              <div className="flex h-10 shrink-0 items-center gap-2 rounded-lg bg-amber-500/20 px-2.5">
-                <Image
-                  src="https://assets.coingecko.com/coins/images/1/small/bitcoin.png"
-                  alt=""
-                  width={28}
-                  height={28}
-                  className="shrink-0"
-                />
-                <span className="text-sm font-bold text-amber-700 dark:text-amber-500">
-                  {timeframeLabels[market] ?? market}
-                </span>
-              </div>
-            ) : (
-              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/20 text-xl font-bold text-amber-700 dark:text-amber-500">
-                {market.toUpperCase()}
-              </span>
-            )}
+            <MarketIcon market={market} size="default" showTimeframe />
             <div className="flex flex-col gap-0.5">
               <h1 className="text-xl font-bold text-foreground">{title}</h1>
               <p className="text-xs text-muted-foreground" suppressHydrationWarning>
                 {mounted
-                  ? voteOpen
+                  ? voteOpen && !hasPollClosed
                     ? getCloseTimeKstString(market)
-                    : `${getNextOpenTimeKstString(market)} 다시 투표 가능`
+                    : "마감"
                   : "\u00A0"}
               </p>
             </div>
@@ -492,7 +500,7 @@ export default function PredictMarketPage() {
               </p>
             </div>
             <div className="rounded-lg border border-border bg-card p-4">
-              {voteOpen ? (
+              {voteOpen && !hasPollClosed ? (
                 <>
                   <p className="text-xs font-medium uppercase text-muted-foreground">
                     마감까지
@@ -530,10 +538,16 @@ export default function PredictMarketPage() {
                 defaultInterval="1m"
                 className="min-h-[400px]"
               />
+            ) : isKospiMarket ? (
+              <KospiChart
+                targetPrice={priceToBeat}
+                defaultInterval="1d"
+                className="min-h-[400px]"
+              />
             ) : (
               <div className="flex h-[500px] items-center justify-center rounded-lg border-border bg-muted/20">
                 <p className="text-sm text-muted-foreground">
-                  차트는 비트코인 시장에서만 제공됩니다.
+                  차트는 비트코인·코스피 시장에서 제공됩니다.
                 </p>
               </div>
             )}
@@ -603,7 +617,7 @@ export default function PredictMarketPage() {
 
         {/* 2) 배팅 박스 (모바일: 차트 바로 아래, lg: 오른쪽) */}
         <div className="order-2 space-y-6">
-          {!voteOpen && mounted && (
+          {showClosedBox && (
             <div className={`rounded-xl border-2 p-4 text-center ${
               poll?.settlement_status === "settled" 
                 ? "border-emerald-500/40 bg-emerald-500/10" 
@@ -624,11 +638,18 @@ export default function PredictMarketPage() {
                     ? "정산 중입니다..."
                     : "이 투표는 마감되었습니다."}
               </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {poll?.settlement_status === "settled" || poll?.settlement_status === "settling"
-                  ? "결과는 프로필 > 전적에서 확인할 수 있습니다."
-                  : `${getNextOpenTimeKstString(market)}부터 다시 투표할 수 있습니다.`}
-              </p>
+              {(poll?.settlement_status === "settled" || poll?.settlement_status === "settling") && (
+                <p className="mt-1 text-sm text-muted-foreground">
+                  결과는 프로필 &gt; 전적에서 확인할 수 있습니다.
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="mt-3 inline-flex items-center justify-center rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-amber-950 hover:bg-amber-400 dark:bg-amber-600 dark:text-amber-50 dark:hover:bg-amber-500"
+              >
+                Go to Live Market
+              </button>
             </div>
           )}
           <div className="rounded-xl border border-border bg-card p-5">

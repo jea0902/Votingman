@@ -25,8 +25,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "보팅맨 | 탈중앙화 예측 거래소 플랫폼",
-  description: "보팅맨에서 데이터 기반 투자를 시작하세요.",
+  title: "Votingman | 집단지성 예측 거래소",
+  description: "AI 기반 집단지성 예측 거래소",
 };
 
 // ✅ 동일한 테마 스크립트 유지 (로직 변경 없음)

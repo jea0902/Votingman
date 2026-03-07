@@ -8,13 +8,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/lib/supabase/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getOrCreateTodayPollByMarket } from "@/lib/sentiment/poll-server";
-import { getPreviousCandleStartAt } from "@/lib/btc-ohlc/candle-utils";
-import { getOhlcByMarketAndCandleStart } from "@/lib/btc-ohlc/repository";
 import {
-  fetchPreviousCandleClose,
-  fetchCurrentCandleCloseForBtc1dKst,
-} from "@/lib/binance/btc-klines";
+  getOrCreateTodayPollByMarket,
+  getOrCreatePollByMarketAndCandleStartAt,
+} from "@/lib/sentiment/poll-server";
+import {
+  getPreviousCandleStartAt,
+  CANDLE_PERIOD_MS,
+} from "@/lib/btc-ohlc/candle-utils";
+import { getOhlcByMarketAndCandleStart } from "@/lib/btc-ohlc/repository";
+import { fetchPreviousCandleClose } from "@/lib/binance/btc-klines";
 import { isSentimentMarket } from "@/lib/constants/sentiment-markets";
 
 const BTC_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"] as const;
@@ -24,8 +27,15 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const marketParam = searchParams.get("market") ?? "btc_1d";
     const market = isSentimentMarket(marketParam) ? marketParam : "btc_1d";
+    const candleStartAtParam = searchParams.get("candle_start_at");
 
-    const { poll } = await getOrCreateTodayPollByMarket(market);
+    const { poll } =
+      candleStartAtParam && BTC_MARKETS.includes(market as (typeof BTC_MARKETS)[number])
+        ? await getOrCreatePollByMarketAndCandleStartAt(
+            market as (typeof BTC_MARKETS)[number],
+            candleStartAtParam
+          )
+        : await getOrCreateTodayPollByMarket(market);
 
     let price_open: number | null = null;
     let price_close: number | null = null;
@@ -55,16 +65,10 @@ export async function GET(request: NextRequest) {
           console.error("[sentiment/poll] fetchPreviousCandleClose error:", e);
         }
       }
-      // 종가 = 현재 봉 종가 (봉 마감 후 크론이 넣은 뒤에만 존재)
+      // 종가 = btc_ohlc에만 의존. cron이 수집·저장한 뒤에만 존재. Binance 직접 조회 금지.
       const currentOhlc = await getOhlcByMarketAndCandleStart(market, candleStartAt);
       if (currentOhlc) {
         price_close = currentOhlc.close;
-      } else if (market === "btc_1d") {
-        try {
-          price_close = await fetchCurrentCandleCloseForBtc1dKst(candleStartAt);
-        } catch (e) {
-          console.error("[sentiment/poll] fetchCurrentCandleCloseForBtc1dKst error:", e);
-        }
       }
     }
 
@@ -98,25 +102,25 @@ export async function GET(request: NextRequest) {
     const longCount = (voteCounts ?? []).filter((v) => v.choice === "long").length;
     const shortCount = (voteCounts ?? []).filter((v) => v.choice === "short").length;
 
-    // 정산 상태 확인 (마감 → 정산 중 → 정산 완료)
+    // 정산 상태: btc_ohlc(DB) + 마감 시각 검증. cron은 KST 09:00(=UTC 00:00)에만 수집.
     let settlement_status: "open" | "closed" | "settling" | "settled" = "open";
     const pollRow = poll as { settled_at?: string | null };
-    const isVotingOpen = require("@/lib/utils/sentiment-vote").isVotingOpenKST(market);
 
     if (pollRow.settled_at) {
-      // DB에 settled_at 있으면 정산 완료 (무효 포함). btc_ohlc 없어도 settled로 표시
       settlement_status = "settled";
-    } else if (!isVotingOpen) {
-      if (price_close != null) {
-        const admin = createSupabaseAdmin();
+    } else if (price_close != null && candleStartAt) {
+      // btc_ohlc에 종가 있음 + 마감 시각(candle_start_at+period) 경과 확인
+      // KST 09:00 전에 잘못 마감 표시 방지 (cron은 09:00에만 실행)
+      const periodMs = CANDLE_PERIOD_MS[market];
+      const closeUtcMs = new Date(candleStartAt).getTime() + (periodMs ?? 0);
+      if (periodMs && Date.now() >= closeUtcMs) {
         const { count } = await admin
           .from("payout_history")
           .select("*", { count: "exact", head: true })
           .eq("poll_id", poll.id);
         settlement_status = count && count > 0 ? "settled" : "settling";
-      } else {
-        settlement_status = "closed";
       }
+      // closeUtcMs 전이면 "open" 유지 (cron이 09:00에 안 돌았는데 DB에 있으면 무시)
     }
 
     return NextResponse.json({
@@ -125,6 +129,7 @@ export async function GET(request: NextRequest) {
         market: poll.market ?? market,
         poll_id: poll.id,
         poll_date: poll.poll_date,
+        candle_start_at: candleStartAt ?? undefined,
         price_open,
         price_close,
         settlement_status,

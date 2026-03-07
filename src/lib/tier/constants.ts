@@ -22,6 +22,6 @@ export const SENTIMENT_TO_TIER_MARKET: Record<SentimentMarket, TierMarket> = {
 export const TIER_MARKET_ALL: TierMarket = "all";
 export const TIER_MARKETS: TierMarket[] = ["all"];
 
-/** MMR 보정: 이전 시즌 MMR 대비 하한·상한 */
+/** MMR 보정 (레거시, 미사용) */
 export const MMR_CLAMP_MIN = 0.7;
 export const MMR_CLAMP_MAX = 1.3;

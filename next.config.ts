@@ -9,6 +9,16 @@ const nextConfig: NextConfig = {
         hostname: "assets.coingecko.com",
         pathname: "/coins/images/**",
       },
+      {
+        protocol: "https",
+        hostname: "flagcdn.com",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "s3-symbol-logo.tradingview.com",
+        pathname: "/**",
+      },
     ],
   },
 };

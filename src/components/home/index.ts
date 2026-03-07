@@ -14,7 +14,7 @@ export { StrategyCard } from "./StrategyCard";
 export { BuffettCard } from "./BuffettCard";
 export { VotingSection } from "./VotingSection";
 export { MarketTabCards } from "./MarketTabCards";
-export { UserInfoCard } from "./UserInfoCard";
+export { UserInfoCard, type StatsOverride } from "./UserInfoCard";
 export { MarketVoteCard } from "./MarketVoteCard";
 export { MarketVoteCardCompact } from "./MarketVoteCardCompact";
 export { WonyottiPosition } from "./WonyottiPosition";

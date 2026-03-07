@@ -14,6 +14,9 @@ import {
   getLateVotingMultiplier,
 } from "@/lib/utils/sentiment-vote";
 import { isSentimentMarket, MIN_BET_VTC } from "@/lib/constants/sentiment-markets";
+import { getOhlcByMarketAndCandleStart } from "@/lib/btc-ohlc/repository";
+
+const BTC_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"] as const;
 
 export async function POST(request: NextRequest) {
   try {
@@ -40,7 +43,32 @@ export async function POST(request: NextRequest) {
     const marketParam = body?.market ?? "btc_1d";
     const market = isSentimentMarket(marketParam) ? marketParam : "btc_1d";
 
-    if (!isVotingOpenKST(market)) {
+    const admin = createSupabaseAdmin();
+    const { poll } = await getOrCreateTodayPollByMarket(market);
+
+    // btc 시장: btc_ohlc(DB) 기준으로 마감 판단. cron 수집 전까지 투표 허용.
+    const candleStartAt =
+      "candle_start_at" in poll && typeof poll.candle_start_at === "string"
+        ? poll.candle_start_at
+        : null;
+    if (
+      candleStartAt &&
+      BTC_MARKETS.includes(market as (typeof BTC_MARKETS)[number])
+    ) {
+      const ohlc = await getOhlcByMarketAndCandleStart(market, candleStartAt);
+      if (ohlc) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: "VOTING_CLOSED",
+              message: "해당 투표는 마감되었습니다. (cron 수집 완료)",
+            },
+          },
+          { status: 400 }
+        );
+      }
+    } else if (!isVotingOpenKST(market)) {
       return NextResponse.json(
         {
           success: false,
@@ -84,9 +112,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    const admin = createSupabaseAdmin();
-    const { poll } = await getOrCreateTodayPollByMarket(market);
 
     const { data: userRow } = await admin
       .from("users")

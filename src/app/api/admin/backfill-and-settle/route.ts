@@ -9,8 +9,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { backfillAndSettlePoll } from "@/lib/sentiment/settlement-service";
-import { refreshMarketSeason } from "@/lib/tier/tier-service";
-import { getCurrentSeasonId } from "@/lib/constants/seasons";
+import { refreshMarketStats } from "@/lib/tier/tier-service";
 import { TIER_MARKET_ALL } from "@/lib/tier/constants";
 
 async function requireAdmin() {
@@ -89,8 +88,7 @@ export async function POST(request: NextRequest) {
     ).length;
 
     if (settled.length > 0) {
-      const seasonId = getCurrentSeasonId();
-      await refreshMarketSeason(TIER_MARKET_ALL, seasonId);
+      await refreshMarketStats(TIER_MARKET_ALL);
     }
 
     return NextResponse.json({

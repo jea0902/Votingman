@@ -13,8 +13,7 @@
 import { NextResponse } from "next/server";
 import { settlePoll } from "@/lib/sentiment/settlement-service";
 import { getTodayKstDateString } from "@/lib/binance/btc-kst";
-import { refreshMarketSeason } from "@/lib/tier/tier-service";
-import { getCurrentSeasonId } from "@/lib/constants/seasons";
+import { refreshMarketStats } from "@/lib/tier/tier-service";
 import { TIER_MARKET_ALL } from "@/lib/tier/constants";
 
 const POLL_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -57,8 +56,7 @@ export async function POST(request: Request) {
 
     // 정산 성공 시 user_stats(누적 승률·MMR) 갱신
     if (result.status === "settled" || result.status === "invalid_refund") {
-      const seasonId = getCurrentSeasonId();
-      await refreshMarketSeason(TIER_MARKET_ALL, seasonId);
+      await refreshMarketStats(TIER_MARKET_ALL);
     }
 
     if (result.error && result.status === "already_settled") {

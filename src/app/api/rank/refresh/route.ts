@@ -1,22 +1,20 @@
 /**
  * POST /api/rank/refresh
- * 현재 시즌 통합 랭킹(market='all') MMR 재계산 후 user_stats upsert.
+ * 통합 랭킹(market='all') MMR 재계산 후 user_stats upsert.
  * cron 또는 관리자용.
  */
 
 import { NextResponse } from "next/server";
-import { refreshMarketSeason } from "@/lib/tier/tier-service";
-import { getCurrentSeasonId } from "@/lib/constants/seasons";
+import { refreshMarketStats } from "@/lib/tier/tier-service";
 import { TIER_MARKET_ALL } from "@/lib/tier/constants";
 
 export async function POST() {
   try {
-    const seasonId = getCurrentSeasonId();
-    const { updated } = await refreshMarketSeason(TIER_MARKET_ALL, seasonId);
+    const { updated } = await refreshMarketStats(TIER_MARKET_ALL);
 
     return NextResponse.json({
       success: true,
-      data: { season_id: seasonId, market: TIER_MARKET_ALL, rows_updated: updated },
+      data: { market: TIER_MARKET_ALL, rows_updated: updated },
     });
   } catch (error) {
     console.error("Rank refresh error:", error);

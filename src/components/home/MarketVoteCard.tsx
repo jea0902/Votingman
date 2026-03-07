@@ -7,7 +7,7 @@
  */
 
 import { useState, useMemo, useEffect } from "react";
-import { isVotingOpenKST, getCloseTimeKstString, getNextOpenTimeKstString } from "@/lib/utils/sentiment-vote";
+import { isVotingOpenKST, getCloseTimeKstString } from "@/lib/utils/sentiment-vote";
 import { MARKET_LABEL, MIN_BET_VTC } from "@/lib/constants/sentiment-markets";
 import type { SentimentMarket } from "@/lib/constants/sentiment-markets";
 import {
@@ -242,7 +242,7 @@ export function MarketVoteCard({ market, poll, user, onUpdate }: Props) {
             ? getCloseTimeKstString(market)
             : poll?.settlement_status === "settled" || poll?.settlement_status === "settling"
               ? "결과는 프로필에서 확인 가능"
-              : `${getNextOpenTimeKstString(market)} 다시 투표 가능`}
+              : "마감"}
         </span>
       </div>
 

@@ -6,10 +6,7 @@
  * - btc_1h, btc_15m: KST 00:00 기준
  */
 
-import {
-  getTodayUtcDateString,
-  getYesterdayUtcDateString,
-} from "@/lib/binance/btc-kst";
+import { getTodayUtcDateString } from "@/lib/binance/btc-kst";
 
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
@@ -130,6 +127,25 @@ export function getBtc5mCandleStartAt(
   if (slotIndex < 0 || slotIndex > 11) throw new Error("slotIndex must be 0-11");
   const minute = slotIndex * 5;
   return getCandleStartAt(pollDate, hour, minute);
+}
+
+/**
+ * btc_5m: UTC 기준 00, 05, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55 (바이낸스와 동일)
+ * @param utcDate UTC 날짜 YYYY-MM-DD
+ * @param utcHour 0~23
+ * @param slotIndex 0~11 (0=:00, 1=:05, ..., 11=:55)
+ */
+export function getBtc5mCandleStartAtUtc(
+  utcDate: string,
+  utcHour: number,
+  slotIndex: number
+): string {
+  if (utcHour < 0 || utcHour > 23) throw new Error("utcHour must be 0-23");
+  if (slotIndex < 0 || slotIndex > 11) throw new Error("slotIndex must be 0-11");
+  const minute = slotIndex * 5;
+  const { y, m, d } = parsePollDate(utcDate);
+  const ms = Date.UTC(y, m - 1, d, utcHour, minute, 0, 0);
+  return new Date(ms).toISOString();
 }
 
 /**
@@ -298,9 +314,19 @@ export function getRecentCandleStartAts(
       case "btc_15m":
         result.push(getBtc15mCandleStartAt(dateStr(dy, dm, dd), hh, Math.floor(mm / 15)));
         break;
-      case "btc_5m":
-        result.push(getBtc5mCandleStartAt(dateStr(dy, dm, dd), hh, Math.floor(mm / 5)));
+      case "btc_5m": {
+        // UTC 기준 (바이낸스와 동일)
+        const utcMs = now.getTime() - (i + 1) * MS_5M;
+        const utc = new Date(utcMs);
+        const uy = utc.getUTCFullYear();
+        const um = utc.getUTCMonth() + 1;
+        const ud = utc.getUTCDate();
+        const uh = utc.getUTCHours();
+        const umm = utc.getUTCMinutes();
+        const utcDateStr = `${uy}-${String(um).padStart(2, "0")}-${String(ud).padStart(2, "0")}`;
+        result.push(getBtc5mCandleStartAtUtc(utcDateStr, uh, Math.floor(umm / 5)));
         break;
+      }
     }
   }
 
@@ -327,14 +353,10 @@ export function getCurrentCandleStartAt(market: string): string {
   const mNorm = market === "btc" ? "btc_1d" : market;
   switch (mNorm) {
     case "btc_1d": {
-      // btc_1d: Binance UTC 00:00 정렬. 투표 마감 09:00 KST = 00:00 UTC
-      // 09:00 이전 → 어제 UTC 캔들, 09:01 이후 → 오늘 UTC 캔들
-      const kstMins = h * 60 + min;
-      const utcDate =
-        kstMins < 9 * 60 + 1
-          ? getYesterdayUtcDateString()
-          : getTodayUtcDateString();
-      return getBtc1dCandleStartAtUtc(utcDate);
+      // btc_1d: Binance UTC 00:00 정렬. 투표 마감 KST 09:00 = UTC 00:00
+      // 투표 기간 09:01~다음날 09:00. 현재 UTC 날짜의 캔들 = 다음 00:00 UTC에 마감
+      // 예: UTC 03-06 15:00(KST 03-07 00:00) → 03-06 캔들(03-07 00:00 마감)
+      return getBtc1dCandleStartAtUtc(getTodayUtcDateString());
     }
     case "btc_4h": {
       // UTC 기준으로 변경 (바이낸스와 동일)
@@ -354,8 +376,16 @@ export function getCurrentCandleStartAt(market: string): string {
       return getBtc15mCandleStartAt(dateStr, h, slot15);
     }
     case "btc_5m": {
-      const slot5 = Math.floor(min / 5);
-      return getBtc5mCandleStartAt(dateStr, h, slot5);
+      // UTC 기준 (바이낸스와 동일) - 목표가 = 직전 5분봉 종가
+      const utc = new Date(utcMs);
+      const utcHour = utc.getUTCHours();
+      const utcMin = utc.getUTCMinutes();
+      const utcY = utc.getUTCFullYear();
+      const utcM = utc.getUTCMonth() + 1;
+      const utcD = utc.getUTCDate();
+      const utcDateStr = `${utcY}-${String(utcM).padStart(2, "0")}-${String(utcD).padStart(2, "0")}`;
+      const slot5 = Math.floor(utcMin / 5);
+      return getBtc5mCandleStartAtUtc(utcDateStr, utcHour, slot5);
     }
     default:
       throw new Error(`Unsupported market: ${market}`);

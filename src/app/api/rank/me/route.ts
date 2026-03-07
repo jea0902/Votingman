@@ -28,16 +28,15 @@ export async function GET() {
       );
     }
 
-    const { season_id, markets } = await getMyTierStats(user.id);
+    const { markets } = await getMyTierStats(user.id);
 
     return NextResponse.json({
       success: true,
       data: {
-        season_id,
         markets: markets.map((m) => ({
           market: m.market,
-          season_win_count: m.season_win_count,
-          season_total_count: m.season_total_count,
+          win_count: m.win_count,
+          total_count: m.total_count,
           win_rate: Math.round(m.win_rate * 10000) / 100,
           mmr: Math.round(m.mmr * 100) / 100,
           percentile_pct: m.percentile_pct,

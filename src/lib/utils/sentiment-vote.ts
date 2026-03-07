@@ -12,7 +12,10 @@ import {
   MARKET_CLOSE_KST,
   isSentimentMarket,
 } from "@/lib/constants/sentiment-markets";
-import { getCurrentCandleStartAt } from "@/lib/btc-ohlc/candle-utils";
+import {
+  getCurrentCandleStartAt,
+  CANDLE_PERIOD_MS,
+} from "@/lib/btc-ohlc/candle-utils";
 
 /** 4h/1h/15m/5m: 주기 절반(기존 마감 시각, 현재 사용하지 않음) — 밀리초 */
 const ROLLING_HALF_PERIOD_MS: Record<"btc_4h" | "btc_1h" | "btc_15m" | "btc_5m", number> = {
@@ -64,6 +67,13 @@ function getNextCandleStartUtcMs(market: "btc_4h" | "btc_1h" | "btc_15m" | "btc_
   return new Date(startAt).getTime() + ROLLING_FULL_PERIOD_MS[market];
 }
 
+/** btc_1d: 현재 캔들 마감 시각(UTC ms) = candle_start_at + 24h. cron 수집 시각과 동일 */
+function getBtc1dCloseUtcMs(): number {
+  const startAt = getCurrentCandleStartAt("btc_1d");
+  const periodMs = CANDLE_PERIOD_MS["btc_1d"] ?? 24 * 60 * 60 * 1000;
+  return new Date(startAt).getTime() + periodMs;
+}
+
 /** KST 기준 현재 시각 (분 단위로 0시부터 경과) */
 export function getKSTMinutesSinceMidnight(): number {
   const now = new Date();
@@ -94,14 +104,14 @@ export function isVotingOpenKST(market?: string): boolean {
     return Date.now() < getRollingCloseUtcMs(m);
   }
   
-  // btc_1d 특별 처리: KST 09:01~다음날 09:00
+  // btc_1d: UTC 기준 통일. getCurrentCandleStartAt과 동일한 캔들 사용.
+  // 마감 = candle_start_at + 24h = UTC 00:00 (cron 수집 시각과 일치)
   if (m === "btc_1d") {
-    const mins = getKSTMinutesSinceMidnight();
-    const startAt = 9 * 60 + 1; // 09:01 = 541분
-    const closeAt = getCloseMinutes(m); // 09:00 = 540분
-    
-    // 09:01 이후이고 09:00 이전이면 투표 가능
-    return mins >= startAt || mins < closeAt;
+    const periodMs = CANDLE_PERIOD_MS[m];
+    if (!periodMs) return false;
+    const startAt = getCurrentCandleStartAt(m);
+    const closeUtcMs = new Date(startAt).getTime() + periodMs;
+    return Date.now() < closeUtcMs;
   }
   
   // 기타 시장 (ndq, sp500, kospi, kosdaq)
@@ -137,31 +147,20 @@ export function getMillisUntilClose(market?: string): number {
     return Math.max(0, closeUtcMs - Date.now());
   }
   
+  // btc_1d: UTC 기준 통일
+  if (m === "btc_1d") {
+    const closeUtcMs = getBtc1dCloseUtcMs();
+    return Math.max(0, closeUtcMs - Date.now());
+  }
+  
   const utcMs = Date.now();
-  const kstOffset = 9 * 60 * 60 * 1000;
-  const kst = new Date(utcMs + kstOffset);
+  const kst = new Date(utcMs + KST_OFFSET_MS);
   const y = kst.getUTCFullYear();
   const mo = kst.getUTCMonth();
   const d = kst.getUTCDate();
   const { hour, minute } = MARKET_CLOSE_KST[m];
   
-  // btc_1d 특별 처리: KST 09:01 이후면 다음날 09:00 마감
-  if (m === "btc_1d") {
-    const currentKstMinutes = kst.getUTCHours() * 60 + kst.getUTCMinutes();
-    const nineAMOne = 9 * 60 + 1; // 09:01 = 541분
-    
-    let closeUtcMs;
-    if (currentKstMinutes >= nineAMOne) {
-      // 09:01 이후면 다음날 09:00 마감
-      closeUtcMs = Date.UTC(y, mo, d + 1, hour - 9, minute, 0, 0);
-    } else {
-      // 09:01 이전이면 오늘 09:00 마감
-      closeUtcMs = Date.UTC(y, mo, d, hour - 9, minute, 0, 0);
-    }
-    return Math.max(0, closeUtcMs - utcMs);
-  }
-  
-  // 기타 시장
+  // 기타 시장 (ndq, sp500, kospi, kosdaq)
   let closeUtcMs = Date.UTC(y, mo, d, hour - 9, minute, 0, 0);
   if (closeUtcMs <= utcMs) {
     closeUtcMs = Date.UTC(y, mo, d + 1, hour - 9, minute, 0, 0);
@@ -180,6 +179,12 @@ export function getCloseTimeKstString(market?: string): string {
     return `${formatKstDateTimeForMarket(closeUtcMs, m)}에 마감`;
   }
   
+  // btc_1d: UTC 기준 통일
+  if (m === "btc_1d") {
+    const closeUtcMs = getBtc1dCloseUtcMs();
+    return `${formatKstDateTimeForMarket(closeUtcMs, m)}에 마감`;
+  }
+  
   const utcMs = Date.now();
   const kst = new Date(utcMs + KST_OFFSET_MS);
   const y = kst.getUTCFullYear();
@@ -187,23 +192,7 @@ export function getCloseTimeKstString(market?: string): string {
   const d = kst.getUTCDate();
   const { hour, minute } = MARKET_CLOSE_KST[m];
   
-  // btc_1d 특별 처리: KST 09:01 이후면 다음날 09:00 마감
-  if (m === "btc_1d") {
-    const currentKstMinutes = kst.getUTCHours() * 60 + kst.getUTCMinutes();
-    const nineAMOne = 9 * 60 + 1; // 09:01 = 541분
-    
-    let closeUtcMs;
-    if (currentKstMinutes >= nineAMOne) {
-      // 09:01 이후면 다음날 09:00 마감
-      closeUtcMs = Date.UTC(y, mo, d + 1, hour - 9, minute, 0, 0);
-    } else {
-      // 09:01 이전이면 오늘 09:00 마감
-      closeUtcMs = Date.UTC(y, mo, d, hour - 9, minute, 0, 0);
-    }
-    return `${formatKstDateTimeForMarket(closeUtcMs, m)}에 마감`;
-  }
-  
-  // 기타 시장
+  // 기타 시장 (ndq, sp500, kospi, kosdaq)
   let closeUtcMs = Date.UTC(y, mo, d, hour - 9, minute, 0, 0);
   if (closeUtcMs <= utcMs) {
     closeUtcMs = Date.UTC(y, mo, d + 1, hour - 9, minute, 0, 0);
@@ -228,7 +217,7 @@ export function getLateVotingMultiplier(market?: string): number {
   if (isRollingMarket(m)) {
     totalMs = ROLLING_FULL_PERIOD_MS[m];
   } else if (m === "btc_1d") {
-    totalMs = 24 * 60 * 60 * 1000 - 60 * 1000; // 09:01~다음날 09:00
+    totalMs = CANDLE_PERIOD_MS["btc_1d"] ?? 24 * 60 * 60 * 1000;
   } else {
     totalMs = 24 * 60 * 60 * 1000; // ndq 등: 대략 24h
   }
@@ -259,6 +248,11 @@ export function getNextOpenTimeKstString(market?: string): string {
   const m: SentimentMarket = market && isSentimentMarket(market) ? market : "btc_1d";
   if (isRollingMarket(m)) {
     const nextStartUtcMs = getNextCandleStartUtcMs(m);
+    return `${formatKstDateTimeForMarket(nextStartUtcMs, m)}부터`;
+  }
+  // btc_1d: 마감 직후(UTC 00:00 = KST 09:00)에 새 투표 시작
+  if (m === "btc_1d") {
+    const nextStartUtcMs = getBtc1dCloseUtcMs();
     return `${formatKstDateTimeForMarket(nextStartUtcMs, m)}부터`;
   }
   const utcMs = Date.now();
