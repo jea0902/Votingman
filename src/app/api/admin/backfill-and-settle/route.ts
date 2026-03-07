@@ -4,6 +4,8 @@
  * - btc_ohlc에 데이터가 없으면 Binance에서 수집 후 정산
  * - btc_1d, btc_4h, btc_1h, btc_15m, btc_5m 지원
  * body: { pollIds: string[] }
+ *
+ * 인증: (1) 브라우저 로그인(관리자) 또는 (2) Header x-cron-secret = CRON_SECRET
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -12,7 +14,13 @@ import { backfillAndSettlePoll } from "@/lib/sentiment/settlement-service";
 import { refreshMarketStats } from "@/lib/tier/tier-service";
 import { TIER_MARKET_ALL } from "@/lib/tier/constants";
 
-async function requireAdmin() {
+function isCronSecretAuth(request: NextRequest): boolean {
+  const secret = process.env.CRON_SECRET;
+  return !!secret && request.headers.get("x-cron-secret") === secret;
+}
+
+async function requireAdmin(request: NextRequest) {
+  if (isCronSecretAuth(request)) return { error: null as const, data: {} };
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -37,7 +45,7 @@ async function requireAdmin() {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAdmin();
+  const auth = await requireAdmin(request);
   if (auth.error) {
     return NextResponse.json(
       {

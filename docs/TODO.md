@@ -185,5 +185,8 @@ ORDER BY p.settled_at DESC, ph.payout_amount DESC NULLS LAST;
 - **reset-all-users-for-sens.sql**: 계정 초기화용 (이미 준비됨)
 - **btc-ohlc-backfill API**: `/api/cron/btc-ohlc-backfill` - 과거 OHLC 백필용
 - **cron-health API**: `/api/monitor/cron-health` - cron 수집 상태 모니터링
+- **cron-errors API**: `GET /api/monitor/cron-errors` (Header: `x-cron-secret`) - 크론 실패 시 DB에 저장된 마지막 에러 조회 (cron-job.org는 500 본문 미제공)
+- **cron_error_log**: `supabase/migrations/20260307100000_cron_error_log.sql` 적용 후 사용
+- **VTC/bigint 오류 (2026-03-07)**: `invalid input syntax for type bigint: "7053.47"` → 정산 시 소수 VTC를 bigint 컬럼에 저장해서 발생. `20260307110000_fix_vtc_payout_numeric.sql`로 users.voting_coin_balance, payout_history.payout_amount/bet_amount를 numeric(20,2)로 변경. 마이그레이션 적용 후 해당 폴은 미정산 상태이면 다음 크론 또는 수동 정산으로 재시도.
 - **docs/voting-spec.md**: 투표·정산 명세 및 트러블슈팅
 - **docs/kospi-roadmap.md**: KOSPI 시장 추가 로드맵 (3번 TODO)

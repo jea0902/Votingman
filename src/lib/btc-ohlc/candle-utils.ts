@@ -2,7 +2,7 @@
  * 캔들 시각 유틸
  *
  * - btc_1d: UTC 00:00 기준 (Binance 1d와 동일, 목표가·차트 일치)
- * - btc_4h: UTC 기준으로 변경 (Binance 4h와 동일, 목표가·차트 일치)
+ * - btc_4h: KST 00, 04, 08, 12, 16, 20 시 정각 (크론과 동일)
  * - btc_1h, btc_15m: KST 00:00 기준
  */
 
@@ -297,15 +297,15 @@ export function getRecentCandleStartAts(
         break;
       }
       case "btc_4h": {
-        // UTC 기준으로 변경 (바이낸스와 동일)
-        const utcMs = now.getTime() - (i + 1) * MS_4H;
-        const utc = new Date(utcMs);
-        const uy = utc.getUTCFullYear();
-        const um = utc.getUTCMonth() + 1;
-        const ud = utc.getUTCDate();
-        const uh = utc.getUTCHours();
-        const utcDateStr = `${uy}-${String(um).padStart(2, "0")}-${String(ud).padStart(2, "0")}`;
-        result.push(getBtc4hCandleStartAtUtc(utcDateStr, Math.floor(uh / 4)));
+        // KST 00, 04, 08, 12, 16, 20 시 정각 (크론 실행 시각과 동일)
+        const kstCalendar = new Date(targetKstMs + 9 * 60 * 60 * 1000);
+        const kstY = kstCalendar.getUTCFullYear();
+        const kstM = kstCalendar.getUTCMonth() + 1;
+        const kstD = kstCalendar.getUTCDate();
+        const kstH = kstCalendar.getUTCHours();
+        const kstDateStr = `${kstY}-${pad(kstM)}-${pad(kstD)}`;
+        const slot4h = Math.floor(kstH / 4);
+        result.push(getBtc4hCandleStartAt(kstDateStr, slot4h));
         break;
       }
       case "btc_1h":
@@ -359,15 +359,9 @@ export function getCurrentCandleStartAt(market: string): string {
       return getBtc1dCandleStartAtUtc(getTodayUtcDateString());
     }
     case "btc_4h": {
-      // UTC 기준으로 변경 (바이낸스와 동일)
-      const utc = new Date(utcMs);
-      const utcHour = utc.getUTCHours();
-      const utcY = utc.getUTCFullYear();
-      const utcM = utc.getUTCMonth() + 1;
-      const utcD = utc.getUTCDate();
-      const utcDateStr = `${utcY}-${String(utcM).padStart(2, "0")}-${String(utcD).padStart(2, "0")}`;
-      const utcSlot = Math.floor(utcHour / 4) * 4;
-      return getBtc4hCandleStartAtUtc(utcDateStr, utcSlot / 4);
+      // KST 00, 04, 08, 12, 16, 20 시 정각 (크론과 동일)
+      const kstSlot = Math.floor(h / 4) * 4;
+      return getBtc4hCandleStartAt(dateStr, kstSlot / 4);
     }
     case "btc_1h":
       return getBtc1hCandleStartAt(dateStr, h);

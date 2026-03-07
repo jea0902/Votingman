@@ -399,6 +399,16 @@ export async function settlePoll(
     settlement_close > reference_close ? "long" : "short";
   const winnerVotes = (votes ?? []).filter((v) => v.choice === winnerSide);
   const loserVotes = (votes ?? []).filter((v) => v.choice !== winnerSide);
+
+  // 재정산 시 이중 지급 방지: 이미 payout_history에 있는 유저는 스킵
+  const { data: existingPayouts } = await admin
+    .from("payout_history")
+    .select("user_id")
+    .eq("poll_id", pollId);
+  const alreadyPaidUserIds = new Set(
+    (existingPayouts ?? []).map((p) => p.user_id as string).filter(Boolean)
+  );
+
   // 폴 캐시(long_coin_total 등) 대신 실제 votes에서 집계 (동시성·누락 방지)
   const winnerTotalBet = winnerVotes.reduce(
     (sum, v) => sum + Number(v.bet_amount ?? 0),
@@ -414,6 +424,7 @@ export async function settlePoll(
   // 승리자 정산 및 기록
   for (const v of winnerVotes) {
     if (!v.user_id) continue;
+    if (alreadyPaidUserIds.has(v.user_id)) continue; // 재정산 시 이미 지급된 유저 스킵
     const bet = Number(v.bet_amount ?? 0);
     const payoutGross =
       winnerTotalBet > 0 ? (loserPool * bet) / winnerTotalBet : 0;
@@ -470,6 +481,7 @@ export async function settlePoll(
   // 패배자 기록 (payout_amount = 0, 잔액 변화 없음)
   for (const v of loserVotes) {
     if (!v.user_id) continue;
+    if (alreadyPaidUserIds.has(v.user_id)) continue; // 재정산 시 이미 기록된 유저 스킵
     const bet = Number(v.bet_amount ?? 0);
     
     await admin.from("payout_history").insert({

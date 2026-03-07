@@ -1,17 +1,23 @@
 /**
  * 비트코인 OHLC 과거 날짜 일괄 수집 (백필)
- * - 오늘 이전 데이터를 btc_ohlc에 채울 때 사용
+ *
+ * DB 수집 로직 (한 봉 기준):
+ * 1. Binance API로 해당 봉 OHLC 조회 (fetchCandleByStartAt 또는 fetchOhlcForPollDate)
+ * 2. upsertBtcOhlcBatch(rows) → btc_ohlc 테이블에 upsert (market, candle_start_at 기준)
+ * 즉, "바이낸스에서 가져와서 btc_ohlc에 넣는 것"이 전부.
  *
  * POST /api/cron/btc-ohlc-backfill
  * body: {
  *   "poll_dates": ["2025-02-04", "2025-02-05"],
- *   "markets"?: ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"]  // 생략 시 전체
+ *   "markets"?: ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"],  // 생략 시 전체
+ *   "btc_4h_slots"?: [0,1,2,3,4,5]  // 0=00시, 1=04시, 2=08시(12시 마감), 3=12시, 4=16시, 5=20시 KST 시작. 생략 시 해당일 6개 전부
  * }
  * 인증: Authorization: Bearer <CRON_SECRET> 또는 x-cron-secret
  */
 
 import { NextResponse } from "next/server";
-import { fetchOhlcForPollDate } from "@/lib/binance/btc-klines";
+import { fetchOhlcForPollDate, fetchCandleByStartAt } from "@/lib/binance/btc-klines";
+import { getBtc4hCandleStartAt } from "@/lib/btc-ohlc/candle-utils";
 import { upsertBtcOhlcBatch } from "@/lib/btc-ohlc/repository";
 import { getOrCreatePollByDateAndMarket } from "@/lib/sentiment/poll-server";
 
@@ -54,6 +60,13 @@ export async function POST(request: Request) {
         )
       : [...BACKFILL_MARKETS];
 
+    const btc4hSlotsRaw = body?.btc_4h_slots;
+    const btc_4h_slots: number[] | undefined = Array.isArray(btc4hSlotsRaw)
+      ? btc4hSlotsRaw
+          .filter((n: unknown) => typeof n === "number" && n >= 0 && n <= 5)
+          .map((n: number) => Math.floor(n))
+      : undefined;
+
     if (poll_dates.length === 0) {
       return NextResponse.json(
         {
@@ -81,7 +94,17 @@ export async function POST(request: Request) {
         .catch(() => false);
 
       for (const market of markets) {
-        const rows = await fetchOhlcForPollDate(market, pollDate);
+        let rows: Awaited<ReturnType<typeof fetchOhlcForPollDate>>;
+        if (market === "btc_4h" && btc_4h_slots != null && btc_4h_slots.length > 0) {
+          rows = [];
+          for (const slot of btc_4h_slots) {
+            const startAt = getBtc4hCandleStartAt(pollDate, slot);
+            const row = await fetchCandleByStartAt("btc_4h", startAt);
+            if (row) rows.push(row);
+          }
+        } else {
+          rows = await fetchOhlcForPollDate(market, pollDate);
+        }
         const { inserted } = await upsertBtcOhlcBatch(rows);
         totalUpserted += inserted;
         results.push({
