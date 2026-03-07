@@ -20,7 +20,7 @@ function isCronSecretAuth(request: NextRequest): boolean {
 }
 
 async function requireAdmin(request: NextRequest) {
-  if (isCronSecretAuth(request)) return { error: null as const, data: {} };
+  if (isCronSecretAuth(request)) return { error: null, data: {} };
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
