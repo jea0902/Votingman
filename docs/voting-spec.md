@@ -409,6 +409,12 @@ WHERE u.user_id = ph.user_id
 
 **정산 시 일부 승자 지급 실패**: 특정 user_id의 VTC 지급(users 테이블 update)이 실패해도 나머지 승자는 계속 정산하고, 폴은 settled 처리. 실패한 user_id 목록은 `SettlementResult.failed_user_ids`로 반환되며, backfill-and-settle 응답 및 크론 상태 페이지 메시지에 표시. 해당 사용자는 수동 보정 필요.
 
+**크론 401 Unauthorized 대응 (2026-03)**:
+- **환경변수**: Vercel/로컬에서 `CRON_SECRET`(언더스코어) 또는 `CRON-SECRET`(하이픈) 둘 다 읽음. (`src/lib/cron/auth.ts`의 `getCronSecret()`)
+- **공용 인증**: 모든 크론·모니터·backfill-and-settle 인증이 `isCronAuthorized(request)` 사용. 헤더 `x-cron-secret` / `Authorization: Bearer <secret>` + 쿼리 `?cron_secret=<secret>` 지원.
+- **재배포**: Vercel에 환경변수 추가·변경 후 반드시 재배포해야 런타임에 반영됨. 재배포 없이 크론만 돌리면 401 발생할 수 있음.
+- **개발 시 401**: btc-ohlc-4h 등에서 401 시 개발 환경이면 응답에 `debug: "CRON_SECRET (or CRON-SECRET) not set in env."` 포함해 원인 확인 가능.
+
 ### 7.8 btc-ohlc-daily(1일봉) 500 실패 시 점검·해결
 
 **실패 시 원인 확인** (우선순위):
@@ -477,8 +483,9 @@ ORDER BY p.settled_at DESC, ph.payout_amount DESC NULLS LAST;
 | `src/app/predict/[market]/page.tsx` | 투표 상세 페이지, 마감 박스·Go to Live Market 버튼 |
 | `src/app/api/cron/btc-ohlc-daily/route.ts` | btc_1d cron |
 | `src/app/api/cron/btc-ohlc-4h/route.ts` | btc_4h cron |
-| `src/lib/monitor/cron-error-log.ts` | 크론 실패 기록/조회 (recordCronError, getCronErrors) |
-| `src/app/api/monitor/cron-errors/route.ts` | 실패 에러 조회 API (관리자 또는 x-cron-secret) |
+| `src/lib/cron/auth.ts` | 크론 인증 공용 (getCronSecret, isCronAuthorized. CRON_SECRET/CRON-SECRET, 헤더·쿼리 지원) |
+| `src/lib/monitor/cron-error-log.ts` | 크론 실패 기록/조회 (recordCronError, getCronErrors, getCronErrorHistory) |
+| `src/app/api/monitor/cron-errors/route.ts` | 실패 에러·이력 조회 API (관리자 또는 x-cron-secret) |
 | `src/app/api/monitor/unsettled-polls/route.ts` | job별 미정산 폴 조회 (복구용) |
 | `src/app/admin/cron-status/page.tsx` | 관리자 크론 상태 페이지 (에러·미정산·정산 실행) |
 | `scripts/fix-payout-notification-trigger.sql` | 알림 트리거 수정 |
@@ -507,3 +514,4 @@ ORDER BY p.settled_at DESC, ph.payout_amount DESC NULLS LAST;
 | 2026-03-08 | btc_4h 변경·백필 요약 (6.20), 크론 실패 대책 시스템 (7.7): cron_error_log context, 모니터 API·admin/cron-status, unsettled-polls 복구 |
 | 2026-03-08 | btc-ohlc-daily 500 점검·해결 (7.8): 원인 확인 방법, Binance 빈 응답 시 정산 폴백 |
 | 2026-03-08 | cron_error_history 추가(모든 실패 이력), /admin/cron-errors→cron-status 리다이렉트, 정산 시 일부 승자 지급 실패해도 나머지 진행+failed_user_ids 반환 |
+| 2026-03-08 | 크론 401 대응: 공용 auth(lib/cron/auth), CRON_SECRET/CRON-SECRET 지원, 쿼리 인증(?cron_secret), 재배포 필요 안내 (7.7) |

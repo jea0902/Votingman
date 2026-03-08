@@ -12,7 +12,10 @@ import { createSupabaseAdmin } from "@/lib/supabase/server";
 
 /** 승자 정산 금액(원금+수령분) 전체에 적용하는 수수료 비율 (0~1). 0.01 = 1% */
 const PAYOUT_FEE_RATE = 0.01;
-import { getBtc1dCandleStartAtUtc } from "@/lib/btc-ohlc/candle-utils";
+import {
+  getBtc1dCandleStartAtUtc,
+  normalizeBtc4hCandleStartAt,
+} from "@/lib/btc-ohlc/candle-utils";
 import {
   getOhlcByMarketAndCandleStart,
   upsertBtcOhlc,
@@ -732,11 +735,20 @@ export async function backfillAndSettlePoll(
     };
   }
 
+  // btc_1d: Binance는 00:00 UTC만 있음. 15:00 등 잘못된 값이어도 해당일 00:00으로 조회·수집
+  // btc_4h: Binance는 00/04/08/12/16/20 UTC만 있음. 03:00 등 비경계 값이어도 해당 구간 경계로 조회·수집
+  const ohlcLookupKey =
+    market === "btc_1d"
+      ? getBtc1dCandleStartAtUtc(candleStartAt.slice(0, 10))
+      : market === "btc_4h"
+        ? normalizeBtc4hCandleStartAt(candleStartAt)
+        : candleStartAt;
+
   // btc_ohlc에 없으면 Binance에서 수집
   const existing = await getOhlcByMarketAndCandleStart(market, candleStartAt);
   let backfilled = false;
   if (!existing) {
-    const row = await fetchCandleByStartAt(market, candleStartAt);
+    const row = await fetchCandleByStartAt(market, ohlcLookupKey);
     if (!row) {
       return {
         poll_id: pollId,

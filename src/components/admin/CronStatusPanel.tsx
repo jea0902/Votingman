@@ -83,8 +83,12 @@ export function CronStatusPanel() {
       const json = await res.json();
       if (json?.success) {
         const settled = json.data?.settled ?? 0;
-        const failedByPoll = (json.data?.results ?? []).filter(
+        const results = json.data?.results ?? [];
+        const failedByPoll = results.filter(
           (r: { failed_user_ids?: string[] }) => Array.isArray(r?.failed_user_ids) && r.failed_user_ids.length > 0
+        );
+        const errPolls = results.filter(
+          (r: { status?: string; error?: string }) => r?.error && r.status !== "settled" && r.status !== "invalid_refund" && r.status !== "already_settled"
         );
         if (failedByPoll.length > 0) {
           const parts = failedByPoll.map(
@@ -92,6 +96,11 @@ export function CronStatusPanel() {
               `폴 ${r.poll_id ?? "?"}: user_id ${(r.failed_user_ids ?? []).join(", ")} VTC 지급 실패(수동 보정 필요)`
           );
           setMessage(`정산 ${settled}건 완료. 단, 일부 사용자 지급 실패: ${parts.join("; ")}`);
+        } else if (errPolls.length > 0) {
+          const parts = errPolls.map(
+            (r: { poll_id?: string; error?: string }) => `폴 ${r.poll_id ?? "?"}: ${r.error ?? "실패"}`
+          );
+          setMessage(`정산 ${settled}건 완료. 미처리: ${parts.join("; ")}`);
         } else {
           setMessage(`정산 요청 완료: ${settled}건 처리`);
         }

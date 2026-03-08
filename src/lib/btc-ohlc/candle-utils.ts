@@ -90,6 +90,21 @@ export function getBtc4hCandleStartAtUtc(utcDate: string, slotIndex: number): st
 }
 
 /**
+ * btc_4h: 잘못 저장된 candle_start_at(예: 03:00)을 Binance 4h 경계(00/04/08/12/16/20 UTC)로 보정
+ * 백필·정산 시 과거 잘못된 데이터 호환용
+ */
+export function normalizeBtc4hCandleStartAt(iso: string): string {
+  const d = new Date(iso);
+  const y = d.getUTCFullYear();
+  const m = d.getUTCMonth() + 1;
+  const day = d.getUTCDate();
+  const h = d.getUTCHours();
+  const utcDateStr = `${y}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  const slot4h = Math.min(5, Math.floor(h / 4));
+  return getBtc4hCandleStartAtUtc(utcDateStr, slot4h);
+}
+
+/**
  * btc_1h: poll_date HH:00 KST
  * @param hour 0~23
  */

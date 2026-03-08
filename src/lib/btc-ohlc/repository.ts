@@ -9,6 +9,10 @@
 import { nowKstString } from "@/lib/kst";
 import { createSupabaseAdmin } from "@/lib/supabase/server";
 import type { BtcOhlcRow } from "@/lib/binance/btc-klines";
+import {
+  getBtc1dCandleStartAtUtc,
+  normalizeBtc4hCandleStartAt,
+} from "@/lib/btc-ohlc/candle-utils";
 
 /**
  * 단일 캔들 upsert (market, candle_start_at unique)
@@ -47,6 +51,8 @@ export async function upsertBtcOhlc(row: BtcOhlcRow): Promise<void> {
  * (market, candle_start_at)로 OHLC 조회
  * 정산용: open = 이전 캔들 종가(reference_close), close = 이 캔들 종가(settlement_close)
  * → 종가끼리 비교: reference_close(open) vs settlement_close(close)
+ * btc_1d: candle_start_at이 00:00이 아니어도 해당 UTC일의 00:00 봉으로 조회 (잘못 저장된 과거 데이터 호환)
+ * btc_4h: 03:00 등 비경계 값이어도 해당 구간 4h 경계(00/04/08/12/16/20 UTC)로 조회
  */
 export async function getOhlcByMarketAndCandleStart(
   market: string,
@@ -58,11 +64,17 @@ export async function getOhlcByMarketAndCandleStart(
   close: number;
 } | null> {
   const admin = createSupabaseAdmin();
+  let key = candleStartAt;
+  if (market === "btc_1d") {
+    key = getBtc1dCandleStartAtUtc(candleStartAt.slice(0, 10));
+  } else if (market === "btc_4h") {
+    key = normalizeBtc4hCandleStartAt(candleStartAt);
+  }
   const { data, error } = await admin
     .from("btc_ohlc")
     .select("open, close")
     .eq("market", market)
-    .eq("candle_start_at", candleStartAt)
+    .eq("candle_start_at", key)
     .maybeSingle();
 
   if (error || !data) return null;
