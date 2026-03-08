@@ -34,26 +34,28 @@
 
 - **주의**: KST 09:00 = UTC 00:00. 정산 대상 캔들은 `candle_start_at = 전날 UTC 00:00`.
 
-### 2.2 btc_4h, btc_1h, btc_15m (롤링)
+### 2.2 시장별 타임존·크론 (캔들 마감 판단 기준)
 
-| 시장 | 정렬 기준 | 마감 시각 |
-|------|----------|----------|
-| btc_4h | **UTC** 00, 04, 08, 12, 16, 20 (Binance 4h와 동일) | UTC 04:00, 08:00, 12:00, 16:00, 20:00, 00:00 |
-| btc_1h | KST 매시 정각 | 매시 정각 |
-| btc_15m | KST 00, 15, 30, 45 | 15분 단위 |
-| btc_5m | UTC 00, 05, 10, … | 5분 단위 |
+| 시장 | 타임존 | Cron 실행 | DB 수집 |
+|------|--------|-----------|---------|
+| btc_1d | Asia/Seoul | 매일 KST 09:00 | btc_ohlc 형식 |
+| btc_4h | **UTC** | every 4 hours | btc_ohlc 형식 |
+| btc_1h | Asia/Seoul | every 1 hour | btc_ohlc 형식 |
+| btc_15m | Asia/Seoul | every 15 minutes | btc_ohlc 형식 |
+| btc_5m | Asia/Seoul | every 5 minutes | btc_ohlc 형식 |
 
-- **btc_4h**: Binance 4h API 그대로 사용. 크론은 00:05, 04:05, 08:05, 12:05, 16:05, 20:05 **UTC**에 실행.
+- **btc_4h만 UTC** (00, 04, 08, 12, 16, 20 UTC). 나머지(1d, 1h, 15m, 5m)는 **Asia/Seoul** 기준으로 캔들 마감·크론 실행.
+- DB·정산 비교용 `candle_start_at`은 UTC ISO로 저장. 캔들 마감 여부는 `candle_start_at + 봉 주기(ms) < now(UTC)` 로 판단.
 
-### 2.3 Cron 실행 시각
+### 2.3 Cron 실행 시각 요약
 
-| Cron | 실행 주기 | 수집 대상 |
-|------|----------|----------|
-| btc-ohlc-daily | 매일 KST 09:00 | btc_1d 직전 마감 캔들 |
-| btc-ohlc-4h | 4시간마다 (00/04/08/12/16/20 **UTC** 직후) | btc_4h 직전 마감 캔들 |
-| btc-ohlc-1h | 매시 정각 | btc_1h 직전 마감 캔들 |
-| btc-ohlc-15m | 15분마다 | btc_15m 직전 마감 캔들 |
-| btc-ohlc-5m | 5분마다 | btc_5m 직전 마감 캔들 |
+| Cron | 타임존 | 실행 주기 | 수집 대상 |
+|------|--------|----------|----------|
+| btc-ohlc-daily | Asia/Seoul | 매일 09:00 | btc_1d 직전 마감 캔들 |
+| btc-ohlc-4h | UTC | 4시간마다 (00/04/08/12/16/20) | btc_4h 직전 마감 캔들 |
+| btc-ohlc-1h | Asia/Seoul | 1시간마다 | btc_1h 직전 마감 캔들 |
+| btc-ohlc-15m | Asia/Seoul | 15분마다 | btc_15m 직전 마감 캔들 |
+| btc-ohlc-5m | Asia/Seoul | 5분마다 | btc_5m 직전 마감 캔들 |
 
 ---
 
@@ -437,6 +439,66 @@ WHERE u.user_id = ph.user_id
 
 **수동 복구**: 미정산 1일봉 폴은 /admin/cron-status에서 "1일봉" 미정산 목록 → "정산 실행", 또는 `POST /api/admin/backfill-and-settle` 에 해당 poll_id 전달.
 
+### 7.9 미정산 폴 정규화·목표가(시가) UTC·차트 일치 (2026-03)
+
+**미정산 폴 정산 시 candle_start_at 비경계 값 호환**
+- btc_1d: `candle_start_at`이 00:00이 아니어도 해당 UTC일 00:00 봉으로 조회·수집 (`getBtc1dCandleStartAtUtc`). repository `getOhlcByMarketAndCandleStart` 및 `backfillAndSettlePoll`에서 적용.
+- btc_4h: 03:00 등 비경계 값이어도 해당 구간 4h 경계(00/04/08/12/16/20 UTC)로 조회·수집. `normalizeBtc4hCandleStartAt`(candle-utils), repository·backfillAndSettlePoll 적용.
+- 크론 상태 페이지 "정산 실행" 후 일부 폴만 실패해도 per-poll 에러 메시지 표시(`errPolls`).
+
+**목표가(시가) UTC 기준**
+- Poll API(`GET /api/sentiment/poll`): btc_1d/btc_4h일 때 `ohlcKey`(UTC 00:00 또는 4h 경계)로 이전 봉 조회 후 `price_open`·`price_close` 반환. 규칙 문구(PollRulesContent) btc_4h: "목표가 = 새 봉의 직전 4h 봉 종가 (UTC 기준, Binance와 동일)."
+
+**btc_4h 목표가 = 차트와 정확히 일치**
+- 차트(BtcChart)는 Binance REST/WebSocket 4h 봉을 사용. 목표가를 DB에서만 쓰면 저장 시점 차이로 직전 4h 봉 종가와 어긋날 수 있음.
+- btc_4h일 때 목표가는 **Binance API**(`fetchPreviousCandleClose`) 우선 조회, 실패 시만 DB fallback. 이렇게 해서 4시간봉 차트의 "직전 4h 봉 종가"와 목표가 선이 동일한 값으로 맞음.
+- 1일/1시간/15분봉은 기존처럼 DB 우선 유지.
+
+**차트 기본 봉**: 모든 투표 상세 페이지에서 차트 기본은 1분봉(`defaultInterval="1m"`). 사용자가 15분/1시간/4시간/1일 버튼으로 전환 가능.
+
+### 7.10 정산 시 승자 VTC 지급 실패 원인 및 제거 (절대 실패하지 않도록)
+
+**실패 가능 원인 전부와 각각의 해결**
+
+| # | 원인 | 설명 | 해결 |
+|---|------|------|------|
+| 1 | **users 행 없음** | 투표 시에는 users 조회로 행 존재. 정산 시점에 없으면(탈퇴·DB 삭제·동기화 지연 등) 지급 불가. | `ensure_user_for_settlement(uuid)` RPC: auth.users에 있으면 public.users에 최소 행 생성. 정산에서 add_voting_coin 실패 시 1회 호출 후 재시도. |
+| 2 | **update 0 rows / race** | select 후 update 사이에 행 변경·삭제되거나, 동시 요청으로 인한 불일치. | 제거: select+update 제거. `add_voting_coin(user_id, amount)` RPC로 **원자적** 잔액 증가만 수행. |
+| 3 | **numeric/제약** | voting_coin_balance가 numeric(20,2). 부동소수·음수 시 제약 위반. | RPC 내부에서 `ROUND(..., 2)`, `GREATEST(0, p_amount)` 적용. 클라이언트에서도 totalAfterFee 소수 둘째자리 반올림 유지. |
+| 4 | **RLS** | 일반 클라이언트로 update 시 RLS로 차단 가능. | 정산은 항상 service_role(admin)으로 호출 → RLS 우회. |
+
+**구현 요약**
+- **add_voting_coin(p_user_id, p_amount)** (DB): 한 번의 UPDATE로 잔액 증가. user 없으면 null 반환. amount는 ROUND·음수 방지 적용.
+- **ensure_user_for_settlement(p_user_id)** (DB): public.users에 없고 auth.users에 있으면 최소 행(user_id, email, nickname, role, voting_coin_balance=0) 생성. 기타 NOT NULL 컬럼이 있으면 예외 시 false 반환.
+- **정산 흐름**: 승자마다 `add_voting_coin` 호출 → null이면 `ensure_user_for_settlement` 호출 후 성공 시 `add_voting_coin` 1회 재시도 → 그래도 실패 시 payout_history insert + failed_user_ids (알림은 발생, 잔액은 수동 보정).
+
+**남는 실패 가능성 (드묾)**
+- auth.users에도 없는 사용자(계정 완전 삭제 등): ensure가 false → 재시도 안 함 → failed_user_ids.
+- public.users에 NOT NULL 컬럼이 더 있는데 RPC에 미포함: INSERT 시 예외 → ensure가 false → 동일. 이 경우 마이그레이션에서 해당 컬럼에 DEFAULT 추가하거나 RPC의 INSERT 대상 컬럼을 확장하면 됨.
+
+### 7.11 크론 상태·미정산 폴·시장별 타임존 (2026-03)
+
+**크론 상태 페이지 (admin/cron-status)**
+- 미정산 폴: **모든 시장** (1일봉, 4h, 1h, 15m, 5m) 표시. 그리드 레이아웃.
+- **참여 1건 이상인 폴만** 표시: `sentiment_votes`에서 `bet_amount > 0`인 poll_id만 필터. 무참여/무효 예정 폴 제외.
+- 캔들 마감 판단: `candle_start_at`은 DB에서 UTC ISO로 저장. 타임존 없으면 UTC로 파싱(`parseCandleStartMs`). `candle_start_at + 봉 주기(ms) < now(UTC)` 이면 마감된 것으로 간주.
+
+**시장별 타임존·크론 (캔들 마감 기준)** — §2.2, §2.3 및 candle-utils 주석에 반영
+- btc_1d: 타임존 Asia/Seoul. 매일 KST 09:00 cron. DB btc_ohlc 형식 수집.
+- btc_4h: 타임존 **UTC**. every 4 hours. DB btc_ohlc 형식 수집.
+- btc_1h: 타임존 Asia/Seoul. every 1 hour. DB btc_ohlc 형식 수집.
+- btc_15m: 타임존 Asia/Seoul. every 15 minutes. DB btc_ohlc 형식 수집.
+- btc_5m: 타임존 Asia/Seoul. every 5 minutes. DB btc_ohlc 형식 수집.
+
+**1h/15m/5m 크론 에러 기록**
+- btc-ohlc-1h, btc-ohlc-15m, btc-ohlc-5m 라우트에 `recordCronError` 추가. 실패 시 context(market, candle_start_at) 저장. `refreshMarketStats` try-catch. 정산 시 `candle_start_at` ISO 정규화.
+
+### 7.12 투표 상세 페이지 실시간 배팅 반영 (2026-03)
+
+- **목적**: 다른 유저가 베팅해도 새로고침 없이 인원/코인 합계 갱신.
+- **구현**: `settlement_status === "open"` 일 때만 **3초마다** 현재 폴 재조회 (`fetchPoll({ candle_start_at })`). 동일 폴 유지를 위해 `candle_start_at` 옵션 사용.
+- **갱신 항목**: long_count, short_count, long_coin_total, short_coin_total, my_vote, settlement_status 등 전체 폴 데이터.
+
 ### 7.6 정산 검증 SQL
 
 ```sql
@@ -486,7 +548,8 @@ ORDER BY p.settled_at DESC, ph.payout_amount DESC NULLS LAST;
 | `src/lib/cron/auth.ts` | 크론 인증 공용 (getCronSecret, isCronAuthorized. CRON_SECRET/CRON-SECRET, 헤더·쿼리 지원) |
 | `src/lib/monitor/cron-error-log.ts` | 크론 실패 기록/조회 (recordCronError, getCronErrors, getCronErrorHistory) |
 | `src/app/api/monitor/cron-errors/route.ts` | 실패 에러·이력 조회 API (관리자 또는 x-cron-secret) |
-| `src/app/api/monitor/unsettled-polls/route.ts` | job별 미정산 폴 조회 (복구용) |
+| `src/app/api/monitor/unsettled-polls/route.ts` | job별 미정산 폴 조회 (참여 1건 이상만, candle_start_at UTC 파싱) |
+| `src/components/admin/CronStatusPanel.tsx` | 크론 상태 UI (에러·이력·전체 시장 미정산·정산 실행) |
 | `src/app/admin/cron-status/page.tsx` | 관리자 크론 상태 페이지 (에러·미정산·정산 실행) |
 | `scripts/fix-payout-notification-trigger.sql` | 알림 트리거 수정 |
 
@@ -515,3 +578,9 @@ ORDER BY p.settled_at DESC, ph.payout_amount DESC NULLS LAST;
 | 2026-03-08 | btc-ohlc-daily 500 점검·해결 (7.8): 원인 확인 방법, Binance 빈 응답 시 정산 폴백 |
 | 2026-03-08 | cron_error_history 추가(모든 실패 이력), /admin/cron-errors→cron-status 리다이렉트, 정산 시 일부 승자 지급 실패해도 나머지 진행+failed_user_ids 반환 |
 | 2026-03-08 | 크론 401 대응: 공용 auth(lib/cron/auth), CRON_SECRET/CRON-SECRET 지원, 쿼리 인증(?cron_secret), 재배포 필요 안내 (7.7) |
+| 2026-03-08 | 미정산 폴 정규화(btc_1d/btc_4h), 목표가 UTC·차트 일치(btc_4h Binance 우선), 정산 실패 per-poll 에러 표시, 차트 기본 1분봉 (7.9) |
+| 2026-03-09 | 승자 지급 실패 원인 제거(7.10): add_voting_coin RPC(원자적 잔액 증가), ensure_user_for_settlement RPC(auth→users 복구), 정산에서 RPC 호출·실패 시 1회 재시도 |
+| 2026-03-09 | cron-status 전체 시장 미정산 폴(1h/15m/5m 추가), 미정산=참여 1건 이상만 표시, candle_start_at UTC 파싱(7.11) |
+| 2026-03-09 | 시장별 타임존·크론 정리: btc_4h만 UTC, 나머지 Asia/Seoul. 문서·candle-utils·unsettled-polls 주석 반영 |
+| 2026-03-09 | btc_1h/15m/5m cron에 recordCronError·context·refreshMarketStats try-catch·candle_start_at ISO 정규화 |
+| 2026-03-09 | 투표 상세 페이지 실시간 배팅 반영(7.12): 오픈 중 3초마다 폴 재조회, fetchPoll(candle_start_at) 옵션 |

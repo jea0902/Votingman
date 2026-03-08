@@ -20,6 +20,9 @@ type UnsettledPoll = {
 const JOBS = [
   { job_name: "btc-ohlc-daily", label: "1일봉" },
   { job_name: "btc-ohlc-4h", label: "4시간봉" },
+  { job_name: "btc-ohlc-1h", label: "1시간봉" },
+  { job_name: "btc-ohlc-15m", label: "15분봉" },
+  { job_name: "btc-ohlc-5m", label: "5분봉" },
 ];
 
 export function CronStatusPanel() {
@@ -186,9 +189,9 @@ export function CronStatusPanel() {
       <section>
         <h2 className="mb-2 text-lg font-semibold text-foreground">미정산 폴 (캔들 마감됐는데 정산 안 됨)</h2>
         <p className="mb-3 text-xs text-muted-foreground">
-          크론 실패로 놓친 폴. 정산 실행 시 backfill-and-settle로 복구.
+          모든 시장(1일/4h/1h/15m/5m). 캔들 마감 + 미정산 + <strong>투표 1건 이상</strong>인 폴만 표시 (무참여/무효 예정 제외). 정산 실행 시 backfill-and-settle로 복구.
         </p>
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {JOBS.map(({ job_name, label }) => {
             const list = unsettledByJob[job_name] ?? [];
             const running = settling !== null && settling.includes(list[0]?.poll_id ?? "");

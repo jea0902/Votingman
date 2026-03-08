@@ -9,11 +9,13 @@
  */
 
 import { NextResponse } from "next/server";
+import { getRecentCandleStartAts } from "@/lib/btc-ohlc/candle-utils";
 import { fetchKlinesKstAligned } from "@/lib/binance/btc-klines";
 import { upsertBtcOhlcBatch } from "@/lib/btc-ohlc/repository";
 import { settlePoll } from "@/lib/sentiment/settlement-service";
 import { refreshMarketStats } from "@/lib/tier/tier-service";
 import { TIER_MARKET_ALL } from "@/lib/tier/constants";
+import { recordCronError } from "@/lib/monitor/cron-error-log";
 import { isCronAuthorized } from "@/lib/cron/auth";
 
 export async function GET(request: Request) {
@@ -31,12 +33,17 @@ export async function GET(request: Request) {
     let settle = null;
     if (rows.length > 0) {
       const justClosed = rows[0];
-      settle = await settlePoll("", "btc_5m", justClosed.candle_start_at);
+      const candleStartAtIso = new Date(justClosed.candle_start_at).toISOString();
+      settle = await settlePoll("", "btc_5m", candleStartAtIso);
       if (
         settle.status === "settled" ||
         settle.status === "invalid_refund"
       ) {
-        await refreshMarketStats(TIER_MARKET_ALL);
+        try {
+          await refreshMarketStats(TIER_MARKET_ALL);
+        } catch (refreshErr) {
+          console.error("[cron/btc-ohlc-5m] refreshMarketStats 실패 (정산은 완료됨):", refreshErr);
+        }
       }
     }
 
@@ -51,9 +58,26 @@ export async function GET(request: Request) {
       },
     });
   } catch (e) {
-    console.error("[cron/btc-ohlc-5m] error:", e);
+    const message = e instanceof Error ? e.message : String(e);
+    const code =
+      message.includes("Binance") || message.includes("klines")
+        ? "BINANCE_ERROR"
+        : message.includes("btc_ohlc") || message.includes("upsert")
+          ? "DB_UPSERT_ERROR"
+          : message.includes("환불") || message.includes("정산") || message.includes("users")
+            ? "SETTLEMENT_ERROR"
+            : "CRON_ERROR";
+    console.error("[cron/btc-ohlc-5m] error:", code, e);
+    const context: Record<string, unknown> = { market: "btc_5m" };
+    try {
+      const startAts = getRecentCandleStartAts("btc_5m", 1);
+      if (startAts[0]) context.candle_start_at = startAts[0];
+    } catch (_) {}
+    try {
+      await recordCronError("btc-ohlc-5m", code, message, context);
+    } catch (_) {}
     return NextResponse.json(
-      { success: false, error: String(e) },
+      { success: false, error: { code, message, context } },
       { status: 500 }
     );
   }

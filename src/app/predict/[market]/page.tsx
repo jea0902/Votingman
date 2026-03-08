@@ -185,9 +185,13 @@ export default function PredictMarketPage() {
     }
   }, []);
 
-  const fetchPoll = useCallback(async () => {
+  const fetchPoll = useCallback(async (opts?: { candle_start_at?: string }) => {
     try {
-      const res = await fetch(`/api/sentiment/poll?market=${market}`);
+      const url =
+        opts?.candle_start_at != null
+          ? `/api/sentiment/poll?market=${market}&candle_start_at=${encodeURIComponent(opts.candle_start_at)}`
+          : `/api/sentiment/poll?market=${market}`;
+      const res = await fetch(url);
       const json = await res.json();
       if (json?.success && json?.data) {
         const d = json.data;
@@ -267,6 +271,18 @@ export default function PredictMarketPage() {
   useEffect(() => {
     fetchPoll();
   }, [fetchPoll]);
+
+  /** 투표 오픈 중: 다른 유저 베팅 실시간 반영 (3초마다 인원/코인 합계 갱신) */
+  useEffect(() => {
+    if (!poll || poll.settlement_status !== "open") return;
+    const refetchCounts = () => {
+      fetchPoll(
+        poll.candle_start_at ? { candle_start_at: poll.candle_start_at } : undefined
+      );
+    };
+    const intervalId = setInterval(refetchCounts, 3000);
+    return () => clearInterval(intervalId);
+  }, [poll?.poll_id, poll?.settlement_status, poll?.candle_start_at, fetchPoll]);
 
   /** 정산 상태 폴링 - settled 전까지 주기 조회 (btc: btc_ohlc 기준, cron 수집 후 갱신) */
   useEffect(() => {

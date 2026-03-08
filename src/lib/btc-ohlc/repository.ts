@@ -9,10 +9,7 @@
 import { nowKstString } from "@/lib/kst";
 import { createSupabaseAdmin } from "@/lib/supabase/server";
 import type { BtcOhlcRow } from "@/lib/binance/btc-klines";
-import {
-  getBtc1dCandleStartAtUtc,
-  normalizeBtc4hCandleStartAt,
-} from "@/lib/btc-ohlc/candle-utils";
+import { getBtc1dCandleStartAtUtc } from "@/lib/btc-ohlc/candle-utils";
 
 /**
  * 단일 캔들 upsert (market, candle_start_at unique)
@@ -47,12 +44,23 @@ export async function upsertBtcOhlc(row: BtcOhlcRow): Promise<void> {
   if (error) throw error;
 }
 
+/** 타임존 없으면 UTC로 해석. +00/-00 등 짧은 오프셋도 인식 */
+function toUtcIso(s: string): string {
+  const t = s.trim();
+  if (!t) return t;
+  if (/Z$|[+-]\d{2}(:?\d{2})?$/.test(t)) {
+    const d = new Date(t);
+    return Number.isNaN(d.getTime()) ? t : d.toISOString();
+  }
+  const d = new Date(t.replace(" ", "T") + "Z");
+  return Number.isNaN(d.getTime()) ? t : d.toISOString();
+}
+
 /**
- * (market, candle_start_at)로 OHLC 조회
- * 정산용: open = 이전 캔들 종가(reference_close), close = 이 캔들 종가(settlement_close)
- * → 종가끼리 비교: reference_close(open) vs settlement_close(close)
- * btc_1d: candle_start_at이 00:00이 아니어도 해당 UTC일의 00:00 봉으로 조회 (잘못 저장된 과거 데이터 호환)
- * btc_4h: 03:00 등 비경계 값이어도 해당 구간 4h 경계(00/04/08/12/16/20 UTC)로 조회
+ * (market, candle_start_at)로 OHLC 조회 — 정산용
+ * open = reference_close(시가), close = settlement_close(종가). 모든 시간봉(1d/4h/1h/15m/5m) 공통:
+ * 1) 전달된 candle_start_at을 UTC로 해석 후 정확히 조회(잘못된 봉 비교 방지)
+ * 2) 없으면 시장별 정규화 키로 재조회(과거 데이터 호환)
  */
 export async function getOhlcByMarketAndCandleStart(
   market: string,
@@ -64,11 +72,37 @@ export async function getOhlcByMarketAndCandleStart(
   close: number;
 } | null> {
   const admin = createSupabaseAdmin();
-  let key = candleStartAt;
+
+  const toResult = (
+    data: { open: unknown; close: unknown } | null
+  ): { reference_close: number; settlement_close: number; open: number; close: number } | null => {
+    if (!data) return null;
+    const open = Number(data.open);
+    const close = Number(data.close);
+    if (!Number.isFinite(open) || !Number.isFinite(close)) return null;
+    return { reference_close: open, settlement_close: close, open, close };
+  };
+
+  // 타임존 없으면 UTC로 해석 (로컬 해석 시 15m 등에서 잘못된 봉 참조 → 잘못된 판정)
+  const candleStartAtUtc = toUtcIso(candleStartAt);
+  const exactKey = candleStartAtUtc;
+
+  const { data: exactData, error: exactErr } = await admin
+    .from("btc_ohlc")
+    .select("open, close")
+    .eq("market", market)
+    .eq("candle_start_at", exactKey)
+    .maybeSingle();
+
+  if (!exactErr && exactData) {
+    const out = toResult(exactData);
+    if (out) return out;
+  }
+
+  // fallback: 1d만 날짜 00:00 UTC로 재시도. 4h/1h/15m/5m은 동일 키로만 재시도(다른 봉 참조 방지)
+  let key = candleStartAtUtc;
   if (market === "btc_1d") {
-    key = getBtc1dCandleStartAtUtc(candleStartAt.slice(0, 10));
-  } else if (market === "btc_4h") {
-    key = normalizeBtc4hCandleStartAt(candleStartAt);
+    key = getBtc1dCandleStartAtUtc(candleStartAtUtc.slice(0, 10));
   }
   const { data, error } = await admin
     .from("btc_ohlc")
@@ -78,17 +112,7 @@ export async function getOhlcByMarketAndCandleStart(
     .maybeSingle();
 
   if (error || !data) return null;
-
-  const open = Number(data.open);
-  const close = Number(data.close);
-  if (!Number.isFinite(open) || !Number.isFinite(close)) return null;
-
-  return {
-    reference_close: open, // 이전 캔들 종가 = 이 캔들 시가
-    settlement_close: close,
-    open,
-    close,
-  };
+  return toResult(data);
 }
 
 /**

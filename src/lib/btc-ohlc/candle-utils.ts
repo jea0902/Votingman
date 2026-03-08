@@ -1,10 +1,15 @@
 /**
  * 캔들 시각 유틸
  *
- * - btc_1d: UTC 00:00 기준 (Binance 1d와 동일)
- * - btc_4h: UTC 00, 04, 08, 12, 16, 20 (Binance 4h와 동일)
- * - btc_1h, btc_15m: KST 00:00 기준
- * - btc_5m: UTC 00, 05, 10, … (Binance와 동일)
+ * 시장별 타임존·크론 (정리):
+ * - btc_1d: 타임존 Asia/Seoul. 매일 KST 09:00에 cron 실행. DB btc_ohlc 형식 수집.
+ * - btc_4h: 타임존 UTC. every 4 hours. DB btc_ohlc 형식 수집.
+ * - btc_1h: 타임존 Asia/Seoul. every 1 hour. DB btc_ohlc 형식 수집.
+ * - btc_15m: 타임존 Asia/Seoul. every 15 minutes. DB btc_ohlc 형식 수집.
+ * - btc_5m: 타임존 Asia/Seoul. every 5 minutes. DB btc_ohlc 형식 수집.
+ *
+ * 캔들 정렬: btc_4h만 UTC(00/04/08/12/16/20). 그 외 1d/1h/15m/5m은 KST 기준.
+ * DB·정산 비교용 candle_start_at은 UTC ISO로 저장.
  */
 
 import { getTodayUtcDateString } from "@/lib/binance/btc-kst";
@@ -26,6 +31,23 @@ function kstToUtcIso(
 }
 
 const POLL_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * 타임존 없는 시각 문자열을 UTC로 해석해 ISO 문자열로 반환.
+ * "2026-03-08 10:30:00" → 10:30 UTC (로컬 해석 시 KST 10:30 = 01:30 UTC로 잘못됨).
+ * 정산·OHLC 조회 시 candle_start_at은 항상 UTC 기준이므로 공통 사용.
+ */
+export function ensureUtcIsoString(candleStartAt: string): string {
+  const s = candleStartAt.trim();
+  if (!s) return s;
+  if (/Z$|[+-]\d{2}(:?\d{2})?$/.test(s)) {
+    const d = new Date(s);
+    return Number.isNaN(d.getTime()) ? s : d.toISOString();
+  }
+  const asUtc = s.replace(" ", "T") + "Z";
+  const d = new Date(asUtc);
+  return Number.isNaN(d.getTime()) ? s : d.toISOString();
+}
 
 /** poll_date(YYYY-MM-DD) 파싱 */
 function parsePollDate(pollDate: string): { y: number; m: number; d: number } {
@@ -127,6 +149,25 @@ export function getBtc15mCandleStartAt(
   if (slotIndex < 0 || slotIndex > 3) throw new Error("slotIndex must be 0-3");
   const minute = slotIndex * 15;
   return getCandleStartAt(pollDate, hour, minute);
+}
+
+/**
+ * btc_15m: 임의 시각을 KST 15분 경계(00,15,30,45)로 내림 후 UTC ISO 반환
+ * DB·크론 간 candle_start_at 포맷 차이 시 폴 조회용
+ */
+export function normalizeBtc15mCandleStartAt(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const kstMs = d.getTime() + KST_OFFSET_MS;
+  const kst = new Date(kstMs);
+  const y = kst.getUTCFullYear();
+  const m = kst.getUTCMonth() + 1;
+  const day = kst.getUTCDate();
+  const h = kst.getUTCHours();
+  const min = kst.getUTCMinutes();
+  const slotMin = Math.floor(min / 15) * 15;
+  const utcMs = Date.UTC(y, m - 1, day, h, slotMin, 0, 0) - KST_OFFSET_MS;
+  return new Date(utcMs).toISOString();
 }
 
 /**

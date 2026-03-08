@@ -15,6 +15,8 @@ import {
 import {
   getPreviousCandleStartAt,
   CANDLE_PERIOD_MS,
+  getBtc1dCandleStartAtUtc,
+  normalizeBtc4hCandleStartAt,
 } from "@/lib/btc-ohlc/candle-utils";
 import { getOhlcByMarketAndCandleStart } from "@/lib/btc-ohlc/repository";
 import { fetchPreviousCandleClose } from "@/lib/binance/btc-klines";
@@ -47,26 +49,45 @@ export async function GET(request: NextRequest) {
       candleStartAt &&
       BTC_MARKETS.includes(market as (typeof BTC_MARKETS)[number])
     ) {
-      // 목표가 = 이전 봉 종가 (UP/DOWN 투표 기준). 이전 봉은 마감되어 DB·Binance 모두 존재함.
-      const previousCandleStartAt = getPreviousCandleStartAt(market, candleStartAt);
-      const prevOhlc = await getOhlcByMarketAndCandleStart(market, previousCandleStartAt);
-      if (prevOhlc) {
-        price_open = prevOhlc.close;
-      } else {
+      // 목표가 = 이전 봉 종가 (새 봉의 시가). btc_1d/btc_4h는 UTC 기준으로만 조회 (Binance와 동일).
+      const ohlcKey =
+        market === "btc_1d"
+          ? getBtc1dCandleStartAtUtc(candleStartAt.slice(0, 10))
+          : market === "btc_4h"
+            ? normalizeBtc4hCandleStartAt(candleStartAt)
+            : candleStartAt;
+      const previousCandleStartAt = getPreviousCandleStartAt(market, ohlcKey);
+      // btc_4h: 차트가 Binance API를 쓰므로 목표가도 Binance에서 직접 조회해 직전 4h 봉 종가와 정확히 일치시키기
+      if (market === "btc_4h") {
         try {
-          price_open = await fetchPreviousCandleClose(market, candleStartAt);
-          if (price_open == null) {
-            console.warn(
-              "[sentiment/poll] price_open missing: 이전 봉 종가 조회 실패",
-              { market, candle_start_at: candleStartAt }
-            );
-          }
+          price_open = await fetchPreviousCandleClose(market, ohlcKey);
         } catch (e) {
-          console.error("[sentiment/poll] fetchPreviousCandleClose error:", e);
+          console.error("[sentiment/poll] fetchPreviousCandleClose(btc_4h) error:", e);
+        }
+        if (price_open == null) {
+          const prevOhlc = await getOhlcByMarketAndCandleStart(market, previousCandleStartAt);
+          if (prevOhlc) price_open = prevOhlc.close;
+        }
+      } else {
+        const prevOhlc = await getOhlcByMarketAndCandleStart(market, previousCandleStartAt);
+        if (prevOhlc) {
+          price_open = prevOhlc.close;
+        } else {
+          try {
+            price_open = await fetchPreviousCandleClose(market, ohlcKey);
+            if (price_open == null) {
+              console.warn(
+                "[sentiment/poll] price_open missing: 이전 봉 종가 조회 실패",
+                { market, candle_start_at: candleStartAt, ohlcKey }
+              );
+            }
+          } catch (e) {
+            console.error("[sentiment/poll] fetchPreviousCandleClose error:", e);
+          }
         }
       }
       // 종가 = btc_ohlc에만 의존. cron이 수집·저장한 뒤에만 존재. Binance 직접 조회 금지.
-      const currentOhlc = await getOhlcByMarketAndCandleStart(market, candleStartAt);
+      const currentOhlc = await getOhlcByMarketAndCandleStart(market, ohlcKey);
       if (currentOhlc) {
         price_close = currentOhlc.close;
       }
