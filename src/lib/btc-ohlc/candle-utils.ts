@@ -35,7 +35,6 @@ const POLL_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 /**
  * 타임존 없는 시각 문자열을 UTC로 해석해 ISO 문자열로 반환.
  * "2026-03-08 10:30:00" → 10:30 UTC (로컬 해석 시 KST 10:30 = 01:30 UTC로 잘못됨).
- * 정산·OHLC 조회 시 candle_start_at은 항상 UTC 기준이므로 공통 사용.
  */
 export function ensureUtcIsoString(candleStartAt: string): string {
   const s = candleStartAt.trim();
@@ -47,6 +46,15 @@ export function ensureUtcIsoString(candleStartAt: string): string {
   const asUtc = s.replace(" ", "T") + "Z";
   const d = new Date(asUtc);
   return Number.isNaN(d.getTime()) ? s : d.toISOString();
+}
+
+/**
+ * candle_start_at 표준 형식 (크론이 넘기는 형식과 동일).
+ * 모든 저장·조회 시 이 형식으로 통일 → 폴/OHLC 못 찾는 문제 방지.
+ * 반환: "2026-03-08T01:30:00.000Z" (UTC ISO)
+ */
+export function toCanonicalCandleStartAt(s: string): string {
+  return ensureUtcIsoString(s);
 }
 
 /** poll_date(YYYY-MM-DD) 파싱 */

@@ -12,7 +12,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { getRecentCandleStartAts } from "@/lib/btc-ohlc/candle-utils";
+import { getRecentCandleStartAts, toCanonicalCandleStartAt } from "@/lib/btc-ohlc/candle-utils";
 import { fetchKlinesKstAligned } from "@/lib/binance/btc-klines";
 import { upsertBtcOhlcBatch } from "@/lib/btc-ohlc/repository";
 import { settlePoll } from "@/lib/sentiment/settlement-service";
@@ -62,7 +62,7 @@ export async function GET(request: Request) {
 
     if (rows.length > 0) {
       const justClosed = rows[0];
-      settle = await settlePoll("", "btc_1d", justClosed.candle_start_at);
+      settle = await settlePoll("", "btc_1d", toCanonicalCandleStartAt(justClosed.candle_start_at));
       if (
         settle.status === "settled" ||
         settle.status === "invalid_refund"

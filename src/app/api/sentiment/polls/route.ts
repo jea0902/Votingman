@@ -8,7 +8,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/lib/supabase/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOrCreateTodayPollByMarket } from "@/lib/sentiment/poll-server";
-import { getPreviousCandleStartAt } from "@/lib/btc-ohlc/candle-utils";
+import { getPreviousCandleStartAt, toCanonicalCandleStartAt } from "@/lib/btc-ohlc/candle-utils";
 import { getOhlcByMarketAndCandleStart } from "@/lib/btc-ohlc/repository";
 import { fetchPreviousCandleClose } from "@/lib/binance/btc-klines";
 import { isVotingOpenKST } from "@/lib/utils/sentiment-vote";
@@ -97,11 +97,12 @@ export async function GET() {
       .filter((p) => BTC_MARKETS.includes((p.market ?? "") as (typeof BTC_MARKETS)[number]))
       .map(async (p) => {
         const market = p.market ?? "";
-        const candleStartAt =
+        const raw =
           "candle_start_at" in p && typeof p.candle_start_at === "string"
             ? p.candle_start_at
             : null;
-        if (!candleStartAt) return { market, open: null as number | null, close: null as number | null };
+        if (!raw) return { market, open: null as number | null, close: null as number | null };
+        const candleStartAt = toCanonicalCandleStartAt(raw);
         const previousCandleStartAt = getPreviousCandleStartAt(market, candleStartAt);
         const [prevOhlc, currentOhlc] = await Promise.all([
           getOhlcByMarketAndCandleStart(market, previousCandleStartAt),

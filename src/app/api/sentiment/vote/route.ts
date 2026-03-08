@@ -14,6 +14,7 @@ import {
   getLateVotingMultiplier,
 } from "@/lib/utils/sentiment-vote";
 import { isSentimentMarket, MIN_BET_VTC } from "@/lib/constants/sentiment-markets";
+import { toCanonicalCandleStartAt } from "@/lib/btc-ohlc/candle-utils";
 import { getOhlcByMarketAndCandleStart } from "@/lib/btc-ohlc/repository";
 
 const BTC_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"] as const;
@@ -55,7 +56,10 @@ export async function POST(request: NextRequest) {
       candleStartAt &&
       BTC_MARKETS.includes(market as (typeof BTC_MARKETS)[number])
     ) {
-      const ohlc = await getOhlcByMarketAndCandleStart(market, candleStartAt);
+      const ohlc = await getOhlcByMarketAndCandleStart(
+        market,
+        toCanonicalCandleStartAt(candleStartAt)
+      );
       if (ohlc) {
         return NextResponse.json(
           {

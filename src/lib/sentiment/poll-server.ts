@@ -57,14 +57,16 @@ export async function getOrCreatePollByMarketAndCandleStartAt(
   candleStartAt: string,
   pollDate?: string
 ): Promise<TodayPollResult> {
+  const { toCanonicalCandleStartAt } = await import("@/lib/btc-ohlc/candle-utils");
+  const key = toCanonicalCandleStartAt(candleStartAt);
   const admin = createSupabaseAdmin();
-  const date = pollDate != null ? pollDate : pollDateFromCandleStartAt(candleStartAt);
+  const date = pollDate != null ? pollDate : pollDateFromCandleStartAt(key);
 
   const { data: existing } = await admin
     .from("sentiment_polls")
     .select("*")
     .eq("market", market)
-    .eq("candle_start_at", candleStartAt)
+    .eq("candle_start_at", key)
     .maybeSingle();
 
   if (existing) {
@@ -76,7 +78,7 @@ export async function getOrCreatePollByMarketAndCandleStartAt(
     .insert({
       poll_date: date,
       market,
-      candle_start_at: candleStartAt,
+      candle_start_at: key,
       long_count: 0,
       short_count: 0,
       long_coin_total: 0,
@@ -93,7 +95,7 @@ export async function getOrCreatePollByMarketAndCandleStartAt(
         .from("sentiment_polls")
         .select("*")
         .eq("market", market)
-        .eq("candle_start_at", candleStartAt)
+        .eq("candle_start_at", key)
         .single();
       if (retry) return { poll: retry as SentimentPollRow, created: false };
     }

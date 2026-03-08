@@ -8,7 +8,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { getRecentCandleStartAts } from "@/lib/btc-ohlc/candle-utils";
+import { getRecentCandleStartAts, toCanonicalCandleStartAt } from "@/lib/btc-ohlc/candle-utils";
 import { fetchKlinesKstAligned } from "@/lib/binance/btc-klines";
 import { upsertBtcOhlcBatch } from "@/lib/btc-ohlc/repository";
 import { settlePoll } from "@/lib/sentiment/settlement-service";
@@ -32,7 +32,7 @@ export async function GET(request: Request) {
     let settle = null;
     if (rows.length > 0) {
       const justClosed = rows[0];
-      const candleStartAtIso = new Date(justClosed.candle_start_at).toISOString();
+      const candleStartAtIso = toCanonicalCandleStartAt(justClosed.candle_start_at);
       settle = await settlePoll("", "btc_15m", candleStartAtIso);
       if (
         settle.status === "settled" ||
@@ -48,7 +48,7 @@ export async function GET(request: Request) {
       // Binance 빈 응답 시에도 기대 candle_start_at으로 정산 시도 (btc_1d와 동일 폴백)
       const fallbackStartAts = getRecentCandleStartAts("btc_15m", 1);
       if (fallbackStartAts[0]) {
-        settle = await settlePoll("", "btc_15m", fallbackStartAts[0]);
+        settle = await settlePoll("", "btc_15m", toCanonicalCandleStartAt(fallbackStartAts[0]));
         if (
           settle.status === "settled" ||
           settle.status === "invalid_refund"
@@ -87,10 +87,10 @@ export async function GET(request: Request) {
     try {
       const startAts = getRecentCandleStartAts("btc_15m", 1);
       if (startAts[0]) context.candle_start_at = startAts[0];
-    } catch (_) {}
+    } catch (_) { }
     try {
       await recordCronError("btc-ohlc-15m", code, message, context);
-    } catch (_) {}
+    } catch (_) { }
     return NextResponse.json(
       { success: false, error: { code, message, context } },
       { status: 500 }

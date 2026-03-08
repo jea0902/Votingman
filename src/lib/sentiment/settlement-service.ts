@@ -15,7 +15,7 @@ const PAYOUT_FEE_RATE = 0.01;
 import {
   getBtc1dCandleStartAtUtc,
   normalizeBtc4hCandleStartAt,
-  ensureUtcIsoString,
+  toCanonicalCandleStartAt,
 } from "@/lib/btc-ohlc/candle-utils";
 import {
   getOhlcByMarketAndCandleStart,
@@ -178,10 +178,10 @@ export async function settlePoll(
     };
   }
 
-  // DB 조회·OHLC 조회 시 포맷 통일. 타임존 없으면 UTC로 해석(로컬 해석 시 15m 등 잘못된 봉 참조 방지).
+  // candle_start_at 표준 형식 통일 (크론 형식과 동일)
   const candleStartAtNorm =
     candleStartAt && candleStartAt.trim()
-      ? ensureUtcIsoString(candleStartAt)
+      ? toCanonicalCandleStartAt(candleStartAt)
       : candleStartAt;
 
   let poll: unknown = null;
@@ -257,6 +257,12 @@ export async function settlePoll(
 
   // 무효 판정: 1명 이하 참여 → 원금 환불 (payout_history 먼저 insert, 환불 실패해도 전원 기록)
   if (participantCount <= 1) {
+    console.error("[settlement] 무효: 1명 이하 참여", {
+      poll_id: pollId,
+      market: pollRow.market ?? market,
+      participant_count: participantCount,
+      votes: (votes ?? []).map((v) => ({ user_id: v.user_id, choice: v.choice, bet_amount: v.bet_amount })),
+    });
     const refunded = await invalidRefundAll(
       admin,
       pollId,
@@ -309,11 +315,14 @@ export async function settlePoll(
   }
 
   if (reference_close == null || settlement_close == null) {
-    console.error("[settlement] btc_ohlc row missing", {
+    console.error("[settlement] btc_ohlc row missing (OHLC 조회 실패)", {
       poll_id: pollId,
       market: pollRow.market ?? market,
+      ohlc_key: ohlcKey,
       candleStartAt,
       participant_count: participantCount,
+      long_coin_total: longCoinTotal,
+      short_coin_total: shortCoinTotal,
     });
     return {
       poll_id: pollId,
@@ -330,6 +339,21 @@ export async function settlePoll(
   const refRounded = Math.round(reference_close * 100) / 100;
   const settleRounded = Math.round(settlement_close * 100) / 100;
   const isTie = refRounded === settleRounded;
+
+  // 정산 시점 가격 로그 (동일가/승패 원인 검증용)
+  console.error("[settlement] OHLC 가격 (cron 정산)", {
+    poll_id: pollId,
+    market: pollRow.market ?? market,
+    ohlc_key: ohlcKey,
+    reference_close,
+    settlement_close,
+    refRounded,
+    settleRounded,
+    isTie,
+    participant_count: participantCount,
+    long_coin_total: longCoinTotal,
+    short_coin_total: shortCoinTotal,
+  });
 
   if (isTie) {
     console.error("[settlement] 동일가 무효 (소수점 둘째자리 동일)", {
@@ -364,7 +388,10 @@ export async function settlePoll(
 
   const winnerSide: "long" | "short" =
     settlement_close > reference_close ? "long" : "short";
-  console.error("[settlement] 승/패 판정", {
+  const winnerVotes = (votes ?? []).filter((v) => choiceNorm(v.choice) === winnerSide);
+  const loserVotes = (votes ?? []).filter((v) => choiceNorm(v.choice) !== winnerSide);
+
+  console.error("[settlement] 승/패 판정 (choice 매칭 결과)", {
     poll_id: pollId,
     market: pollRow.market ?? market,
     reference_close,
@@ -373,9 +400,16 @@ export async function settlePoll(
     settleRounded,
     diff: settlement_close - reference_close,
     winner_side: winnerSide,
+    winner_count: winnerVotes.length,
+    loser_count: loserVotes.length,
+    votes_detail: (votes ?? []).map((v) => ({
+      user_id: v.user_id,
+      choice_raw: v.choice,
+      choice_norm: choiceNorm(v.choice),
+      matches_winner: choiceNorm(v.choice) === winnerSide,
+      bet_amount: v.bet_amount,
+    })),
   });
-  const winnerVotes = (votes ?? []).filter((v) => choiceNorm(v.choice) === winnerSide);
-  const loserVotes = (votes ?? []).filter((v) => choiceNorm(v.choice) !== winnerSide);
 
   // 재정산 시 이중 지급 방지: 이미 payout_history에 있는 유저는 스킵
   const { data: existingPayouts } = await admin
@@ -423,9 +457,15 @@ export async function settlePoll(
     }));
 
     if ((rpcErr || updatedId == null)) {
-      const ensured = await admin.rpc("ensure_user_for_settlement", {
-        p_user_id: v.user_id,
-      }).then((r) => r.data === true).catch(() => false);
+      let ensured = false;
+      try {
+        const r = await admin.rpc("ensure_user_for_settlement", {
+          p_user_id: v.user_id,
+        });
+        ensured = r.data === true;
+      } catch {
+        ensured = false;
+      }
       if (ensured) {
         const retry = await admin.rpc("add_voting_coin", {
           p_user_id: v.user_id,
@@ -470,7 +510,7 @@ export async function settlePoll(
     if (!v.user_id) continue;
     if (alreadyPaidUserIds.has(v.user_id)) continue; // 재정산 시 이미 기록된 유저 스킵
     const bet = Number(v.bet_amount ?? 0);
-    
+
     await admin.from("payout_history").insert({
       poll_id: pollId,
       user_id: v.user_id,
@@ -479,6 +519,30 @@ export async function settlePoll(
       payout_amount: 0, // 패배: 아무것도 돌려받지 않음
     });
   }
+
+  // 승패 판정 최종 결과 로그 (payout_history 기록 완료)
+  const payoutSummary = [
+    ...winnerVotes.map((v) => ({
+      user_id: v.user_id,
+      choice: v.choice,
+      result: "win" as const,
+      bet: Number(v.bet_amount ?? 0),
+      payout: "수익",
+    })),
+    ...loserVotes.map((v) => ({
+      user_id: v.user_id,
+      choice: v.choice,
+      result: "loss" as const,
+      bet: Number(v.bet_amount ?? 0),
+      payout: 0,
+    })),
+  ];
+  console.error("[settlement] payout 기록 완료", {
+    poll_id: pollId,
+    market: pollRow.market ?? market,
+    winner_side: winnerSide,
+    payout_summary: payoutSummary,
+  });
 
   await admin
     .from("sentiment_polls")
@@ -721,8 +785,9 @@ export async function backfillAndSettlePoll(
         ? normalizeBtc4hCandleStartAt(candleStartAt)
         : candleStartAt;
 
-  // btc_ohlc에 없으면 Binance에서 수집
-  const existing = await getOhlcByMarketAndCandleStart(market, candleStartAt);
+  // btc_ohlc에 없으면 Binance에서 수집 (호출 전 정규화)
+  const ohlcKey = toCanonicalCandleStartAt(candleStartAt);
+  const existing = await getOhlcByMarketAndCandleStart(market, ohlcKey);
   let backfilled = false;
   if (!existing) {
     const row = await fetchCandleByStartAt(market, ohlcLookupKey);

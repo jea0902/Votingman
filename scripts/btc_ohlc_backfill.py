@@ -85,6 +85,12 @@ def utc_to_kst_str(utc_ts_ms: int) -> str:
     return kst_dt.strftime("%Y-%m-%d %H:%M:%S")
 
 
+def to_utc_iso(ts_ms: int) -> str:
+    """UTC ms → UTC-ISO 형식 (크론·투표 로직과 동일). 예: 2026-03-08T01:30:00.000Z"""
+    dt = datetime.fromtimestamp(ts_ms / 1000, tz=timezone.utc)
+    return dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+
 def row_to_upsert(market: str, candle: list) -> dict:
     """ccxt OHLCV [ts, o, h, l, c, v] → btc_ohlc 행"""
     ts_ms = int(candle[0])
@@ -93,7 +99,7 @@ def row_to_upsert(market: str, candle: list) -> dict:
     low_p = round(float(candle[3]) * 100) / 100 if candle[3] else open_p
     close_p = round(float(candle[4]) * 100) / 100
 
-    candle_start_at = datetime.fromtimestamp(ts_ms / 1000, tz=timezone.utc).isoformat()
+    candle_start_at = to_utc_iso(ts_ms)
     candle_start_at_kst = utc_to_kst_str(ts_ms)
 
     return {

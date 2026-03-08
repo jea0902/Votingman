@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/lib/supabase/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { toCanonicalCandleStartAt } from "@/lib/btc-ohlc/candle-utils";
 import { getOhlcByMarketAndCandleStart } from "@/lib/btc-ohlc/repository";
 import { MARKET_LABEL } from "@/lib/constants/sentiment-markets";
 import { getPollDateDisplayForKst } from "@/lib/utils/poll-date-display";
@@ -156,7 +157,10 @@ export async function GET(request: NextRequest) {
         candleStartAt &&
         BTC_MARKETS.includes(market as (typeof BTC_MARKETS)[number])
       ) {
-        const ohlc = await getOhlcByMarketAndCandleStart(market, candleStartAt);
+        const ohlc = await getOhlcByMarketAndCandleStart(
+          market,
+          toCanonicalCandleStartAt(candleStartAt)
+        );
         if (ohlc) {
           open = ohlc.open;
           close = ohlc.close;

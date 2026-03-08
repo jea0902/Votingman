@@ -9,7 +9,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { getRecentCandleStartAts } from "@/lib/btc-ohlc/candle-utils";
+import { getRecentCandleStartAts, toCanonicalCandleStartAt } from "@/lib/btc-ohlc/candle-utils";
 import { fetchKlinesKstAligned } from "@/lib/binance/btc-klines";
 import { upsertBtcOhlcBatch } from "@/lib/btc-ohlc/repository";
 import { settlePoll } from "@/lib/sentiment/settlement-service";
@@ -37,8 +37,7 @@ export async function GET(request: Request) {
     let settle = null;
     if (rows.length > 0) {
       const justClosed = rows[0];
-      // DB 비교 시 포맷 통일 (ISO 정규화)
-      const candleStartAtIso = new Date(justClosed.candle_start_at).toISOString();
+      const candleStartAtIso = toCanonicalCandleStartAt(justClosed.candle_start_at);
       settle = await settlePoll("", "btc_4h", candleStartAtIso);
       if (settle.status === "already_settled" && settle.error?.includes("폴을 찾을 수 없습니다")) {
         console.warn("[cron/btc-ohlc-4h] 정산 대상 폴 없음", {

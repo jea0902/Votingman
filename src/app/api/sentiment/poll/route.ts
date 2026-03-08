@@ -17,6 +17,7 @@ import {
   CANDLE_PERIOD_MS,
   getBtc1dCandleStartAtUtc,
   normalizeBtc4hCandleStartAt,
+  toCanonicalCandleStartAt,
 } from "@/lib/btc-ohlc/candle-utils";
 import { getOhlcByMarketAndCandleStart } from "@/lib/btc-ohlc/repository";
 import { fetchPreviousCandleClose } from "@/lib/binance/btc-klines";
@@ -50,12 +51,13 @@ export async function GET(request: NextRequest) {
       BTC_MARKETS.includes(market as (typeof BTC_MARKETS)[number])
     ) {
       // 목표가 = 이전 봉 종가 (새 봉의 시가). btc_1d/btc_4h는 UTC 기준으로만 조회 (Binance와 동일).
+      const base = toCanonicalCandleStartAt(candleStartAt);
       const ohlcKey =
         market === "btc_1d"
-          ? getBtc1dCandleStartAtUtc(candleStartAt.slice(0, 10))
+          ? getBtc1dCandleStartAtUtc(base.slice(0, 10))
           : market === "btc_4h"
-            ? normalizeBtc4hCandleStartAt(candleStartAt)
-            : candleStartAt;
+            ? normalizeBtc4hCandleStartAt(base)
+            : base;
       const previousCandleStartAt = getPreviousCandleStartAt(market, ohlcKey);
       // btc_4h: 차트가 Binance API를 쓰므로 목표가도 Binance에서 직접 조회해 직전 4h 봉 종가와 정확히 일치시키기
       if (market === "btc_4h") {
