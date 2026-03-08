@@ -80,9 +80,15 @@ export function NotificationBell({ userId }: NotificationBellProps) {
       setNotifications(notifications);
       setUnreadCount(result.data.unread_count);
     } catch (error) {
+      // 네트워크 오류(서버 중단, 오프라인 등) → 기존 데이터 유지, 콘솔만 조용히
+      const isNetworkError =
+        error instanceof TypeError &&
+        (error.message === "Failed to fetch" || error.message === "Load failed");
+      if (isNetworkError) {
+        return;
+      }
       // 401 관련 에러는 조용히 처리
       if (error instanceof Error && error.message.includes('인증이 필요')) {
-        console.log('NotificationBell: 인증 에러 - 조용히 처리됨');
         setNotifications([]);
         setUnreadCount(0);
       } else {
@@ -138,9 +144,12 @@ export function NotificationBell({ userId }: NotificationBellProps) {
       );
       setUnreadCount(prev => Math.max(0, prev - 1));
     } catch (error) {
-      // 인증 관련 에러는 조용히 처리
+      const isNetworkError =
+        error instanceof TypeError &&
+        (error.message === "Failed to fetch" || error.message === "Load failed");
+      if (isNetworkError) return;
       if (error instanceof Error && error.message.includes('인증이 필요')) {
-        console.log('NotificationBell: markAsRead 인증 에러 - 조용히 처리');
+        // 조용히 처리
       } else {
         console.error('NotificationBell: markAsRead 예상치 못한 에러:', error);
       }

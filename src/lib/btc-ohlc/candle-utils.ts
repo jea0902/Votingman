@@ -298,12 +298,13 @@ export function getRecentCandleStartAts(
       }
       case "btc_4h": {
         // KST 00, 04, 08, 12, 16, 20 시 정각 (크론 실행 시각과 동일)
-        const kstCalendar = new Date(targetKstMs + 9 * 60 * 60 * 1000);
-        const kstY = kstCalendar.getUTCFullYear();
-        const kstM = kstCalendar.getUTCMonth() + 1;
-        const kstD = kstCalendar.getUTCDate();
-        const kstH = kstCalendar.getUTCHours();
+        // targetKstMs = kstMs - 4h 이므로 getUTCHours()가 이미 KST 시(9 등). 날짜만 KST 기준으로 +9h 해서 추출
+        const kstDateCalendar = new Date(targetKstMs + KST_OFFSET_MS);
+        const kstY = kstDateCalendar.getUTCFullYear();
+        const kstM = kstDateCalendar.getUTCMonth() + 1;
+        const kstD = kstDateCalendar.getUTCDate();
         const kstDateStr = `${kstY}-${pad(kstM)}-${pad(kstD)}`;
+        const kstH = new Date(targetKstMs).getUTCHours();
         const slot4h = Math.floor(kstH / 4);
         result.push(getBtc4hCandleStartAt(kstDateStr, slot4h));
         break;

@@ -272,6 +272,43 @@ if (vote === choice && isAdditionalMode && myBetAmount + chargeAmount === totalC
 
 **수정**: Poll API에 **마감 시각 검증** 추가. `price_close != null`이어도 `Date.now() >= candle_start_at + CANDLE_PERIOD_MS`일 때만 마감 처리. DB에 잘못 들어간 데이터가 있어도 09:00 이전에는 "open" 유지.
 
+### 6.17 btc_4h cron 500 에러 및 KST 전환 트러블슈팅
+
+**배경**: cron-job.org에서 btc-ohlc-4h가 4시간마다 실행되는데, 500 Internal Server Error로 실패. 크론은 **한국 시간 00, 04, 08, 12, 16, 20시**에 돌리도록 설정되어 있음.
+
+**원인 정리**:
+1. **500 원인**: Vercel 로그에 `invalid input syntax for type bigint` 등 DB 타입 오류. `users.voting_coin_balance`, `payout_history` 등이 bigint인데 소수/문자열이 들어감 → 마이그레이션으로 `numeric(20,2)` 변경.
+2. **데이터·크론 불일치**: 크론은 KST 00/04/08/12/16/20에 돌는데, 당시 btc_4h 데이터는 **Binance 4h API**(UTC 00/04/08/12/16/20) 기준으로 수집·백필됨. 즉 마감 시각이 UTC와 KST로 어긋나 폴·정산이 맞는 봉을 못 찾거나 잘못 매칭될 수 있는 상태.
+
+**해결 방향**: btc_4h를 **KST 기준**으로 통일.
+- Binance에는 **4h KST** 봉이 없고 **4h UTC**만 있으므로, **1h 봉 4개**를 조회해서 KST 구간(00–04, 04–08, …)별로 집계.
+- **open** = 구간 첫 1h 시가, **high/low** = 4개 중 max/min, **close** = 구간 마지막 1h 종가(= 해당 KST 마감 시각 가격).
+- cron은 계속 KST 00/04/08/12/16/20에 실행하고, 그 시각에 “방금 마감한” KST 4h 구간의 1h 4개를 가져와 집계 후 `btc_ohlc`에 upsert.
+
+**수정 사항**:
+- `candle-utils.ts`: `getCurrentCandleStartAt("btc_4h")`, `getRecentCandleStartAts("btc_4h")` → KST 00/04/08/12/16/20 정렬로 계산.
+- `btc-klines.ts`: `fetchKlinesKstAligned("btc_4h")` 등에서 Binance 4h 대신 **1h 4개 조회 후 집계**.
+- 기존 DB에 쌓인 **UTC 시대 btc_4h** 행은 삭제 후, **KST 정렬**로 처음부터 백필.
+- 백필 스크립트: `scripts/btc_ohlc_backfill_4h_kst.py` (1h 봉 1000개씩 조회 → KST 4h 슬롯으로 그룹핑·집계 후 upsert).
+
+**검증**: 집계된 4h 봉의 **close** = 마지막 1h 봉 close = 해당 KST 마감 시각(예: 04:00 KST)의 가격이므로, “한국 시간 기준 4h봉 종가” 개념과 일치.
+
+### 6.18 btc_4h 마감 후 정산·알림 미실행
+
+**증상**: btc_4h 투표는 마감됐는데 정산·알림이 오지 않음.
+
+**원인**: `getRecentCandleStartAts("btc_4h", 1)` 버그로, cron이 **잘못된 캔들**을 수집·정산 시도.
+- 크론은 “방금 마감한” 봉의 `candle_start_at`으로 `settlePoll` 호출.
+- `getRecentCandleStartAts`에서 btc_4h 처리 시 `targetKstMs + 9h`로 KST 날짜·시를 추출하면서, **시(hour)**까지 +9h가 적용되어 잘못된 슬롯(예: 16시대)을 반환.
+- 그래서 DB에 저장된 봉의 `candle_start_at`과 폴이 가진 `candle_start_at`이 달라짐 → `settlePoll`이 폴을 찾지 못함(“폴을 찾을 수 없습니다”) → 정산·알림 미실행.
+
+**수정** (`candle-utils.ts`):
+- **날짜**만 KST로 쓰기 위해 `targetKstMs + KST_OFFSET_MS`로 캘린더 계산.
+- **시(hour)**는 `targetKstMs` 그대로 사용 (이미 KST 시가 반영된 값이므로 +9h 미적용).
+- 이렇게 해서 “방금 마감한” KST 4h 슬롯과 폴의 `candle_start_at`이 일치하도록 수정.
+
+**이미 마감만 되고 정산 안 된 폴**: `/api/admin/backfill-and-settle`에 해당 폴의 `candle_start_at`으로 정산 요청하거나, 동일한 `candle_start_at`을 가진 btc_4h 봉이 있는지 확인 후 수동 정산.
+
 ---
 
 ## 7. 정산 시스템 트러블슈팅
@@ -397,3 +434,5 @@ ORDER BY p.settled_at DESC, ph.payout_amount DESC NULLS LAST;
 | 2026-03-07 | btc_ohlc(DB) 단일 기준, 시간 계산 제거 (6.15) |
 | 2026-03-07 | 백필로 진행 중 캔들 저장 → 조기 마감 트러블슈팅 (6.16), Poll API 마감 시각 검증 추가 |
 | 2026-03-07 | 승자 VTC 미지급 트러블슈팅 (7.5), settlement-service update 검증 추가 |
+| 2026-03-07 | btc_4h cron 500 및 KST 전환 트러블슈팅 (6.17): bigint 오류, KST 1h 집계 전환, 백필 스크립트 |
+| 2026-03-07 | btc_4h 마감 후 정산·알림 미실행 (6.18): getRecentCandleStartAts btc_4h 슬롯 버그 수정 |

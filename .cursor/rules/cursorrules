@@ -1,0 +1,242 @@
+# Cursor Rules — Next.js App Router + TypeScript + Supabase + Vercel
+
+## 🧠 General Principles
+- Always think step-by-step before writing code
+- When in doubt, ask for clarification rather than guessing
+- Prefer explicit over implicit — no magic, no hidden side effects
+- Never silently swallow errors; always handle or rethrow them
+- Do not hallucinate APIs, packages, or function signatures — verify before using
+
+---
+
+## 📁 Project Structure
+- App Router only: all routes live under `app/` — never use `pages/`
+- Collocate related files: keep components, hooks, and types near their route
+- Shared UI → `components/ui/`
+- Business logic / domain → `lib/` or `features/<domain>/`
+- Types → `types/` (global) or colocated `<feature>.types.ts`
+- Server-only code → `lib/server/` or mark with `import 'server-only'`
+
+```
+app/
+  (auth)/
+  (dashboard)/
+  api/
+components/
+  ui/
+lib/
+  server/
+  supabase/
+types/
+```
+
+---
+
+## ⚛️ Next.js App Router
+
+### Server vs Client Components
+- Default to **Server Components** — only add `'use client'` when required
+- `'use client'` is required when using: `useState`, `useEffect`, `useContext`, event handlers, browser APIs
+- Never use `'use client'` in layout files unless absolutely necessary
+- Keep `'use client'` components as **leaf nodes** — push interactivity down the tree
+- Never `async` a Client Component — use Server Components or Server Actions for data fetching
+
+### Data Fetching
+- Fetch data in Server Components directly — do NOT use `useEffect` for data fetching
+- Use `React.cache()` to deduplicate repeated fetches within a request
+- Pass data as props from Server → Client Components; avoid client-side fetches for initial data
+- Always use proper `loading.tsx` and `error.tsx` files per route segment
+
+### Server Actions
+- Declare with `'use server'` at top of function or file
+- Always validate input with Zod before processing
+- Never trust client-sent data — re-authenticate user inside every action
+- Return typed responses: `{ data, error }` — never throw to client
+- Use `revalidatePath()` / `revalidateTag()` after mutations
+
+```typescript
+// ✅ Correct
+'use server'
+export async function updateUser(formData: FormData) {
+  const user = await requireAuth() // always re-verify
+  const parsed = schema.safeParse(Object.fromEntries(formData))
+  if (!parsed.success) return { error: parsed.error.flatten() }
+  // ...
+  revalidatePath('/dashboard')
+  return { data: result }
+}
+```
+
+### Routing
+- Use `redirect()` from `next/navigation` in Server Components/Actions
+- Use `useRouter()` only in Client Components
+- Dynamic params are `Promise<{ id: string }>` in Next.js 15+ — always await them
+- Prefer `Link` over `<a>` for internal navigation
+
+---
+
+## 🟦 TypeScript
+
+- **No `any`** — use `unknown` and narrow types explicitly
+- Enable strict mode in `tsconfig.json` — do not disable it
+- Define return types for all exported functions
+- Use `type` for object shapes, `interface` for extendable contracts
+- Use `satisfies` operator for config objects to get inference + type-check
+- Always type API responses, Supabase query results, and Server Action returns
+- Use discriminated unions for state: `{ status: 'loading' | 'success' | 'error' }`
+
+```typescript
+// ✅ Correct
+type Result<T> = { data: T; error: null } | { data: null; error: string }
+
+// ❌ Wrong
+const result: any = await fetchUser()
+```
+
+---
+
+## 🎨 TailwindCSS
+
+- Use Tailwind utility classes only — no inline `style={{}}` unless absolutely necessary (e.g. dynamic values not possible with utilities)
+- Use CSS variables for design tokens in `globals.css`, reference via Tailwind config
+- Prefer `cn()` utility (clsx + tailwind-merge) for conditional classes
+- Do not use `@apply` in component files — only in `globals.css` for base styles
+- Responsive: always mobile-first (`sm:`, `md:`, `lg:`)
+- Dark mode: use `dark:` prefix consistently — don't mix manual class toggling with Tailwind dark mode
+
+```typescript
+// ✅ Correct
+import { cn } from '@/lib/utils'
+<div className={cn('base-class', isActive && 'active-class', className)} />
+```
+
+---
+
+## 🗄️ Supabase
+
+### Client Initialization
+- Browser (Client Components): `createBrowserClient()` from `@supabase/ssr`
+- Server (Server Components, Actions, Route Handlers): `createServerClient()` with cookie handling
+- Never use the old `createClient` from `@supabase/supabase-js` directly in Next.js App Router
+- Never expose `SUPABASE_SERVICE_ROLE_KEY` to client — it's server-only
+
+```typescript
+// ✅ Server Component client
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+
+export function createClient() {
+  const cookieStore = cookies()
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { getAll: () => cookieStore.getAll(), setAll: ... } }
+  )
+}
+```
+
+### Queries
+- Always handle both `data` and `error` from Supabase responses — never assume success
+- Type queries using generated types: `Database['public']['Tables']['users']['Row']`
+- Generate and commit `database.types.ts` via Supabase CLI — do not hand-write DB types
+- Use `.select()` with explicit columns — avoid `select('*')` in production code
+- Use RLS (Row Level Security) — never bypass with service role key on the client
+
+```typescript
+// ✅ Correct
+const { data, error } = await supabase
+  .from('posts')
+  .select('id, title, created_at')
+  .eq('user_id', userId)
+  .order('created_at', { ascending: false })
+
+if (error) throw new Error(error.message)
+```
+
+### Auth
+- Use `supabase.auth.getUser()` for secure server-side auth verification — NOT `getSession()`
+- `getSession()` trusts the client cookie and is not safe for authorization checks
+- Protect routes via `middleware.ts` using Supabase session refresh pattern
+
+---
+
+## 🛣️ API Routes (Route Handlers)
+
+- File: `app/api/<route>/route.ts`
+- Always validate HTTP method explicitly
+- Validate request body with Zod before any processing
+- Return proper HTTP status codes
+- Authenticate via Supabase `getUser()` — never trust request headers for auth
+- Use `NextResponse.json()` consistently
+
+```typescript
+// ✅ Correct
+export async function POST(req: Request) {
+  const supabase = createClient()
+  const { data: { user }, error } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const body = await req.json()
+  const parsed = schema.safeParse(body)
+  if (!parsed.success) return NextResponse.json({ error: parsed.error }, { status: 400 })
+  // ...
+}
+```
+
+---
+
+## 🌍 Environment Variables
+
+- `NEXT_PUBLIC_` prefix = exposed to browser — only for truly public values
+- Server-only secrets: no `NEXT_PUBLIC_` prefix, never reference in client files
+- Always define in `.env.local` (dev) and Vercel dashboard (prod)
+- Never hardcode secrets or API keys in source code
+- Access via `process.env.VAR_NAME` — never destructure at module level for server vars
+
+---
+
+## 🚀 Vercel Deployment
+
+- Default runtime is Node.js — specify `export const runtime = 'edge'` only when intentional (and ensure all dependencies are Edge-compatible)
+- Keep Serverless Functions small — avoid large dependencies in API routes
+- Use `next/image` for ALL images — never raw `<img>` tags (breaks optimization + LCP)
+- Set proper `cache` options on `fetch()` calls for ISR behavior
+- Use Vercel environment variables, not `.env` files in production
+
+---
+
+## 🔒 Security
+
+- Always sanitize and validate user input server-side (Zod)
+- Never expose internal error details to clients — log server-side, return generic messages
+- Use Supabase RLS as the primary data access control layer
+- CSRF is handled by Same-Site cookies — use Server Actions for mutations (not GET requests)
+- Rate-limit sensitive API routes (use Upstash or Vercel middleware)
+
+---
+
+## ♻️ Code Style
+
+- Max file length: 200 lines — split into smaller modules if exceeded
+- One exported component per file
+- Async/await only — no `.then()/.catch()` chains
+- Early returns over nested if-blocks
+- Named exports for components, default export allowed for page files only
+- Avoid barrel files (`index.ts`) for large modules — they hurt tree-shaking
+
+---
+
+## 🚫 Anti-patterns to Avoid
+
+| ❌ Don't | ✅ Do instead |
+|---|---|
+| `'use client'` on layouts | Keep layouts as Server Components |
+| `useEffect` for data fetching | Fetch in Server Components |
+| `getSession()` for auth checks | `getUser()` on server |
+| `select('*')` on Supabase | Explicit column selection |
+| `any` type | `unknown` + type narrowing |
+| Raw `<img>` | `next/image` |
+| Secrets with `NEXT_PUBLIC_` | Server-only env vars |
+| Inline `style={{}}` | Tailwind utilities |
+| Try/catch swallowing errors silently | Log + rethrow or return error |
+| `createClient` from supabase-js | `@supabase/ssr` clients |

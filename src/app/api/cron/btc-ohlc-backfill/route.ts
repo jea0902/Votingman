@@ -11,6 +11,7 @@
  *   "poll_dates": ["2025-02-04", "2025-02-05"],
  *   "markets"?: ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"],  // 생략 시 전체
  *   "btc_4h_slots"?: [0,1,2,3,4,5]  // 0=00시, 1=04시, 2=08시(12시 마감), 3=12시, 4=16시, 5=20시 KST 시작. 생략 시 해당일 6개 전부
+ *   "btc_4h_range"?: { start_date, end_date, end_date_slot?, batch_size? }  // KST 00/04/08/12/16/20 구간 전체 백필. end_date_slot 0~5(마지막 날 포함할 슬롯), batch_size 기본 100
  * }
  * 인증: Authorization: Bearer <CRON_SECRET> 또는 x-cron-secret
  */
@@ -20,9 +21,11 @@ import { fetchOhlcForPollDate, fetchCandleByStartAt } from "@/lib/binance/btc-kl
 import { getBtc4hCandleStartAt } from "@/lib/btc-ohlc/candle-utils";
 import { upsertBtcOhlcBatch } from "@/lib/btc-ohlc/repository";
 import { getOrCreatePollByDateAndMarket } from "@/lib/sentiment/poll-server";
+import type { BtcOhlcRow } from "@/lib/binance/btc-klines";
 
 const POLL_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const BACKFILL_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"] as const;
+const BTC4H_RANGE_DEFAULT_BATCH = 100;
 
 function isAuthorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET;
@@ -66,6 +69,51 @@ export async function POST(request: Request) {
           .filter((n: unknown) => typeof n === "number" && n >= 0 && n <= 5)
           .map((n: number) => Math.floor(n))
       : undefined;
+
+    const range = body?.btc_4h_range as
+      | { start_date?: string; end_date?: string; end_date_slot?: number; batch_size?: number; cursor?: { date: string; slot: number } }
+      | undefined;
+    if (range?.start_date && range?.end_date && POLL_DATE_REGEX.test(range.start_date) && POLL_DATE_REGEX.test(range.end_date)) {
+      const batchSize = Math.min(Math.max(Number(range.batch_size) || BTC4H_RANGE_DEFAULT_BATCH, 1), 200);
+      const endSlot = range.end_date_slot != null && range.end_date_slot >= 0 && range.end_date_slot <= 5 ? range.end_date_slot : 5;
+      const cursor = range.cursor;
+      let curDate = cursor?.date ?? range.start_date;
+      let curSlot = cursor?.slot ?? 0;
+      const rows: BtcOhlcRow[] = [];
+      let totalInserted = 0;
+      const endDate = range.end_date;
+      while (curDate < endDate || (curDate === endDate && curSlot <= endSlot)) {
+        const startAt = getBtc4hCandleStartAt(curDate, curSlot);
+        const row = await fetchCandleByStartAt("btc_4h", startAt);
+        if (row) rows.push(row);
+        if (rows.length >= batchSize) {
+          const { inserted } = await upsertBtcOhlcBatch(rows);
+          totalInserted += inserted;
+          rows.length = 0;
+        }
+        curSlot += 1;
+        if (curSlot > 5) {
+          const nextMs = new Date(curDate + "T00:00:00.000Z").getTime() + 24 * 60 * 60 * 1000;
+          curDate = new Date(nextMs).toISOString().slice(0, 10);
+          curSlot = 0;
+        }
+        if (curDate > endDate || (curDate === endDate && curSlot > endSlot)) break;
+      }
+      if (rows.length > 0) {
+        const { inserted } = await upsertBtcOhlcBatch(rows);
+        totalInserted += inserted;
+      }
+      const done = curDate > endDate || (curDate === endDate && curSlot > endSlot);
+      return NextResponse.json({
+        success: true,
+        data: {
+          message: `btc_4h range backfill ${done ? "완료" : "일부"} (${totalInserted}건 이번 배치)`,
+          total_upserted: totalInserted,
+          next_cursor: done ? null : { date: curDate, slot: curSlot },
+          done,
+        },
+      });
+    }
 
     if (poll_dates.length === 0) {
       return NextResponse.json(
