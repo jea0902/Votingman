@@ -4,8 +4,7 @@
  * - 수집 직후 방금 마감된 캔들에 해당하는 폴 정산
  *
  * GET /api/cron/btc-ohlc-5m
- * 인증: Authorization: Bearer <CRON_SECRET> 또는 x-cron-secret
- *
+ * 인증: (1) Header x-cron-secret 또는 Bearer (2) 쿼리 ?cron_secret=<CRON_SECRET>
  * cron-job.org: 5분마다 실행 (예: 00:05, 00:10, 00:15, ...)
  */
 
@@ -15,20 +14,10 @@ import { upsertBtcOhlcBatch } from "@/lib/btc-ohlc/repository";
 import { settlePoll } from "@/lib/sentiment/settlement-service";
 import { refreshMarketStats } from "@/lib/tier/tier-service";
 import { TIER_MARKET_ALL } from "@/lib/tier/constants";
-
-function isAuthorized(request: Request): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return false;
-  const auth = request.headers.get("authorization");
-  if (auth?.startsWith("Bearer ")) {
-    return auth.slice(7) === secret;
-  }
-  const headerSecret = request.headers.get("x-cron-secret");
-  return headerSecret === secret;
-}
+import { isCronAuthorized } from "@/lib/cron/auth";
 
 export async function GET(request: Request) {
-  if (!isAuthorized(request)) {
+  if (!isCronAuthorized(request)) {
     return NextResponse.json(
       { success: false, error: "Unauthorized" },
       { status: 401 }

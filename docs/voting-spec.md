@@ -36,21 +36,21 @@
 
 ### 2.2 btc_4h, btc_1h, btc_15m (롤링)
 
-| 시장 | 정렬 기준 | 마감 시각 (KST) |
-|------|----------|-----------------|
-| btc_4h | **KST** 00, 04, 08, 12, 16, 20 (크론과 동일) | 00:00, 04:00, 08:00, 12:00, 16:00, 20:00 |
-| btc_1h | UTC 매시 정각 | 매시 정각 |
-| btc_15m | UTC 00, 15, 30, 45 | 15분 단위 |
+| 시장 | 정렬 기준 | 마감 시각 |
+|------|----------|----------|
+| btc_4h | **UTC** 00, 04, 08, 12, 16, 20 (Binance 4h와 동일) | UTC 04:00, 08:00, 12:00, 16:00, 20:00, 00:00 |
+| btc_1h | KST 매시 정각 | 매시 정각 |
+| btc_15m | KST 00, 15, 30, 45 | 15분 단위 |
 | btc_5m | UTC 00, 05, 10, … | 5분 단위 |
 
-- **btc_4h**: 크론이 KST 00/04/08/12/16/20에 돌므로, 마감·정산도 KST 해당 시각 기준. 1h 캔들 4개 집계로 OHLC 생성.
+- **btc_4h**: Binance 4h API 그대로 사용. 크론은 00:05, 04:05, 08:05, 12:05, 16:05, 20:05 **UTC**에 실행.
 
 ### 2.3 Cron 실행 시각
 
 | Cron | 실행 주기 | 수집 대상 |
 |------|----------|----------|
 | btc-ohlc-daily | 매일 KST 09:00 | btc_1d 직전 마감 캔들 |
-| btc-ohlc-4h | 4시간마다 | btc_4h 직전 마감 캔들 |
+| btc-ohlc-4h | 4시간마다 (00/04/08/12/16/20 **UTC** 직후) | btc_4h 직전 마감 캔들 |
 | btc-ohlc-1h | 매시 정각 | btc_1h 직전 마감 캔들 |
 | btc-ohlc-15m | 15분마다 | btc_15m 직전 마감 캔들 |
 | btc-ohlc-5m | 5분마다 | btc_5m 직전 마감 캔들 |
@@ -143,10 +143,10 @@ const winnerTotalBet = winnerVotes.reduce((sum, v) => sum + Number(v.bet_amount 
 const loserPool = loserVotes.reduce((sum, v) => sum + Number(v.bet_amount ?? 0), 0);
 ```
 
-### 6.4 btc_4h 마감 시각 (KST 기준으로 통일)
+### 6.4 btc_4h 마감 시각 (UTC 기준으로 통일, 2026-03 재적용)
 
-**결론**: 4h는 **KST 00, 04, 08, 12, 16, 20** 시 정각 마감 (크론 실행 시각과 동일).
-- 크론이 KST 기준 4시간마다 돌기 때문에, 마감·정산도 KST 해당 시각으로 통일.
+**결론**: 4h는 **UTC 00, 04, 08, 12, 16, 20** 시 정각 마감 (Binance 4h와 동일).
+- 크론은 00:05, 04:05, … 20:05 **UTC**에 실행. 1h 집계 없이 Binance 4h API 직접 사용.
 
 ### 6.5 추가 투표 확정 버튼 무반응
 
@@ -309,6 +309,24 @@ if (vote === choice && isAdditionalMode && myBetAmount + chargeAmount === totalC
 
 **이미 마감만 되고 정산 안 된 폴**: `/api/admin/backfill-and-settle`에 해당 폴의 `candle_start_at`으로 정산 요청하거나, 동일한 `candle_start_at`을 가진 btc_4h 봉이 있는지 확인 후 수동 정산.
 
+### 6.19 btc_4h UTC로 되돌림 (2026-03)
+
+**결정**: btc_4h만 KST 정렬·1h 집계로 문제가 반복되어, **UTC 기준(Binance 4h 그대로)** 로 통일.
+- **candle-utils**: getCurrentCandleStartAt, getRecentCandleStartAts, getCandlesForPollDate, getCandleStartAtForMarket → btc_4h는 전부 **getBtc4hCandleStartAtUtc** 사용.
+- **btc-klines**: btc_4h 전용 1h 4개 집계 제거. **fetchKlines("4h", startMs, 1)** 로 Binance 4h 직접 사용.
+- **cron**: 00:05, 04:05, 08:05, 12:05, 16:05, 20:05 **UTC**에 실행하도록 cron-job.org 스케줄 설정.
+- **기존 KST btc_4h 데이터**: 필요 시 삭제 후 `scripts/btc_ohlc_backfill.py`로 UTC 4h 백필.
+
+### 6.20 btc_4h 변경 사항 요약 (2026-03)
+
+| 구분 | 내용 |
+|------|------|
+| **정렬** | KST → **UTC** (Binance 4h와 동일, 00/04/08/12/16/20 UTC) |
+| **수집** | 1h 4개 집계 제거 → **Binance 4h API 직접** 사용 |
+| **cron 스케줄** | 00:05, 04:05, 08:05, 12:05, 16:05, 20:05 **UTC** (cron-job.org 타임존 UTC, 4시간 간격) |
+| **코드** | candle-utils: getCurrentCandleStartAt, getRecentCandleStartAts, getCandlesForPollDate, getCandleStartAtForMarket → btc_4h는 getBtc4hCandleStartAtUtc. btc-klines: fetchKlines("4h", startMs, 1) |
+| **백필** | 기존 btc_4h 전부 삭제 후 `python scripts/btc_ohlc_backfill.py --market btc_4h --end-datetime "YYYY-MM-DDTHH:MM:SSZ"` 로 UTC 4h만 백필. 삭제 SQL: `scripts/check-backfill-and-unsettled-polls.sql` 0번 참고. |
+
 ---
 
 ## 7. 정산 시스템 트러블슈팅
@@ -369,6 +387,50 @@ WHERE u.user_id = ph.user_id
 ```
 - 주의: 이미 지급된 경우 중복 지급되므로, 1번 쿼리에서 `users_exists='OK'`인데 잔액이 안 올랐는지 확인 후 실행
 
+### 7.7 크론 실패 대책 시스템 (2026-03)
+
+크론 실패 시 원인 확인·복구를 위해 아래를 사용한다.
+
+| 구분 | 설명 |
+|------|------|
+| **실패 기록** | 실패 시 `cron_error_log` 테이블에 job_name, error_code, error_message, **context**(jsonb) 저장. context에는 실패 시도한 market, candle_start_at 등 포함. |
+| **500 응답 본문** | 크론이 500 반환 시 body에 `{ success: false, error: { code, message, context } }` 포함 → 수동 호출 시 원인 확인 가능. |
+| **모니터 API** | `GET /api/monitor/cron-errors`: 마지막 실패 에러 목록 (인증: x-cron-secret 또는 **관리자 세션**). `GET /api/monitor/unsettled-polls?job_name=btc-ohlc-4h`: 해당 job의 미정산 폴(poll_id, candle_start_at) 목록. |
+| **관리자 페이지** | **/admin** → "크론 상태" 링크 → **/admin/cron-status**. DB 실패 로그 조회 + job별 미정산 폴 목록 + "N건 정산 실행" 버튼으로 `POST /api/admin/backfill-and-settle` 호출해 복구. |
+| **btc-ohlc-daily** | 동일하게 recordCronError + context 기록, refreshMarketStats 실패 시에도 500 없이 로그만 남김. |
+
+**복구 흐름**: 1) Vercel 로그 또는 /admin/cron-status에서 실패 에러·context 확인. 2) 같은 페이지에서 미정산 폴 목록 확인 후 "정산 실행" 클릭. 3) 터미널만 쓰려면 `GET /api/monitor/unsettled-polls?job_name=...` 로 poll_id 조회 후 `POST /api/admin/backfill-and-settle` 에 `{ "pollIds": ["..."] }` 전달.
+
+**크론 인증(401 Unauthorized 시)**: cron-job.org 등에서 호출 시 `CRON_SECRET` 필요. (1) **헤더**: `x-cron-secret: <CRON_SECRET>` 또는 `Authorization: Bearer <CRON_SECRET>` (cron-job.org 편집 시 "Request Headers"에 추가). (2) **쿼리**: 헤더 설정이 어려우면 URL에 `?cron_secret=<CRON_SECRET>` 추가 가능(예: `https://www.votingman.com/api/cron/btc-ohlc-4h?cron_secret=...`). Vercel 환경변수 `CRON_SECRET`과 동일한 값 사용.
+
+**마이그레이션**: `cron_error_log`에 `context jsonb` 컬럼 추가 (`supabase/migrations/20260308100000_cron_error_log_context.sql`).
+
+**실패 이력 전체 조회**: 실패할 때마다 `cron_error_history` 테이블에 1건 INSERT(추가). `GET /api/monitor/cron-errors` 응답에 `history`(최근 50건, 모든 job 혼합) 포함. /admin/cron-status 화면에서 "최근 실패 이력 (모든 job)" 섹션으로 확인. **/admin/cron-errors** URL은 /admin/cron-status로 리다이렉트.
+
+**정산 시 일부 승자 지급 실패**: 특정 user_id의 VTC 지급(users 테이블 update)이 실패해도 나머지 승자는 계속 정산하고, 폴은 settled 처리. 실패한 user_id 목록은 `SettlementResult.failed_user_ids`로 반환되며, backfill-and-settle 응답 및 크론 상태 페이지 메시지에 표시. 해당 사용자는 수동 보정 필요.
+
+### 7.8 btc-ohlc-daily(1일봉) 500 실패 시 점검·해결
+
+**실패 시 원인 확인** (우선순위):
+1. **관리자 페이지**: /admin → 크론 상태 → `btc-ohlc-daily` 항목의 error_code, error_message, context 확인 (배포된 코드에서 recordCronError 사용 시).
+2. **API**: `GET /api/monitor/cron-errors` (x-cron-secret 또는 관리자 세션) → `job_name: "btc-ohlc-daily"` 의 error_message 확인.
+3. **Vercel**: 해당 시각(예: 09:00 KST) Function Logs에서 `[cron/btc-ohlc-daily] error:` 검색.
+
+**가능한 원인**:
+| 원인 | error_code | 대응 |
+|------|------------|------|
+| Binance API 장애/지역제한/타임아웃 | BINANCE_ERROR | 재실행 또는 btc_ohlc에 1d 봉이 이미 있으면 정산만 시도(아래 폴백) |
+| btc_ohlc upsert 실패 (스키마/타입) | DB_UPSERT_ERROR | 마이그레이션·컬럼 확인 |
+| 정산 로직 예외 (users 없음, update 실패 등) | SETTLEMENT_ERROR | 로그의 user_id/poll_id 확인, 수동 보정 또는 backfill-and-settle |
+| 그 외 (refreshMarketStats 제외) | CRON_ERROR | 스택 트레이스로 위치 확인 |
+
+**코드 측 대책** (적용됨):
+- 실패 시 `recordCronError("btc-ohlc-daily", code, message, context)` 로 DB 저장 + 500 본문에 context 포함.
+- `refreshMarketStats` 실패 시 try-catch로 500 방지.
+- **Binance가 빈 배열 반환 시**: `getRecentCandleStartAts("btc_1d", 1)` 로 기대 candle_start_at 계산 후 정산만 시도(btc_ohlc에 이미 행이 있으면 정산 가능). 정산 성공 시 200 반환.
+
+**수동 복구**: 미정산 1일봉 폴은 /admin/cron-status에서 "1일봉" 미정산 목록 → "정산 실행", 또는 `POST /api/admin/backfill-and-settle` 에 해당 poll_id 전달.
+
 ### 7.6 정산 검증 SQL
 
 ```sql
@@ -414,6 +476,11 @@ ORDER BY p.settled_at DESC, ph.payout_amount DESC NULLS LAST;
 | `src/app/api/sentiment/poll/route.ts` | 폴 조회 (candle_start_at 파라미터 지원) |
 | `src/app/predict/[market]/page.tsx` | 투표 상세 페이지, 마감 박스·Go to Live Market 버튼 |
 | `src/app/api/cron/btc-ohlc-daily/route.ts` | btc_1d cron |
+| `src/app/api/cron/btc-ohlc-4h/route.ts` | btc_4h cron |
+| `src/lib/monitor/cron-error-log.ts` | 크론 실패 기록/조회 (recordCronError, getCronErrors) |
+| `src/app/api/monitor/cron-errors/route.ts` | 실패 에러 조회 API (관리자 또는 x-cron-secret) |
+| `src/app/api/monitor/unsettled-polls/route.ts` | job별 미정산 폴 조회 (복구용) |
+| `src/app/admin/cron-status/page.tsx` | 관리자 크론 상태 페이지 (에러·미정산·정산 실행) |
 | `scripts/fix-payout-notification-trigger.sql` | 알림 트리거 수정 |
 
 ---
@@ -436,3 +503,7 @@ ORDER BY p.settled_at DESC, ph.payout_amount DESC NULLS LAST;
 | 2026-03-07 | 승자 VTC 미지급 트러블슈팅 (7.5), settlement-service update 검증 추가 |
 | 2026-03-07 | btc_4h cron 500 및 KST 전환 트러블슈팅 (6.17): bigint 오류, KST 1h 집계 전환, 백필 스크립트 |
 | 2026-03-07 | btc_4h 마감 후 정산·알림 미실행 (6.18): getRecentCandleStartAts btc_4h 슬롯 버그 수정 |
+| 2026-03-08 | btc_4h UTC로 되돌림 (6.19): Binance 4h 직접 사용, cron UTC 스케줄 |
+| 2026-03-08 | btc_4h 변경·백필 요약 (6.20), 크론 실패 대책 시스템 (7.7): cron_error_log context, 모니터 API·admin/cron-status, unsettled-polls 복구 |
+| 2026-03-08 | btc-ohlc-daily 500 점검·해결 (7.8): 원인 확인 방법, Binance 빈 응답 시 정산 폴백 |
+| 2026-03-08 | cron_error_history 추가(모든 실패 이력), /admin/cron-errors→cron-status 리다이렉트, 정산 시 일부 승자 지급 실패해도 나머지 진행+failed_user_ids 반환 |

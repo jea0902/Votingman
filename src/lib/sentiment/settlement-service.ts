@@ -46,6 +46,8 @@ export type SettlementResult = {
   winner_count?: number;
   loser_pool?: number;
   payout_total?: number;
+  /** 일부 승자 VTC 지급 실패 시 해당 user_id 목록 (정산은 완료, 수동 보정 필요) */
+  failed_user_ids?: string[];
   error?: string;
 };
 
@@ -132,18 +134,24 @@ export async function settlePoll(
     };
   }
 
+  // DB 조회 시 포맷 통일 (ISO 정규화로 문자열 차이 방지)
+  const candleStartAtNorm =
+    candleStartAt && !Number.isNaN(new Date(candleStartAt).getTime())
+      ? new Date(candleStartAt).toISOString()
+      : candleStartAt;
+
   const { data: poll, error: pollError } = await admin
     .from("sentiment_polls")
     .select("*")
     .eq("market", market)
-    .eq("candle_start_at", candleStartAt)
+    .eq("candle_start_at", candleStartAtNorm)
     .maybeSingle();
 
   if (pollError || !poll) {
     const errMsg = pollError?.message ?? "폴을 찾을 수 없습니다.";
     console.error("[settlement] poll not found", {
       market,
-      candleStartAt,
+      candleStartAt: candleStartAtNorm,
       pollDateForResponse,
       error: errMsg,
     });
@@ -173,7 +181,7 @@ export async function settlePoll(
   }
 
   // btc_ohlc에서 종가끼리 비교용 가격 조회
-  const ohlcPrices = await getSettlementPricesFromOhlc(market, candleStartAt);
+  const ohlcPrices = await getSettlementPricesFromOhlc(market, candleStartAtNorm);
   const reference_close = ohlcPrices?.reference_close ?? null;
   const settlement_close = ohlcPrices?.settlement_close ?? null;
 
@@ -420,8 +428,9 @@ export async function settlePoll(
   );
 
   let payoutTotal = 0;
-  
-  // 승리자 정산 및 기록
+  const failed_user_ids: string[] = [];
+
+  // 승리자 정산 및 기록 (일부 실패해도 나머지 계속 진행, 실패한 user_id는 반환)
   for (const v of winnerVotes) {
     if (!v.user_id) continue;
     if (alreadyPaidUserIds.has(v.user_id)) continue; // 재정산 시 이미 지급된 유저 스킵
@@ -445,9 +454,8 @@ export async function settlePoll(
         user_id: v.user_id,
         error: selectErr?.message,
       });
-      throw new Error(
-        `승자(user_id=${v.user_id})가 users 테이블에 없습니다. 정산 중단.`
-      );
+      failed_user_ids.push(v.user_id);
+      continue;
     }
 
     const current = Number(u.voting_coin_balance ?? 0);
@@ -464,9 +472,8 @@ export async function settlePoll(
         totalAfterFee,
         error: updateErr?.message,
       });
-      throw new Error(
-        `승자(user_id=${v.user_id}) VTC 지급 실패. 정산 중단.`
-      );
+      failed_user_ids.push(v.user_id);
+      continue;
     }
 
     await admin.from("payout_history").insert({
@@ -508,6 +515,7 @@ export async function settlePoll(
     winner_count: winnerVotes.length,
     loser_pool: loserPool,
     payout_total: Math.round(payoutTotal * 100) / 100,
+    ...(failed_user_ids.length > 0 && { failed_user_ids }),
   };
 }
 

@@ -22,24 +22,14 @@ import { getBtc4hCandleStartAt } from "@/lib/btc-ohlc/candle-utils";
 import { upsertBtcOhlcBatch } from "@/lib/btc-ohlc/repository";
 import { getOrCreatePollByDateAndMarket } from "@/lib/sentiment/poll-server";
 import type { BtcOhlcRow } from "@/lib/binance/btc-klines";
+import { isCronAuthorized } from "@/lib/cron/auth";
 
 const POLL_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const BACKFILL_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"] as const;
 const BTC4H_RANGE_DEFAULT_BATCH = 100;
 
-function isAuthorized(request: Request): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return false;
-  const auth = request.headers.get("authorization");
-  if (auth?.startsWith("Bearer ")) {
-    return auth.slice(7) === secret;
-  }
-  const headerSecret = request.headers.get("x-cron-secret");
-  return headerSecret === secret;
-}
-
 export async function POST(request: Request) {
-  if (!isAuthorized(request)) {
+  if (!isCronAuthorized(request)) {
     return NextResponse.json(
       { success: false, error: "Unauthorized" },
       { status: 401 }

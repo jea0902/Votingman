@@ -98,19 +98,12 @@ export async function fetchKlines(
 
 /**
  * 특정 candle_start_at에 해당하는 단일 캔들 조회 (백필용)
- * - btc_4h: KST 구간 → 1h 4개 집계
+ * btc_4h 포함 전부 Binance interval 직접 사용 (UTC 정렬)
  */
 export async function fetchCandleByStartAt(
   market: string,
   candleStartAt: string
 ): Promise<BtcOhlcRow | null> {
-  if (market === "btc_4h") {
-    const startMs = new Date(candleStartAt).getTime();
-    const rows = await fetchKlines("1h", startMs, 4);
-    if (rows.length === 0) return null;
-    const agg = aggregate1hToOhlc(rows, market);
-    return agg ? { ...agg, candle_start_at: candleStartAt } : null;
-  }
   const interval = MARKET_TO_INTERVAL[market];
   if (!interval) return null;
   const startMs = new Date(candleStartAt).getTime();
@@ -196,19 +189,6 @@ export async function fetchOhlcForPollDate(
   if (startAts.length === 0) return [];
 
   const results: BtcOhlcRow[] = [];
-
-  // btc_4h: KST 구간 → 1h 4개 집계
-  if (m === "btc_4h") {
-    for (const startAt of startAts) {
-      const startMs = new Date(startAt).getTime();
-      const rows = await fetchKlines("1h", startMs, 4);
-      if (rows.length === 0) continue;
-      const agg = aggregate1hToOhlc(rows, m);
-      if (agg) results.push({ ...agg, candle_start_at: startAt });
-    }
-    return results;
-  }
-
   const interval = MARKET_TO_INTERVAL[m];
   if (!interval) return [];
 
@@ -224,8 +204,8 @@ export async function fetchOhlcForPollDate(
 
 /**
  * 크론용 최근 마감 캔들 수집 (btc_1d, btc_4h, btc_1h, btc_15m)
- * - btc_4h: KST 00,04,08,12,16,20 구간 → 1h 4개 집계
- * - 그 외: Binance interval 직접 조회
+ * btc_4h: UTC 00/04/08/12/16/20 (Binance 4h 직접 사용)
+ * 그 외 KST 정렬 시장: 1h 집계 등
  */
 export async function fetchKlinesKstAligned(
   market: string,
@@ -240,21 +220,6 @@ export async function fetchKlinesKstAligned(
   if (startAts.length === 0) return [];
 
   const results: BtcOhlcRow[] = [];
-
-  // btc_4h: KST 00,04,08,12,16,20 구간 → Binance 4h 없음, 1h 4개 집계
-  if (m === "btc_4h") {
-    for (const startAt of startAts) {
-      const startMs = new Date(startAt).getTime();
-      const rows = await fetchKlines("1h", startMs, 4);
-      if (rows.length === 0) continue;
-      const agg = aggregate1hToOhlc(rows, m);
-      if (agg) {
-        results.push({ ...agg, candle_start_at: startAt });
-      }
-    }
-    return results;
-  }
-
   const interval = MARKET_TO_INTERVAL[m];
   if (!interval) return [];
 

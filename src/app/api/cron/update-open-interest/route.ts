@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { isCronAuthorized } from "@/lib/cron/auth";
 
 /**
  * 매일 OI 데이터 업데이트 API
@@ -7,11 +8,11 @@ import { createClient } from "@supabase/supabase-js";
  * cron-job.org 설정:
  *   URL: https://your-domain.com/api/cron/update-open-interest
  *   Method: GET
- *   Header: x-cron-secret: [환경변수 CRON_SECRET 값]
+ *   Header: x-cron-secret: [환경변수 CRON_SECRET 또는 CRON-SECRET 값]
  *   Schedule: 매일 01:00 UTC (한국시간 오전 10시)
  *
  * 환경변수:
- *   CRON_SECRET          - cron 호출 인증 토큰
+ *   CRON_SECRET (또는 CRON-SECRET) - cron 호출 인증 토큰
  *   SUPABASE_SERVICE_ROLE_KEY - Supabase service role 키
  */
 
@@ -24,9 +25,7 @@ const supabaseAdmin = createClient(
 );
 
 export async function GET(request: NextRequest) {
-    // cron 인증 (무단 호출 방지)
-    const secret = request.headers.get("x-cron-secret");
-    if (secret !== process.env.CRON_SECRET) {
+    if (!isCronAuthorized(request)) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

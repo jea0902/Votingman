@@ -7,10 +7,10 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { backfillAndSettlePoll } from "@/lib/sentiment/settlement-service";
+import { isCronAuthorized } from "@/lib/cron/auth";
 
 function isCronSecretAuth(request: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET;
-  return !!secret && request.headers.get("x-cron-secret") === secret;
+  return isCronAuthorized(request);
 }
 
 export async function GET(request: NextRequest) {

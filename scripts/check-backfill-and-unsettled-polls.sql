@@ -1,4 +1,13 @@
 -- ============================================================
+-- 0) btc_4h 전부 삭제 (UTC 재백필 전 — 실행 전 건수 확인 후 DELETE)
+-- ============================================================
+-- 0-1) 삭제 대상 건수 확인
+-- SELECT COUNT(*) FROM btc_ohlc WHERE market = 'btc_4h';
+-- 0-2) 삭제 실행 (0-1 확인 후 주석 해제)
+-- DELETE FROM btc_ohlc WHERE market = 'btc_4h';
+
+
+-- ============================================================
 -- 1) btc_4h 봉 확인 (3월 6~7일)
 -- ============================================================
 
@@ -56,6 +65,14 @@ FROM sentiment_polls
 WHERE settled_at IS NULL
   AND market IN ('btc_4h', 'btc_1d', 'btc_1h', 'btc_15m', 'btc_5m')
 ORDER BY market, candle_start_at DESC NULLS LAST, poll_date DESC;
+
+-- ----------------------------------------
+-- 2-1) 미정산 btc_4h 폴 ID만 (backfill-and-settle 호출용)
+--      위 2번에서 id 복사 → POST /api/admin/backfill-and-settle body: { "pollIds": ["id1", "id2"] }
+-- ----------------------------------------
+SELECT id FROM sentiment_polls
+WHERE settled_at IS NULL AND market = 'btc_4h'
+ORDER BY candle_start_at DESC;
 
 
 -- ============================================================

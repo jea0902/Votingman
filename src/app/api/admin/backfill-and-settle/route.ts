@@ -13,10 +13,10 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { backfillAndSettlePoll } from "@/lib/sentiment/settlement-service";
 import { refreshMarketStats } from "@/lib/tier/tier-service";
 import { TIER_MARKET_ALL } from "@/lib/tier/constants";
+import { isCronAuthorized } from "@/lib/cron/auth";
 
 function isCronSecretAuth(request: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET;
-  return !!secret && request.headers.get("x-cron-secret") === secret;
+  return isCronAuthorized(request);
 }
 
 async function requireAdmin(request: NextRequest) {

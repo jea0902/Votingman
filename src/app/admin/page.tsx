@@ -35,7 +35,15 @@ export default async function AdminPage() {
 
   return (
     <div className="mx-auto w-full max-w-4xl px-4 sm:px-6">
-      <h1 className="mb-6 text-2xl font-bold text-foreground">관리자 대시보드</h1>
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-foreground">관리자 대시보드</h1>
+        <a
+          href="/admin/cron-status"
+          className="text-sm text-primary hover:underline"
+        >
+          크론 상태 (실패 로그 · 미정산 복구)
+        </a>
+      </div>
       <AdminDashboard />
     </div>
   );

@@ -9,6 +9,7 @@ import { getTodayKstDateString } from "@/lib/binance/btc-kst";
 import {
   getBtc1dCandleStartAt,
   getCurrentCandleStartAt,
+  getNextCandleStartAt,
 } from "@/lib/btc-ohlc/candle-utils";
 import type { SentimentPollRow } from "@/lib/supabase/db-types";
 import type { SentimentMarket } from "@/lib/constants/sentiment-markets";
@@ -21,20 +22,31 @@ export type TodayPollResult = {
 
 const BTC_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"] as const;
 
+const ROLLING_MARKETS = ["btc_4h", "btc_1h", "btc_15m", "btc_5m"] as const;
+
 /**
  * 오늘(KST) 현재 진행 중인 캔들에 해당하는 폴 조회/생성
  * btc_1d: 오늘 00:00 캔들. btc_4h/1h/15m: 현재 진행 중인 캔들
- * ndq/sp500/kospi/kosdaq: 오늘 00:00 기준 (일봉)
+ * 롤링 시장: 현재 슬롯 폴이 이미 정산됐으면 다음 슬롯 폴 반환 (Go to Live Market 시 새 폴로 이동)
  */
 export async function getOrCreateTodayPollByMarket(
   market: string
 ): Promise<TodayPollResult> {
   const m: SentimentMarket = isSentimentMarket(market) ? market : "btc_1d";
   const todayKst = getTodayKstDateString();
-  const candleStartAt = BTC_MARKETS.includes(m as (typeof BTC_MARKETS)[number])
+  let candleStartAt = BTC_MARKETS.includes(m as (typeof BTC_MARKETS)[number])
     ? getCurrentCandleStartAt(m)
     : getBtc1dCandleStartAt(todayKst); // ndq 등: KST 일봉 기준
-  return getOrCreatePollByMarketAndCandleStartAt(m, candleStartAt, todayKst);
+  let result = await getOrCreatePollByMarketAndCandleStartAt(m, candleStartAt, todayKst);
+  const pollRow = result.poll as { settled_at?: string | null };
+  if (
+    ROLLING_MARKETS.includes(m as (typeof ROLLING_MARKETS)[number]) &&
+    pollRow.settled_at
+  ) {
+    const nextStart = getNextCandleStartAt(m, candleStartAt);
+    result = await getOrCreatePollByMarketAndCandleStartAt(m, nextStart, todayKst);
+  }
+  return result;
 }
 
 /**

@@ -1,9 +1,10 @@
 /**
  * 캔들 시각 유틸
  *
- * - btc_1d: UTC 00:00 기준 (Binance 1d와 동일, 목표가·차트 일치)
- * - btc_4h: KST 00, 04, 08, 12, 16, 20 시 정각 (크론과 동일)
+ * - btc_1d: UTC 00:00 기준 (Binance 1d와 동일)
+ * - btc_4h: UTC 00, 04, 08, 12, 16, 20 (Binance 4h와 동일)
  * - btc_1h, btc_15m: KST 00:00 기준
+ * - btc_5m: UTC 00, 05, 10, … (Binance와 동일)
  */
 
 import { getTodayUtcDateString } from "@/lib/binance/btc-kst";
@@ -166,7 +167,7 @@ export function getCandlesForPollDate(
       break;
     case "btc_4h":
       for (let i = 0; i < 6; i++) {
-        result.push(getBtc4hCandleStartAt(pollDate, i));
+        result.push(getBtc4hCandleStartAtUtc(pollDate, i));
       }
       break;
     case "btc_1h":
@@ -212,7 +213,7 @@ export function getCandleStartAtForMarket(
     case "btc_1d":
       return getBtc1dCandleStartAtUtc(pollDate);
     case "btc_4h":
-      return getBtc4hCandleStartAt(pollDate, options?.slot4h ?? 0);
+      return getBtc4hCandleStartAtUtc(pollDate, options?.slot4h ?? 0);
     case "btc_1h":
       return getBtc1hCandleStartAt(pollDate, options?.hour ?? 0);
     case "btc_15m":
@@ -297,16 +298,15 @@ export function getRecentCandleStartAts(
         break;
       }
       case "btc_4h": {
-        // KST 00, 04, 08, 12, 16, 20 시 정각 (크론 실행 시각과 동일)
-        // targetKstMs = kstMs - 4h 이므로 getUTCHours()가 이미 KST 시(9 등). 날짜만 KST 기준으로 +9h 해서 추출
-        const kstDateCalendar = new Date(targetKstMs + KST_OFFSET_MS);
-        const kstY = kstDateCalendar.getUTCFullYear();
-        const kstM = kstDateCalendar.getUTCMonth() + 1;
-        const kstD = kstDateCalendar.getUTCDate();
-        const kstDateStr = `${kstY}-${pad(kstM)}-${pad(kstD)}`;
-        const kstH = new Date(targetKstMs).getUTCHours();
-        const slot4h = Math.floor(kstH / 4);
-        result.push(getBtc4hCandleStartAt(kstDateStr, slot4h));
+        // UTC 00, 04, 08, 12, 16, 20 (Binance 4h와 동일)
+        const utcMs4h = now.getTime() - (i + 1) * MS_4H;
+        const utc = new Date(utcMs4h);
+        const uy = utc.getUTCFullYear();
+        const um = utc.getUTCMonth() + 1;
+        const ud = utc.getUTCDate();
+        const uh = utc.getUTCHours();
+        const utcDateStr = `${uy}-${pad(um)}-${pad(ud)}`;
+        result.push(getBtc4hCandleStartAtUtc(utcDateStr, Math.floor(uh / 4)));
         break;
       }
       case "btc_1h":
@@ -336,7 +336,7 @@ export function getRecentCandleStartAts(
 
 /**
  * 현재 시각 기준, market에 해당하는 "진행 중인" 캔들의 candle_start_at
- * 예: btc_4h, 현재 KST 10:30 → 08:00 KST 시작 캔들
+ * 예: btc_4h UTC → 00/04/08/12/16/20 UTC (Binance와 동일)
  */
 export function getCurrentCandleStartAt(market: string): string {
   const now = new Date();
@@ -360,9 +360,15 @@ export function getCurrentCandleStartAt(market: string): string {
       return getBtc1dCandleStartAtUtc(getTodayUtcDateString());
     }
     case "btc_4h": {
-      // KST 00, 04, 08, 12, 16, 20 시 정각 (크론과 동일)
-      const kstSlot = Math.floor(h / 4) * 4;
-      return getBtc4hCandleStartAt(dateStr, kstSlot / 4);
+      // UTC 00, 04, 08, 12, 16, 20 (Binance 4h와 동일, 1h 집계 없음)
+      const utc = new Date(utcMs);
+      const utcY = utc.getUTCFullYear();
+      const utcM = utc.getUTCMonth() + 1;
+      const utcD = utc.getUTCDate();
+      const utcHour = utc.getUTCHours();
+      const utcDateStr = `${utcY}-${String(utcM).padStart(2, "0")}-${String(utcD).padStart(2, "0")}`;
+      const slot4h = Math.floor(utcHour / 4);
+      return getBtc4hCandleStartAtUtc(utcDateStr, slot4h);
     }
     case "btc_1h":
       return getBtc1hCandleStartAt(dateStr, h);
@@ -407,5 +413,19 @@ export function getPreviousCandleStartAt(
   const period = CANDLE_PERIOD_MS[market];
   if (period == null) return candleStartAt;
   const ms = new Date(candleStartAt).getTime() - period;
+  return new Date(ms).toISOString();
+}
+
+/**
+ * 현재 봉 candle_start_at에서 한 봉 다음의 candle_start_at
+ * 정산된 폴 다음 "라이브" 폴 조회 시 사용
+ */
+export function getNextCandleStartAt(
+  market: string,
+  candleStartAt: string
+): string {
+  const period = CANDLE_PERIOD_MS[market];
+  if (period == null) return candleStartAt;
+  const ms = new Date(candleStartAt).getTime() + period;
   return new Date(ms).toISOString();
 }

@@ -3,20 +3,30 @@
  * cron-job.org 등은 500 응답 본문을 안 보여주므로, 실패 시 DB에 저장한 뒤 이 API로 확인
  *
  * GET /api/monitor/cron-errors
- * 인증: x-cron-secret (CRON_SECRET)
+ * 인증: (1) x-cron-secret 또는 (2) 로그인 관리자 세션
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getCronErrors } from "@/lib/monitor/cron-error-log";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getCronErrors, getCronErrorHistory } from "@/lib/monitor/cron-error-log";
+import { isCronAuthorized } from "@/lib/cron/auth";
 
-function isAuthorized(request: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return false;
-  return request.headers.get("x-cron-secret") === secret;
+async function isAuthorized(request: NextRequest): Promise<boolean> {
+  if (isCronAuthorized(request)) return true;
+  const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+  const { data } = await supabase
+    .from("users")
+    .select("role")
+    .eq("user_id", user.id)
+    .is("deleted_at", null)
+    .single();
+  return data?.role === "ADMIN";
 }
 
 export async function GET(request: NextRequest) {
-  if (!isAuthorized(request)) {
+  if (!(await isAuthorized(request))) {
     return NextResponse.json(
       { success: false, error: "Unauthorized" },
       { status: 401 }
@@ -24,10 +34,13 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const errors = await getCronErrors();
+    const [errors, history] = await Promise.all([
+      getCronErrors(),
+      getCronErrorHistory(50),
+    ]);
     return NextResponse.json({
       success: true,
-      data: { errors },
+      data: { errors, history },
     });
   } catch (e) {
     console.error("[monitor/cron-errors]", e);

@@ -9,6 +9,7 @@ BTC OHLC 백필 스크립트 (ccxt + Binance)
 실행:
     python scripts/btc_ohlc_backfill.py
     python scripts/btc_ohlc_backfill.py --market btc_4h   # 특정 마켓만
+    python scripts/btc_ohlc_backfill.py --market btc_4h --end-datetime "2026-03-08T08:00:00Z"  # 해당 시각(미만)까지
     python scripts/btc_ohlc_backfill.py --dry-run        # DB 저장 없이 테스트
 """
 
@@ -110,9 +111,11 @@ def backfill_market(
     market: str,
     dry_run: bool = False,
     limit_requests: Optional[int] = None,
+    end_datetime_utc: Optional[str] = None,
 ) -> tuple[int, int]:
     """
     단일 마켓 백필
+    end_datetime_utc: ISO 또는 "YYYY-MM-DDTHH:MM:SSZ" — 이 시각(미만)까지만 저장 후 종료
     Returns: (저장 건수, 에러 건수)
     """
     import ccxt
@@ -120,6 +123,11 @@ def backfill_market(
     timeframe = MARKET_TO_TIMEFRAME.get(market)
     if not timeframe:
         raise ValueError(f"지원 market: {list(MARKET_TO_TIMEFRAME.keys())}")
+
+    end_ms: Optional[int] = None
+    if end_datetime_utc:
+        end_ms = int(datetime.fromisoformat(end_datetime_utc.replace("Z", "+00:00")).timestamp() * 1000)
+        print(f"   end_datetime_utc: {end_datetime_utc} (candle_start_at < 이 시각만 저장)")
 
     exchange = ccxt.binance({
         "enableRateLimit": True,
@@ -146,7 +154,18 @@ def backfill_market(
             break
 
         rows = [row_to_upsert(market, c) for c in ohlcv]
-        since = int(ohlcv[-1][0]) + 1  # 다음 페이지
+        if end_ms is not None:
+            rows = [r for r in rows if datetime.fromisoformat(r["candle_start_at"].replace("Z", "+00:00")).timestamp() * 1000 < end_ms]
+            if not rows:
+                print(f"   [END] All candles in batch >= end_datetime, stop.")
+                break
+            last_candle_ms = int(ohlcv[-1][0])
+            if last_candle_ms >= end_ms:
+                stop_after_this = True
+            else:
+                stop_after_this = False
+        else:
+            stop_after_this = False
 
         if dry_run:
             print(f"   [DRY-RUN] {len(rows)} rows (last: {rows[-1]['candle_start_at']})")
@@ -160,6 +179,10 @@ def backfill_market(
                 total_errors += len(rows)
                 print(f"   ERR upsert failed: {e}")
 
+        if stop_after_this:
+            print(f"   [END] Reached end_datetime")
+            break
+        since = int(ohlcv[-1][0]) + 1
         if len(ohlcv) < CANDLES_PER_REQUEST:
             break
 
@@ -176,6 +199,12 @@ def main() -> None:
     )
     parser.add_argument("--dry-run", action="store_true", help="DB save skip (test only)")
     parser.add_argument("--limit", type=int, default=None, help="Max API requests per market (for testing)")
+    parser.add_argument(
+        "--end-datetime",
+        type=str,
+        default=None,
+        help="UTC 기준 종료 시각 (candle_start_at < 이 시각만 저장). 예: 2026-03-08T08:00:00Z",
+    )
     args = parser.parse_args()
 
     validate_env()
@@ -185,7 +214,12 @@ def main() -> None:
 
     total = 0
     for m in markets:
-        inserted, errs = backfill_market(m, dry_run=args.dry_run, limit_requests=args.limit)
+        inserted, errs = backfill_market(
+            m,
+            dry_run=args.dry_run,
+            limit_requests=args.limit,
+            end_datetime_utc=args.end_datetime,
+        )
         total += inserted
 
     print(f"\n[DONE] Total {total} rows saved")

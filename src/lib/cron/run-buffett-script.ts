@@ -6,18 +6,12 @@
 
 import { spawn } from "child_process";
 import path from "path";
+import { isCronAuthorized } from "./auth";
 
 const SCRIPTS_DIR = path.join(process.cwd(), "public", "scripts");
 
 function isAuthorized(request: Request): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return false;
-  const auth = request.headers.get("authorization");
-  if (auth?.startsWith("Bearer ")) {
-    return auth.slice(7) === secret;
-  }
-  const headerSecret = request.headers.get("x-cron-secret");
-  return headerSecret === secret;
+  return isCronAuthorized(request);
 }
 
 export type RunResult = {
