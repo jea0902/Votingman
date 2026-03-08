@@ -22,17 +22,18 @@ function formatCountdown(ms: number): string {
 
 type Props = {
   market: SentimentMarket;
+  candleStartAt?: string | null;
 };
 
-export function CountdownTimer({ market }: Props) {
+export function CountdownTimer({ market, candleStartAt }: Props) {
   const [ms, setMs] = useState<number | null>(null);
 
   useEffect(() => {
-    const tick = () => setMs(getMillisUntilClose(market));
+    const tick = () => setMs(getMillisUntilClose(market, candleStartAt));
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [market]);
+  }, [market, candleStartAt]);
 
   return (
     <span className="font-mono font-semibold text-amber-700 dark:text-amber-500 tabular-nums" suppressHydrationWarning>

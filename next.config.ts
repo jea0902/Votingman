@@ -1,7 +1,10 @@
 import type { NextConfig } from "next";
+import path from "path";
 
 const nextConfig: NextConfig = {
-  // Turbopack 설정을 제거하여 파일 I/O 벤치마크 오류 해결
+  turbopack: {
+    root: path.resolve(process.cwd()),
+  },
   images: {
     remotePatterns: [
       {

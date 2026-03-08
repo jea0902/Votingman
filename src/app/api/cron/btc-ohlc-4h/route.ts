@@ -6,6 +6,7 @@
  * GET /api/cron/btc-ohlc-4h
  * 인증: (1) Header x-cron-secret 또는 Authorization: Bearer <CRON_SECRET>
  *       (2) 쿼리 ?cron_secret=<CRON_SECRET> (헤더 설정이 어려운 크론 서비스용)
+ * - getRecentCandleStartAts 경계 회피를 위해 3초 지연 후 수집
  */
 
 import { NextResponse } from "next/server";
@@ -18,6 +19,8 @@ import { TIER_MARKET_ALL } from "@/lib/tier/constants";
 import { recordCronError } from "@/lib/monitor/cron-error-log";
 import { getCronSecret, isCronAuthorized } from "@/lib/cron/auth";
 
+const CRON_START_DELAY_MS = 3000;
+
 export async function GET(request: Request) {
   if (!isCronAuthorized(request)) {
     const body: { success: false; error: string; debug?: string } = {
@@ -29,6 +32,8 @@ export async function GET(request: Request) {
     }
     return NextResponse.json(body, { status: 401 });
   }
+
+  await new Promise((r) => setTimeout(r, CRON_START_DELAY_MS));
 
   try {
     const rows = await fetchKlinesKstAligned("btc_4h", 1);
@@ -49,11 +54,10 @@ export async function GET(request: Request) {
         settle.status === "settled" ||
         settle.status === "invalid_refund"
       ) {
-        try {
-          await refreshMarketStats(TIER_MARKET_ALL);
-        } catch (refreshErr) {
+        // MMR/리더보드 갱신은 비동기로 (정산·알림 응답 지연 방지)
+        refreshMarketStats(TIER_MARKET_ALL).catch((refreshErr) => {
           console.error("[cron/btc-ohlc-4h] refreshMarketStats 실패 (정산은 완료됨):", refreshErr);
-        }
+        });
       }
     }
 

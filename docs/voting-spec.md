@@ -319,6 +319,147 @@ if (vote === choice && isAdditionalMode && myBetAmount + chargeAmount === totalC
 - **cron**: 00:05, 04:05, 08:05, 12:05, 16:05, 20:05 **UTC**에 실행하도록 cron-job.org 스케줄 설정.
 - **기존 KST btc_4h 데이터**: 필요 시 삭제 후 `scripts/btc_ohlc_backfill.py`로 UTC 4h 백필.
 
+### 6.21 크론 호출 시각과 getRecentCandleStartAts — 폴 못 찾아 승리 -> 무효 판정 트러블 슈팅 (2026-03)
+
+**증상**: 모든 시간봉 투표에서 유저가 투표했는데 승리자의 판정이 무효가 되어서 몇시간동안 문제를 해결하려고 붙잡음.
+=> 결론 : 폴 못 찾음. 크론을 "1분 뒤"로 설정하니 성공.
+
+**원인**: `getRecentCandleStartAts(market, 1)` = `now - period`. **21:50:00 직전**에 크론이 도착하면 **21:40 캔들**을 찾고, **21:50:00 이후**에 도착하면 **21:45 캔들**을 찾는다.
+
+| 크론 도착 시각 | getRecentCandleStartAts 결과 | 유저 투표(21:48) 대상 |
+|----------------|------------------------------|------------------------|
+| 21:49:59       | 21:40 캔들                   | 21:45 캔들 → **불일치** |
+| 21:50:00       | 21:45 캔들                   | 21:45 캔들 → 일치      |
+| 21:51:00       | 21:45 캔들                   | 21:45 캔들 → 일치      |
+
+- 21:48에 투표 → **21:45 캔들**에 투표 (21:45~21:50 구간)
+- 크론이 21:49:59에 도착 → 21:40 캔들 정산 시도 → 사용자가 투표한 21:45 폴과 다름 → 실패
+- 크론이 21:51에 도착 → 21:45 캔들 정산 → 사용자 투표와 일치 → 성공
+
+**해결**: cron-job.org에서 **마감 1분 후**에 크론 실행 (예: 5분봉이면 01, 06, 11, …, 56분에 실행).
+
+**초등학생도 이해할 설명**:
+- 5분봉 캔들: 21:40~21:45, 21:45~21:50, 21:50~21:55 …
+- 21:48에 투표 = **21:45 캔들**에 투표 (아직 진행 중)
+- 크론은 "지금 시각 − 5분"에 해당하는 캔들을 찾음
+- 21:49:59에 크론 도착 → 21:44:59 → **21:40 캔들** 찾음 (사용자는 21:45에 투표) → **틀림**
+- 21:51:00에 크론 도착 → 21:46:00 → **21:45 캔들** 찾음 (사용자와 같음) → **맞음**
+- 그래서 크론을 **1분 뒤**에 돌리면 항상 맞는 캔들을 찾음
+
+**cron 10초 단위 가능 여부**: cron-job.org는 **최소 1분 간격**만 지원 (시간당 최대 60회). 10초 단위 스케줄은 불가.
+
+**해결: 3초 지연 (2026-03 적용)**: cron-job.org는 5분 간격(00, 05, 10, …) 그대로 두고, 크론 핸들러에서 **인증 직후 3초 대기** 후 `fetchKlinesKstAligned` 호출. 21:49:59 도착해도 3초 후 21:50:02 → getRecentCandleStartAts가 21:45 캔들 반환. btc-ohlc-5m, 15m, 1h, 4h, daily 모두 `CRON_START_DELAY_MS = 3000` 적용. Vercel Hobby(10초 타임아웃)에서 3초+실제 작업이 10초 초과 시 504 가능 → 그때는 2초로 줄이거나 1분 뒤 크론으로 복귀.
+
+**테스트 성공 (2026-03)**: 5초→3초 지연 적용 후 cron-job.org 5분 간격(00, 05, 10, …) 그대로 두고 테스트 → 정산 성공. 1분 뒤 크론 설정 없이 5분 간격 유지 가능. **5분봉, 15분봉, 1시간봉 전부 테스트 완료.**
+
+### 6.22 1초 조기 마감 (2026-03)
+
+**증상**: 마감 시각에 투표 차단하려 해도 약 2초 지연으로 마감 직후까지 투표 가능.
+
+**수정**: `VOTING_CLOSE_EARLY_MS = 1000` (candle-utils). 마감 시각 1초 전부터 투표 차단.
+- **Vote API** `isPollCandleClosed`: `closeUtcMs = candle_start_at + period - 1000`
+- **Poll API** settlement_status: 동일 1초 조기
+- **sentiment-vote.ts** `getRollingCloseUtcMs`, `getBtc1dCloseUtcMs`: 카운트다운·마감 문구 1초 앞당김
+
+### 6.23 정산 완료 문구 — 알림 도착 시에만 표시 (2026-03)
+
+**증상**: "정산 중입니다..." 이후 "정산이 완료되었습니다"가 나와도 알림은 약 2초 후에 옴. 문구와 알림 시점 불일치.
+
+**수정**: Poll API에 `show_settled_complete` 추가.
+- **참여자**(투표한 사용자): 해당 폴의 payout 알림(notifications.related_payout_id)이 생성된 뒤에만 `true`
+- **비참여자**: `settlement_status === "settled"`이면 즉시 `true`
+- **Predict 페이지**: `show_settled_complete`가 `true`일 때만 "정산이 완료되었습니다." 표시. settled이지만 알림 미도착 시 "정산 중입니다..." 유지. 5초마다 폴링하여 알림 도착 시 갱신.
+
+### 6.24 마감 시각 표시 수정 (2026-03)
+
+**증상**: 투표 제목 아래 "2026년 3월 9일 0시에 마감" 문구가 카운트다운과 불일치. btc_4h는 UTC 정렬인데 KST 00/04/08 형식으로 잘못 표시됨.
+
+**수정**:
+
+| 구분 | 내용 |
+|------|------|
+| **폴별 마감 시각** | `getCloseTimeKstString(market, candleStartAt?)` — candle_start_at 있으면 해당 폴 마감 시각 표시 |
+| **polls API** | 응답에 `candle_start_at` 추가. 홈·predict 페이지에서 폴별 마감 시각 사용 |
+| **btc_4h** | 내부 UTC 정렬(00/04/08/12/16/20 UTC), UI는 KST로 표시 (카운트다운과 동일) |
+| **봉 경계 표시** | 마감 = period - 1초(00:59:59)인데 "0시"로 나오던 문제 → 봉 경계 시각(01:00)으로 표시 |
+| **카운트다운 동기화** | `CountdownTimer`에 `candleStartAt` 전달. `getMillisUntilClose(market, candleStartAt?)` 옵션 추가 |
+
+**적용 위치**: predict 페이지, MarketVoteCard, MarketVoteCardCompact, PollData 타입.
+
+### 6.26 정산 후 refreshMarketStats 비동기화 (2026-03)
+
+**증상**: 정산(승패 판정 → 알림)까지 40초 이상 소요.
+
+**원인**: `refreshMarketStats(TIER_MARKET_ALL)`가 정산 직후 `await`로 호출됨. 전체 참여 유저를 순회하며 `user_stats` upsert (N건 순차) → 10~30초 블로킹.
+
+**수정**: `refreshMarketStats`를 fire-and-forget으로 변경. 정산·알림(DB 트리거) 완료 후 즉시 응답 반환. MMR/리더보드 갱신은 백그라운드 실행.
+
+**적용**: btc-ohlc-4h, 5m, 15m, 1h, daily 모든 크론 라우트.
+
+### 6.27 정산 시간 최소화 최적화 (2026-03)
+
+**목표**: 참여 유저 수가 많을 때 정산 시간 단축.
+
+| 구분 | 기존 | 최적화 |
+|------|------|--------|
+| **invalidRefundAll** | 순차: payout insert 1건 → RPC 1건 반복 | payout_history 배치 insert 1회 → add_voting_coin 20건씩 병렬 |
+| **승자 처리** | 승자별 순차: RPC → payout insert | add_voting_coin 20건씩 병렬 → payout_history 배치 insert 1회 |
+| **패자 처리** | 순차 payout insert N회 | payout_history 배치 insert 1회 |
+| **refreshMarketStats** | user_stats 1건씩 upsert N회 | user_stats 배치 upsert 1회 |
+
+**상수**: `RPC_BATCH_SIZE = 50` (DB 연결 풀 부하 분산).
+
+### 6.28 정산 추가 최적화 (2026-03)
+
+| 구분 | 기존 | 최적화 |
+|------|------|--------|
+| **payout_history insert** | 승자 1회 + 패자 1회 (2 round-trip) | 승자+패자 통합 1회 insert |
+| **알림 트리거** | — | FOR EACH STATEMENT 시도 → 일부 환경 미동작으로 ROW 트리거 유지 (무효 포함 모두 알림) |
+| **add_voting_coin** | N회 RPC | add_voting_coin_bulk 1회 (마이그레이션 20260310100000) |
+| **ensure_users** | N회 RPC | ensure_users_for_settlement_bulk 1회 |
+
+### 6.29 동일가 판정 완화 + 무효 알림 (2026-03)
+
+- **동일가 판정**: 소수 둘째자리 → 넷째자리. 변동 0.01% 이하도 둘째자리에서 동일가로 잘못 판정되던 문제 수정.
+- **무효 알림**: payout_history insert 시 트리거로 알림 생성. 무효(payout_amount=bet_amount) 포함 모든 정산에 알림 전송.
+
+### 6.25 BTC 투표 상세 페이지 차트 (2026-03)
+
+**구성**: `BtcChart` (components/predict/BtcChart.tsx). predict/[market] 페이지에서 btc 시장일 때 표시.
+
+#### 구현 방식
+
+| 구분 | 내용 |
+|------|------|
+| **라이브러리** | lightweight-charts (TradingView 오픈소스) |
+| **초기 데이터** | Binance REST API 직접 호출 (`api.binance.com/api/v3/klines`) |
+| **실시간** | Binance WebSocket (`wss://stream.binance.com:9443/ws/btcusdt@kline_{interval}`) |
+| **로딩** | `dynamic(..., { ssr: false })` — 클라이언트 전용, 번들 분리 |
+
+#### 데이터 흐름
+
+1. 마운트 시 REST로 초기 캔들 로드 (1m/15m/1h/4h/1d 선택 가능)
+2. WebSocket 연결 후 틱 단위 실시간 캔들 업데이트 (`series.update`)
+3. 시간봉 전환 시 기존 WebSocket 해제 → REST 재요청 → 새 WebSocket 연결
+
+#### 최적화
+
+| 항목 | 값 | 설명 |
+|------|-----|------|
+| **초기 로드** | 80봉 | `INITIAL_LOAD_LIMIT` — 첫 진입 시 가벼운 로드 |
+| **추가 로드** | interval별 상이 | 1m/15m: 1000, 1h: 500, 4h: 400, 1d: 365 |
+| **지연 로딩** | `LOAD_MORE_THRESHOLD=40` | 왼쪽 스크롤 시 `from < 40`이면 과거 데이터 추가 요청 |
+| **중복 차단** | `loadingMoreRef` | 동시에 여러 `fetchBtcKlines` 호출 방지 |
+| **목표가 뷰** | `autoscaleInfoProvider` | 목표가(priceToBeat)가 항상 Y축 범위에 포함되도록 padding 15% |
+| **가시 봉 수** | interval별 | 1m: 60, 15m/1h: 48, 4h: 42, 1d: 60 |
+
+#### UI
+
+- 시간봉 버튼: 1분 / 15분 / 1시간 / 4시간 / 1일
+- 목표가(시가) 수평선: `createPriceLine` — "목표가" 라벨
+- WebSocket 상태 표시: 실시간 / 연결 중 / 연결 끊김
+- 다크 테마 (THEME.bgCard, candleUp/Down 등)
+
 ### 6.20 btc_4h 변경 사항 요약 (2026-03)
 
 | 구분 | 내용 |
@@ -584,3 +725,6 @@ ORDER BY p.settled_at DESC, ph.payout_amount DESC NULLS LAST;
 | 2026-03-09 | 시장별 타임존·크론 정리: btc_4h만 UTC, 나머지 Asia/Seoul. 문서·candle-utils·unsettled-polls 주석 반영 |
 | 2026-03-09 | btc_1h/15m/5m cron에 recordCronError·context·refreshMarketStats try-catch·candle_start_at ISO 정규화 |
 | 2026-03-09 | 투표 상세 페이지 실시간 배팅 반영(7.12): 오픈 중 3초마다 폴 재조회, fetchPoll(candle_start_at) 옵션 |
+| 2026-03-09 | 크론 호출 시각·getRecentCandleStartAts 타이밍(6.21): 21:50 직전 도착 시 21:40 캔들 찾음→폴 불일치. 5초 지연 적용, 테스트 성공 |
+| 2026-03-09 | 1초 조기 마감(6.22): VOTING_CLOSE_EARLY_MS=1000. Vote/Poll API, sentiment-vote 적용 |
+| 2026-03-09 | 정산 완료 문구(6.23): show_settled_complete. 참여자는 알림 도착 시에만 "정산이 완료되었습니다" 표시 |

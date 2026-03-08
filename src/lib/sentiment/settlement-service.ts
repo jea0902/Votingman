@@ -87,8 +87,24 @@ function candleStartAtToPollDateKst(candleStartAt: string): string {
   return `${y}-${m}-${day}`;
 }
 
+const RPC_BATCH_SIZE = 50;
+
+/** 청크 단위로 병렬 실행 (bulk 실패 시 fallback) */
+async function runInChunks<T, R>(
+  items: T[],
+  chunkSize: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = [];
+  for (let i = 0; i < items.length; i += chunkSize) {
+    const chunk = items.slice(i, i + chunkSize);
+    results.push(...(await Promise.all(chunk.map(fn))));
+  }
+  return results;
+}
+
 /**
- * 무효 시 전원 원금 환불: payout_history는 항상 insert(알림·전적), 잔액 업데이트는 실패해도 throw 안 함
+ * 무효 시 전원 원금 환불: payout_history 배치 insert → add_voting_coin_bulk 1회
  */
 async function invalidRefundAll(
   admin: ReturnType<typeof createSupabaseAdmin>,
@@ -96,35 +112,44 @@ async function invalidRefundAll(
   market: string,
   votes: Array<{ user_id: string | null; bet_amount: unknown }>
 ): Promise<number> {
-  let refunded = 0;
-  for (const v of votes) {
-    if (!v.user_id) continue;
-    const refund = Number(v.bet_amount ?? 0);
-    if (refund <= 0) continue;
+  const refunds = (votes ?? [])
+    .filter((v): v is { user_id: string; bet_amount: unknown } => !!v.user_id)
+    .map((v) => ({ user_id: v.user_id!, refund: Number(v.bet_amount ?? 0) }))
+    .filter((r) => r.refund > 0);
+  if (refunds.length === 0) return 0;
 
-    await admin.from("payout_history").insert({
+  const payoutRows = refunds.map((r) => ({
+    poll_id: pollId,
+    user_id: r.user_id,
+    market,
+    bet_amount: r.refund,
+    payout_amount: r.refund,
+  }));
+  await admin.from("payout_history").insert(payoutRows);
+
+  const bulkItems = refunds.map((r) => ({
+    user_id: r.user_id,
+    amount: r.refund,
+  }));
+  const { data: updatedIds, error } = await admin.rpc("add_voting_coin_bulk", {
+    p_items: bulkItems,
+  });
+  if (error) {
+    console.error("[settlement] add_voting_coin_bulk failed, fallback to individual", {
       poll_id: pollId,
-      user_id: v.user_id,
-      market,
-      bet_amount: refund,
-      payout_amount: refund,
+      error: (error as { message?: string })?.message,
     });
-
-    const { data: _id, error: rpcErr } = await admin.rpc("add_voting_coin", {
-      p_user_id: v.user_id,
-      p_amount: refund,
-    });
-    if (!rpcErr && _id != null) refunded++;
-    else {
-      console.error("[settlement] Invalid refund add_voting_coin failed", {
-        poll_id: pollId,
-        user_id: v.user_id,
-        refund,
-        error: rpcErr?.message,
+    let refunded = 0;
+    for (const r of refunds) {
+      const { data, error: e } = await admin.rpc("add_voting_coin", {
+        p_user_id: r.user_id,
+        p_amount: r.refund,
       });
+      if (!e && data != null) refunded++;
     }
+    return refunded;
   }
-  return refunded;
+  return (updatedIds ?? []).length;
 }
 
 /**
@@ -184,18 +209,21 @@ export async function settlePoll(
       ? toCanonicalCandleStartAt(candleStartAt)
       : candleStartAt;
 
-  let poll: unknown = null;
-  let pollError: { message?: string } | null = null;
-  let lookupKey = candleStartAtNorm;
+  const lookupKey = candleStartAtNorm;
+  const ohlcKey = candleStartAtNorm;
 
-  const { data: pollData, error: pollErr } = await admin
-    .from("sentiment_polls")
-    .select("*")
-    .eq("market", market)
-    .eq("candle_start_at", lookupKey)
-    .maybeSingle();
-  poll = pollData;
-  pollError = pollErr;
+  const [pollResult, ohlcPrices] = await Promise.all([
+    admin
+      .from("sentiment_polls")
+      .select("*")
+      .eq("market", market)
+      .eq("candle_start_at", lookupKey)
+      .maybeSingle(),
+    getSettlementPricesFromOhlc(market, ohlcKey),
+  ]);
+
+  const poll = pollResult.data;
+  const pollError = pollResult.error;
 
   if (pollError || !poll) {
     const errMsg = pollError?.message ?? "폴을 찾을 수 없습니다.";
@@ -230,28 +258,31 @@ export async function settlePoll(
     };
   }
 
-  // btc_ohlc 조회는 항상 정산 요청 캔들(candleStartAtNorm)로 — DB 포맷 차이로 잘못된 봉 참조 방지 (15m 포함 모든 시간봉 동일)
-  const ohlcKey = candleStartAtNorm;
-  const ohlcPrices = await getSettlementPricesFromOhlc(market, ohlcKey);
   const reference_close = ohlcPrices?.reference_close ?? null;
   const settlement_close = ohlcPrices?.settlement_close ?? null;
 
-  const { data: votes } = await admin
-    .from("sentiment_votes")
-    .select("user_id, choice, bet_amount")
-    .eq("poll_id", pollId)
-    .gt("bet_amount", 0)
-    .not("user_id", "is", null);
+  const [votesRes, existingPayoutsRes] = await Promise.all([
+    admin
+      .from("sentiment_votes")
+      .select("user_id, choice, bet_amount")
+      .eq("poll_id", pollId)
+      .gt("bet_amount", 0)
+      .not("user_id", "is", null),
+    admin.from("payout_history").select("user_id").eq("poll_id", pollId),
+  ]);
+  const votes = votesRes.data ?? [];
+  const alreadyPaidUserIds = new Set(
+    (existingPayoutsRes.data ?? []).map((p) => p.user_id as string).filter(Boolean)
+  );
 
-  const participantIds = [...new Set((votes ?? []).map((v) => v.user_id as string))];
+  const participantIds = [...new Set(votes.map((v) => v.user_id as string))];
   const participantCount = participantIds.length;
 
-  // choice 비교: DB가 대소문자/문자열 차이로 "Long","short" 등 올 수 있으므로 소문자로 통일
   const choiceNorm = (c: unknown) => String(c ?? "").toLowerCase().trim();
-  const longCoinTotal = (votes ?? [])
+  const longCoinTotal = votes
     .filter((v) => choiceNorm(v.choice) === "long")
     .reduce((sum, v) => sum + Number(v.bet_amount ?? 0), 0);
-  const shortCoinTotal = (votes ?? [])
+  const shortCoinTotal = votes
     .filter((v) => choiceNorm(v.choice) === "short")
     .reduce((sum, v) => sum + Number(v.bet_amount ?? 0), 0);
 
@@ -335,9 +366,9 @@ export async function settlePoll(
     };
   }
 
-  // 동일가: 새 봉 종가와 이전 봉 종가(시가)가 소수점 둘째자리까지 완전히 같을 때만 무효
-  const refRounded = Math.round(reference_close * 100) / 100;
-  const settleRounded = Math.round(settlement_close * 100) / 100;
+  // 동일가: 시가·종가가 소수점 넷째자리까지 완전히 같을 때만 무효 (둘째자리는 변동 0.01% 이하도 동일가로 잘못 판정됨)
+  const refRounded = Math.round(reference_close * 10000) / 10000;
+  const settleRounded = Math.round(settlement_close * 10000) / 10000;
   const isTie = refRounded === settleRounded;
 
   // 정산 시점 가격 로그 (동일가/승패 원인 검증용)
@@ -356,7 +387,7 @@ export async function settlePoll(
   });
 
   if (isTie) {
-    console.error("[settlement] 동일가 무효 (소수점 둘째자리 동일)", {
+    console.error("[settlement] 동일가 무효 (소수점 넷째자리 동일)", {
       poll_id: pollId,
       market: pollRow.market ?? market,
       ohlc_key: ohlcKey,
@@ -411,15 +442,6 @@ export async function settlePoll(
     })),
   });
 
-  // 재정산 시 이중 지급 방지: 이미 payout_history에 있는 유저는 스킵
-  const { data: existingPayouts } = await admin
-    .from("payout_history")
-    .select("user_id")
-    .eq("poll_id", pollId);
-  const alreadyPaidUserIds = new Set(
-    (existingPayouts ?? []).map((p) => p.user_id as string).filter(Boolean)
-  );
-
   // 폴 캐시(long_coin_total 등) 대신 실제 votes에서 집계 (동시성·누락 방지)
   const winnerTotalBet = winnerVotes.reduce(
     (sum, v) => sum + Number(v.bet_amount ?? 0),
@@ -435,89 +457,91 @@ export async function settlePoll(
 
   /**
    * 승리자 VTC 지급: RPC add_voting_coin으로 원자적 증가만 수행.
-   * 실패 원인 제거: (1) users 없음 → RPC가 null 반환만 하고 예외 없음 (2) update 0 rows/race → select+update 제거로 제거 (3) numeric → RPC 내부에서 ROUND·음수 방지.
+   * 병렬 실행으로 정산 속도 개선 (여러 승자 시 순차 대비 단축).
    */
-  for (const v of winnerVotes) {
-    if (!v.user_id) continue;
-    if (alreadyPaidUserIds.has(v.user_id)) continue;
-    const bet = Number(v.bet_amount ?? 0);
-    const payoutGross =
-      winnerTotalBet > 0 ? (loserPool * bet) / winnerTotalBet : 0;
-    const totalGross = bet + payoutGross;
-    const totalAfterFee =
-      Math.round(totalGross * (1 - PAYOUT_FEE_RATE) * 100) / 100;
-    const payoutRecorded = totalAfterFee - bet;
-    payoutTotal += payoutRecorded;
-
-    let updatedId: string | null = null;
-    let rpcErr: { message?: string } | null = null;
-    ({ data: updatedId, error: rpcErr } = await admin.rpc("add_voting_coin", {
-      p_user_id: v.user_id,
-      p_amount: totalAfterFee,
-    }));
-
-    if ((rpcErr || updatedId == null)) {
-      let ensured = false;
-      try {
-        const r = await admin.rpc("ensure_user_for_settlement", {
-          p_user_id: v.user_id,
-        });
-        ensured = r.data === true;
-      } catch {
-        ensured = false;
-      }
-      if (ensured) {
-        const retry = await admin.rpc("add_voting_coin", {
-          p_user_id: v.user_id,
-          p_amount: totalAfterFee,
-        });
-        if (retry.data != null && !retry.error) {
-          updatedId = retry.data;
-          rpcErr = null;
-        }
-      }
-    }
-
-    if (rpcErr || updatedId == null) {
-      console.error("[settlement] add_voting_coin failed (user missing or error)", {
-        poll_id: pollId,
-        user_id: v.user_id,
-        totalAfterFee,
-        error: rpcErr?.message,
-      });
-      failed_user_ids.push(v.user_id);
-      await admin.from("payout_history").insert({
-        poll_id: pollId,
-        user_id: v.user_id,
-        market: pollRow.market ?? market,
-        bet_amount: bet,
-        payout_amount: payoutRecorded,
-      });
-      continue;
-    }
-
-    await admin.from("payout_history").insert({
-      poll_id: pollId,
-      user_id: v.user_id,
-      market: pollRow.market ?? market,
-      bet_amount: bet,
-      payout_amount: payoutRecorded,
+  const winnerPayouts = winnerVotes
+    .filter((v) => v.user_id && !alreadyPaidUserIds.has(v.user_id))
+    .map((v) => {
+      const bet = Number(v.bet_amount ?? 0);
+      const payoutGross =
+        winnerTotalBet > 0 ? (loserPool * bet) / winnerTotalBet : 0;
+      const totalGross = bet + payoutGross;
+      const totalAfterFee =
+        Math.round(totalGross * (1 - PAYOUT_FEE_RATE) * 100) / 100;
+      const payoutRecorded = totalAfterFee - bet;
+      return { v, bet, totalAfterFee, payoutRecorded };
     });
+
+  const marketStr = pollRow.market ?? market;
+
+  // ① ensure_users: public.users에 없는 유저 생성
+  const winnerUserIds = winnerPayouts.map((p) => p.v.user_id!);
+  await admin.rpc("ensure_users_for_settlement_bulk", {
+    p_user_ids: winnerUserIds,
+  });
+
+  // ② add_voting_coin_bulk: 1회 RPC로 전원 지급
+  const bulkItems = winnerPayouts.map((p) => ({
+    user_id: p.v.user_id!,
+    amount: p.totalAfterFee,
+  }));
+  const { data: bulkUpdated, error: bulkErr } = await admin.rpc("add_voting_coin_bulk", {
+    p_items: bulkItems,
+  });
+  const successUserIds = new Set(
+    (bulkUpdated ?? []).map((r: { updated_user_id?: string }) => r?.updated_user_id).filter(Boolean)
+  );
+
+  if (bulkErr || successUserIds.size < winnerPayouts.length) {
+    // ③ bulk 실패 또는 일부 미지급 → 개별 재시도
+    for (const p of winnerPayouts) {
+      if (successUserIds.has(p.v.user_id!)) continue;
+      let { data: updatedId, error: rpcErr } = await admin.rpc("add_voting_coin", {
+        p_user_id: p.v.user_id!,
+        p_amount: p.totalAfterFee,
+      });
+      if (rpcErr || updatedId == null) {
+        const ensured =
+          (await admin.rpc("ensure_user_for_settlement", { p_user_id: p.v.user_id! })).data === true;
+        if (ensured) {
+          const retry = await admin.rpc("add_voting_coin", {
+            p_user_id: p.v.user_id!,
+            p_amount: p.totalAfterFee,
+          });
+          if (retry.data != null && !retry.error) successUserIds.add(p.v.user_id!);
+        }
+      } else {
+        successUserIds.add(p.v.user_id!);
+      }
+      if (!successUserIds.has(p.v.user_id!)) {
+        failed_user_ids.push(p.v.user_id!);
+      }
+    }
   }
 
-  // 패배자 기록 (payout_amount = 0, 잔액 변화 없음)
-  for (const v of loserVotes) {
-    if (!v.user_id) continue;
-    if (alreadyPaidUserIds.has(v.user_id)) continue; // 재정산 시 이미 기록된 유저 스킵
-    const bet = Number(v.bet_amount ?? 0);
+  payoutTotal = winnerPayouts
+    .filter((p) => successUserIds.has(p.v.user_id!))
+    .reduce((s, p) => s + p.payoutRecorded, 0);
 
-    await admin.from("payout_history").insert({
+  const winnerPayoutRows = winnerPayouts.map((p) => ({
+    poll_id: pollId,
+    user_id: p.v.user_id,
+    market: marketStr,
+    bet_amount: p.bet,
+    payout_amount: p.payoutRecorded,
+  }));
+  const loserPayoutRows = loserVotes
+    .filter((v) => v.user_id && !alreadyPaidUserIds.has(v.user_id))
+    .map((v) => ({
       poll_id: pollId,
-      user_id: v.user_id,
+      user_id: v.user_id!,
       market: pollRow.market ?? market,
-      bet_amount: bet,
-      payout_amount: 0, // 패배: 아무것도 돌려받지 않음
-    });
+      bet_amount: Number(v.bet_amount ?? 0),
+      payout_amount: 0,
+    }));
+  const allPayoutRows = [...winnerPayoutRows, ...loserPayoutRows];
+  if (allPayoutRows.length > 0) {
+    await admin.from("payout_history").insert(allPayoutRows);
   }
 
   // 승패 판정 최종 결과 로그 (payout_history 기록 완료)

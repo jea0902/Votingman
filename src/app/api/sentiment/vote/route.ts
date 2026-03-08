@@ -1,7 +1,7 @@
 /**
  * POST /api/sentiment/vote
  * 인간 지표 투표 (롱/숏 + 보팅코인 N개). 로그인 필수, 시장별 마감 KST 검증.
- * body: { market?, choice, bet_amount }. market 미지정 시 btc.
+ * body: { market?, poll_id?, choice, bet_amount }. poll_id 있으면 해당 폴에 투표, 없으면 현재 폴.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -16,8 +16,20 @@ import {
 import { isSentimentMarket, MIN_BET_VTC } from "@/lib/constants/sentiment-markets";
 import { toCanonicalCandleStartAt } from "@/lib/btc-ohlc/candle-utils";
 import { getOhlcByMarketAndCandleStart } from "@/lib/btc-ohlc/repository";
+import { CANDLE_PERIOD_MS, VOTING_CLOSE_EARLY_MS } from "@/lib/btc-ohlc/candle-utils";
 
 const BTC_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"] as const;
+
+/** 폴의 캔들 마감 시각이 지났는지 (투표 불가). 1초 조기 마감 적용 */
+function isPollCandleClosed(
+  candleStartAt: string,
+  market: string
+): boolean {
+  const periodMs = CANDLE_PERIOD_MS[market];
+  if (!periodMs) return false;
+  const closeUtcMs = new Date(candleStartAt).getTime() + periodMs - VOTING_CLOSE_EARLY_MS;
+  return Date.now() >= closeUtcMs;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -43,21 +55,57 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const marketParam = body?.market ?? "btc_1d";
     const market = isSentimentMarket(marketParam) ? marketParam : "btc_1d";
+    const pollIdParam = body?.poll_id as string | undefined;
 
     const admin = createSupabaseAdmin();
-    const { poll } = await getOrCreateTodayPollByMarket(market);
+    let poll: { id: string; market?: string; candle_start_at?: string; [k: string]: unknown };
 
-    // btc 시장: btc_ohlc(DB) 기준으로 마감 판단. cron 수집 전까지 투표 허용.
+    if (pollIdParam && typeof pollIdParam === "string") {
+      const { data: pollRow } = await admin
+        .from("sentiment_polls")
+        .select("*")
+        .eq("id", pollIdParam)
+        .maybeSingle();
+      if (!pollRow) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: { code: "POLL_NOT_FOUND", message: "해당 투표를 찾을 수 없습니다." },
+          },
+          { status: 404 }
+        );
+      }
+      poll = pollRow as typeof poll;
+    } else {
+      const result = await getOrCreateTodayPollByMarket(market);
+      poll = result.poll as typeof poll;
+    }
+
     const candleStartAt =
       "candle_start_at" in poll && typeof poll.candle_start_at === "string"
         ? poll.candle_start_at
         : null;
+
+    // btc 시장: 1) 캔들 마감 시각 경과 시 즉시 차단 2) btc_ohlc에 종가 있으면 차단
+    const pollMarket = poll.market ?? market;
     if (
       candleStartAt &&
-      BTC_MARKETS.includes(market as (typeof BTC_MARKETS)[number])
+      BTC_MARKETS.includes(pollMarket as (typeof BTC_MARKETS)[number])
     ) {
+      if (isPollCandleClosed(candleStartAt, pollMarket)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: "VOTING_CLOSED",
+              message: "해당 투표는 마감되었습니다. (마감 시각 경과)",
+            },
+          },
+          { status: 400 }
+        );
+      }
       const ohlc = await getOhlcByMarketAndCandleStart(
-        market,
+        pollMarket,
         toCanonicalCandleStartAt(candleStartAt)
       );
       if (ohlc) {
@@ -198,10 +246,10 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const newLongCoin = Math.max(0, (poll.long_coin_total ?? 0) + longCoinDelta);
-    const newShortCoin = Math.max(0, (poll.short_coin_total ?? 0) + shortCoinDelta);
-    const newLongCount = Math.max(0, (poll.long_count ?? 0) + longCountDelta);
-    const newShortCount = Math.max(0, (poll.short_count ?? 0) + shortCountDelta);
+    const newLongCoin = Math.max(0, Number(poll.long_coin_total ?? 0) + longCoinDelta);
+    const newShortCoin = Math.max(0, Number(poll.short_coin_total ?? 0) + shortCoinDelta);
+    const newLongCount = Math.max(0, Number(poll.long_count ?? 0) + longCountDelta);
+    const newShortCount = Math.max(0, Number(poll.short_count ?? 0) + shortCountDelta);
 
     await admin
       .from("sentiment_polls")

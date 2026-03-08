@@ -20,6 +20,7 @@ type PollPayload = {
   market: string;
   poll_id: string;
   poll_date: string;
+  candle_start_at?: string;
   price_open: number | null;
   price_close: number | null;
   settlement_status: "open" | "closed" | "settling" | "settled";
@@ -142,6 +143,10 @@ export async function GET() {
         market: poll.market ?? market,
         poll_id: poll.id,
         poll_date: poll.poll_date,
+        candle_start_at:
+          "candle_start_at" in poll && typeof poll.candle_start_at === "string"
+            ? poll.candle_start_at
+            : undefined,
         price_open: ohlc?.open ?? null,
         price_close: ohlc?.close ?? null,
         settlement_status,

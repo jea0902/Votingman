@@ -267,8 +267,8 @@ export async function refreshMarketStats(tierMarket: TierMarket): Promise<{ upda
   }
 
   const marketKey = tierMarket === TIER_MARKET_ALL ? TIER_MARKET_ALL : tierMarket;
-  let updated = 0;
-  for (const [userId, pollIdSet] of userParticipations) {
+  const now = new Date().toISOString();
+  const upsertRows = [...userParticipations.entries()].map(([userId]) => {
     const wins = (userWins.get(userId) ?? new Set()).size;
     const losses = (userLosses.get(userId) ?? new Set()).size;
     const played = wins + losses; // 승+패만 (무효 제외, 승률·전적 표시용)
@@ -276,24 +276,23 @@ export async function refreshMarketStats(tierMarket: TierMarket): Promise<{ upda
     const win_rate = played > 0 ? wins / played : 0;
     const balance = balanceByUser.get(userId) ?? 0;
     const mmr = hasParticipation ? balance * win_rate : 0;
+    return {
+      user_id: userId,
+      market: marketKey,
+      win_count: wins,
+      participation_count: played,
+      mmr,
+      updated_at: now,
+    };
+  });
 
-    const { error } = await admin.from("user_stats").upsert(
-      {
-        user_id: userId,
-        market: marketKey,
-        win_count: wins,
-        participation_count: played, // wins + losses
-        mmr,
-        updated_at: new Date().toISOString(),
-      },
-      {
-        onConflict: "user_id,market",
-        ignoreDuplicates: false,
-      }
-    );
-    if (!error) updated++;
-  }
-  return { updated };
+  if (upsertRows.length === 0) return { updated: 0 };
+
+  const { error } = await admin.from("user_stats").upsert(upsertRows, {
+    onConflict: "user_id,market",
+    ignoreDuplicates: false,
+  });
+  return { updated: error ? 0 : upsertRows.length };
 }
 
 /**

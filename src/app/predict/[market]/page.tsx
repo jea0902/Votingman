@@ -104,6 +104,7 @@ export default function PredictMarketPage() {
     price_open?: number; 
     price_close?: number;
     settlement_status?: "open" | "closed" | "settling" | "settled";
+    show_settled_complete?: boolean;
   }) | null>(null);
   const [user, setUser] = useState<{
     nickname: string;
@@ -160,6 +161,10 @@ export default function PredictMarketPage() {
       ? poll.settlement_status !== "open"
       : !voteOpen;
   const showClosedBox = (!voteOpen || hasPollClosed) && mounted;
+  const isSettling =
+    poll?.settlement_status === "settling" ||
+    (poll?.settlement_status === "settled" && !poll?.show_settled_complete);
+  const isSettledComplete = !!poll?.show_settled_complete;
   const title = CARD_TITLE[market] ?? `${MARKET_LABEL[market]} 상승/하락`;
 
   const refetchUser = useCallback(async () => {
@@ -207,6 +212,7 @@ export default function PredictMarketPage() {
           price_open: d.price_open,
           price_close: d.price_close,
           settlement_status: d.settlement_status ?? "open",
+          show_settled_complete: d.show_settled_complete ?? false,
         });
       }
     } catch {
@@ -284,9 +290,10 @@ export default function PredictMarketPage() {
     return () => clearInterval(intervalId);
   }, [poll?.poll_id, poll?.settlement_status, poll?.candle_start_at, fetchPoll]);
 
-  /** 정산 상태 폴링 - settled 전까지 주기 조회 (btc: btc_ohlc 기준, cron 수집 후 갱신) */
+  /** 정산 상태 폴링 - 마감 후에만. show_settled_complete 전까지 주기 조회 (참여자는 알림 도착 시까지) */
   useEffect(() => {
-    if (!poll || poll.settlement_status === "settled") return;
+    if (!poll || poll.show_settled_complete) return;
+    if (poll.settlement_status === "open") return; // 마감 전: 정산 없음. 3초마다 인원/코인 갱신만 사용
 
     const pollSettlementStatus = () => {
       // 항상 현재 보는 폴 조회 (candle_start_at 전달). 새 폴로 바뀌는 것 방지
@@ -303,6 +310,7 @@ export default function PredictMarketPage() {
               return {
                 ...prevPoll,
                 settlement_status: d.settlement_status ?? "closed",
+                show_settled_complete: d.show_settled_complete ?? false,
                 price_close: d.price_close ?? prevPoll.price_close,
               };
             });
@@ -314,7 +322,7 @@ export default function PredictMarketPage() {
     pollSettlementStatus(); // 즉시 1회 조회
     const intervalId = setInterval(pollSettlementStatus, 5000);
     return () => clearInterval(intervalId);
-  }, [poll?.settlement_status, poll?.candle_start_at, market]);
+  }, [poll?.show_settled_complete, `${poll?.settlement_status ?? ""}-${poll?.candle_start_at ?? ""}`, market]);
 
   /** 마감↔오픈 전환 시 폴 재조회(새 round 데이터 반영) */
   useEffect(() => {
@@ -429,6 +437,7 @@ export default function PredictMarketPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           market,
+          poll_id: poll?.poll_id,
           choice,
           bet_amount: totalCharge,
         }),
@@ -474,7 +483,7 @@ export default function PredictMarketPage() {
               <p className="text-xs text-muted-foreground" suppressHydrationWarning>
                 {mounted
                   ? voteOpen && !hasPollClosed
-                    ? getCloseTimeKstString(market)
+                    ? getCloseTimeKstString(market, poll?.candle_start_at)
                     : "마감"
                   : "\u00A0"}
               </p>
@@ -522,7 +531,7 @@ export default function PredictMarketPage() {
                     마감까지
                   </p>
                   <div className="mt-1">
-                    <CountdownTimer market={market} />
+                    <CountdownTimer market={market} candleStartAt={poll?.candle_start_at} />
                   </div>
                 </>
               ) : (
@@ -635,26 +644,31 @@ export default function PredictMarketPage() {
         <div className="order-2 space-y-6">
           {showClosedBox && (
             <div className={`rounded-xl border-2 p-4 text-center ${
-              poll?.settlement_status === "settled" 
+              isSettledComplete
                 ? "border-emerald-500/40 bg-emerald-500/10" 
-                : poll?.settlement_status === "settling"
+                : isSettling
                   ? "border-blue-500/40 bg-blue-500/10"
                   : "border-amber-500/40 bg-amber-500/10"
             }`}>
               <p className={`text-base font-semibold ${
-                poll?.settlement_status === "settled" 
+                isSettledComplete
                   ? "text-emerald-700 dark:text-emerald-500" 
-                  : poll?.settlement_status === "settling"
+                  : isSettling
                     ? "text-blue-700 dark:text-blue-500"
                     : "text-amber-700 dark:text-amber-500"
               }`}>
-                {poll?.settlement_status === "settled" 
+                {isSettledComplete
                   ? "정산이 완료되었습니다." 
-                  : poll?.settlement_status === "settling"
+                  : isSettling
                     ? "정산 중입니다..."
                     : "이 투표는 마감되었습니다."}
               </p>
-              {(poll?.settlement_status === "settled" || poll?.settlement_status === "settling") && (
+              {isSettling && (
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  정확한 정산을 위해 약 20초가 소요됩니다.
+                </p>
+              )}
+              {(isSettledComplete || isSettling) && (
                 <p className="mt-1 text-sm text-muted-foreground">
                   결과는 프로필 &gt; 전적에서 확인할 수 있습니다.
                 </p>

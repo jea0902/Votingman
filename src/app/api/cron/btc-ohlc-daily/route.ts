@@ -9,6 +9,7 @@
  * cron-job.org: 매일 09:00 KST
  * 인증: (1) Header x-cron-secret 또는 Authorization: Bearer <CRON_SECRET>
  *       (2) 쿼리 ?cron_secret=<CRON_SECRET> (헤더 설정이 어려운 크론 서비스용)
+ * - getRecentCandleStartAts 경계 회피를 위해 3초 지연 후 수집
  */
 
 import { NextResponse } from "next/server";
@@ -21,6 +22,8 @@ import { TIER_MARKET_ALL } from "@/lib/tier/constants";
 import { recordCronError } from "@/lib/monitor/cron-error-log";
 import { isCronAuthorized } from "@/lib/cron/auth";
 
+const CRON_START_DELAY_MS = 3000;
+
 export async function GET(request: Request) {
   if (!isCronAuthorized(request)) {
     return NextResponse.json(
@@ -28,6 +31,8 @@ export async function GET(request: Request) {
       { status: 401 }
     );
   }
+
+  await new Promise((r) => setTimeout(r, CRON_START_DELAY_MS));
 
   try {
     let settle = null;
@@ -40,11 +45,9 @@ export async function GET(request: Request) {
           settle.status === "settled" ||
           settle.status === "invalid_refund"
         ) {
-          try {
-            await refreshMarketStats(TIER_MARKET_ALL);
-          } catch (refreshErr) {
+          refreshMarketStats(TIER_MARKET_ALL).catch((refreshErr) => {
             console.error("[cron/btc-ohlc-daily] refreshMarketStats 실패:", refreshErr);
-          }
+          });
         }
         return NextResponse.json({
           success: true,
@@ -67,11 +70,9 @@ export async function GET(request: Request) {
         settle.status === "settled" ||
         settle.status === "invalid_refund"
       ) {
-        try {
-          await refreshMarketStats(TIER_MARKET_ALL);
-        } catch (refreshErr) {
+        refreshMarketStats(TIER_MARKET_ALL).catch((refreshErr) => {
           console.error("[cron/btc-ohlc-daily] refreshMarketStats 실패 (정산은 완료됨):", refreshErr);
-        }
+        });
       }
     }
 

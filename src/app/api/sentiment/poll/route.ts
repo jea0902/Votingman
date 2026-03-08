@@ -15,6 +15,7 @@ import {
 import {
   getPreviousCandleStartAt,
   CANDLE_PERIOD_MS,
+  VOTING_CLOSE_EARLY_MS,
   getBtc1dCandleStartAtUtc,
   normalizeBtc4hCandleStartAt,
   toCanonicalCandleStartAt,
@@ -125,25 +126,44 @@ export async function GET(request: NextRequest) {
     const longCount = (voteCounts ?? []).filter((v) => v.choice === "long").length;
     const shortCount = (voteCounts ?? []).filter((v) => v.choice === "short").length;
 
-    // 정산 상태: btc_ohlc(DB) + 마감 시각 검증. cron은 KST 09:00(=UTC 00:00)에만 수집.
+    // 정산 상태: 마감 시각(candle_start_at+period) 우선 검증 → btc_ohlc/payout_history
+    // 마감 시각이 지나면 즉시 "settling"으로 전환 (cron 수집 전에도 투표 차단)
     let settlement_status: "open" | "closed" | "settling" | "settled" = "open";
     const pollRow = poll as { settled_at?: string | null };
 
     if (pollRow.settled_at) {
       settlement_status = "settled";
-    } else if (price_close != null && candleStartAt) {
-      // btc_ohlc에 종가 있음 + 마감 시각(candle_start_at+period) 경과 확인
-      // KST 09:00 전에 잘못 마감 표시 방지 (cron은 09:00에만 실행)
+    } else if (candleStartAt && BTC_MARKETS.includes(market as (typeof BTC_MARKETS)[number])) {
       const periodMs = CANDLE_PERIOD_MS[market];
-      const closeUtcMs = new Date(candleStartAt).getTime() + (periodMs ?? 0);
+      const closeUtcMs = new Date(candleStartAt).getTime() + (periodMs ?? 0) - VOTING_CLOSE_EARLY_MS;
       if (periodMs && Date.now() >= closeUtcMs) {
+        // 캔들 마감 시각 경과 → 투표 즉시 차단 (cron 수집 여부와 무관)
         const { count } = await admin
           .from("payout_history")
           .select("*", { count: "exact", head: true })
           .eq("poll_id", poll.id);
         settlement_status = count && count > 0 ? "settled" : "settling";
+      } else if (price_close != null) {
+        // 마감 전인데 btc_ohlc에 종가 있음(이전 봉 등) → open 유지
       }
-      // closeUtcMs 전이면 "open" 유지 (cron이 09:00에 안 돌았는데 DB에 있으면 무시)
+    }
+
+    // 정산 완료 시: 참여자에게는 알림 도착 시에만 "정산 완료" 표시. 비참여자는 settled 즉시 표시
+    let show_settled_complete = settlement_status === "settled";
+    if (settlement_status === "settled" && user?.id && myVote) {
+      const { data: payoutIds } = await admin
+        .from("payout_history")
+        .select("id")
+        .eq("poll_id", poll.id);
+      const ids = (payoutIds ?? []).map((p) => p.id).filter(Boolean);
+      if (ids.length > 0) {
+        const { count } = await admin
+          .from("notifications")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .in("related_payout_id", ids);
+        show_settled_complete = (count ?? 0) > 0;
+      }
     }
 
     return NextResponse.json({
@@ -156,6 +176,7 @@ export async function GET(request: NextRequest) {
         price_open,
         price_close,
         settlement_status,
+        show_settled_complete,
         long_count: longCount,
         short_count: shortCount,
         total_count: longCount + shortCount,

@@ -37,6 +37,7 @@ function stringifyBet(n: number): string {
 export type PollData = {
   market: string;
   poll_id: string;
+  candle_start_at?: string;
   long_count: number;
   short_count: number;
   participant_count?: number;
@@ -239,7 +240,7 @@ export function MarketVoteCard({ market, poll, user, onUpdate }: Props) {
         </span>
         <span className="text-xs">
           {voteOpen
-            ? getCloseTimeKstString(market)
+            ? getCloseTimeKstString(market, poll?.candle_start_at)
             : poll?.settlement_status === "settled" || poll?.settlement_status === "settling"
               ? "결과는 프로필에서 확인 가능"
               : "마감"}

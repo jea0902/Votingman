@@ -99,7 +99,7 @@ export function MarketVoteCardCompact({ market, poll }: Props) {
       </Link>
 
       <p className="mb-3 text-xs text-muted-foreground">
-        {voteOpen ? getCloseTimeKstString(market) : "마감"}
+        {voteOpen ? getCloseTimeKstString(market, poll?.candle_start_at) : "마감"}
       </p>
 
       <div className="mb-3 flex h-1.5 overflow-hidden rounded-full bg-muted sm:mb-4 sm:h-2">

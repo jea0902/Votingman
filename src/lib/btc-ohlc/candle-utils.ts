@@ -457,6 +457,9 @@ export function getCurrentCandleStartAt(market: string): string {
   }
 }
 
+/** 투표 마감 시각을 이만큼 앞당김 (ms). 네트워크/렌더 지연 보정 */
+export const VOTING_CLOSE_EARLY_MS = 1000;
+
 /** 봉 주기(ms) - 목표가 = 이전 봉 종가 조회 시 사용 */
 export const CANDLE_PERIOD_MS: Record<string, number> = {
   btc_5m: MS_5M,

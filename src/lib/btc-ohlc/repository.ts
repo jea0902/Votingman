@@ -104,7 +104,6 @@ export async function getOhlcByMarketAndCandleStart(
     .maybeSingle();
 
   if (error || !data) {
-    console.error("[btc_ohlc] OHLC 조회 실패", { market, exactKey, fallbackKey: key, error: error?.message });
     return null;
   }
   const out = toResult(data);

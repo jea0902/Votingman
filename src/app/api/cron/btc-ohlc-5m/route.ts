@@ -5,7 +5,8 @@
  *
  * GET /api/cron/btc-ohlc-5m
  * 인증: (1) Header x-cron-secret 또는 Bearer (2) 쿼리 ?cron_secret=<CRON_SECRET>
- * cron-job.org: 5분마다 실행 (예: 00:05, 00:10, 00:15, ...)
+ * cron-job.org: 5분마다 실행 (예: 00:00, 00:05, 00:10, ...)
+ * - getRecentCandleStartAts 경계(21:50:00 직전→21:40 캔들) 회피를 위해 3초 지연 후 수집
  */
 
 import { NextResponse } from "next/server";
@@ -18,6 +19,8 @@ import { TIER_MARKET_ALL } from "@/lib/tier/constants";
 import { recordCronError } from "@/lib/monitor/cron-error-log";
 import { isCronAuthorized } from "@/lib/cron/auth";
 
+const CRON_START_DELAY_MS = 3000;
+
 export async function GET(request: Request) {
   if (!isCronAuthorized(request)) {
     return NextResponse.json(
@@ -25,6 +28,8 @@ export async function GET(request: Request) {
       { status: 401 }
     );
   }
+
+  await new Promise((r) => setTimeout(r, CRON_START_DELAY_MS));
 
   try {
     const rows = await fetchKlinesKstAligned("btc_5m", 1);
@@ -34,16 +39,21 @@ export async function GET(request: Request) {
     if (rows.length > 0) {
       const justClosed = rows[0];
       const candleStartAtIso = toCanonicalCandleStartAt(justClosed.candle_start_at);
+      console.error("[cron/btc-ohlc-5m] 정산 시도", {
+        candle_start_at: candleStartAtIso,
+        candle_start_at_raw: justClosed.candle_start_at,
+      });
       settle = await settlePoll("", "btc_5m", candleStartAtIso);
+      if (settle.error) {
+        (settle as Record<string, unknown>).candle_start_at_searched = candleStartAtIso;
+      }
       if (
         settle.status === "settled" ||
         settle.status === "invalid_refund"
       ) {
-        try {
-          await refreshMarketStats(TIER_MARKET_ALL);
-        } catch (refreshErr) {
+        refreshMarketStats(TIER_MARKET_ALL).catch((refreshErr) => {
           console.error("[cron/btc-ohlc-5m] refreshMarketStats 실패 (정산은 완료됨):", refreshErr);
-        }
+        });
       }
     }
 
