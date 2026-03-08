@@ -148,9 +148,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 정산 완료 시: 참여자에게는 알림 도착 시에만 "정산 완료" 표시. 비참여자는 settled 즉시 표시
+    // 정산 완료 시: 참여자는 반드시 알림 도착 후에만 "정산 완료" 표시. 비참여자는 settled 즉시 표시
     let show_settled_complete = settlement_status === "settled";
     if (settlement_status === "settled" && user?.id && myVote) {
+      show_settled_complete = false; // 참여자: 알림 없으면 절대 true 아님
       const { data: payoutIds } = await admin
         .from("payout_history")
         .select("id")

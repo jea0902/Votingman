@@ -89,6 +89,12 @@ function candleStartAtToPollDateKst(candleStartAt: string): string {
 
 const RPC_BATCH_SIZE = 50;
 
+/** 구간별 시간 측정용 (ms). 로그에서 [settlement] timing 으로 검색 */
+function logTiming(label: string, startMs: number, extra?: Record<string, unknown>) {
+  const ms = Math.round(performance.now() - startMs);
+  console.error("[settlement] timing", { phase: label, ms, ...extra });
+}
+
 /** 청크 단위로 병렬 실행 (bulk 실패 시 fallback) */
 async function runInChunks<T, R>(
   items: T[],
@@ -125,14 +131,22 @@ async function invalidRefundAll(
     bet_amount: r.refund,
     payout_amount: r.refund,
   }));
+  const invStart = performance.now();
   await admin.from("payout_history").insert(payoutRows);
+  logTiming("invalid_payout_insert", invStart, { poll_id: pollId, rows: payoutRows.length });
 
   const bulkItems = refunds.map((r) => ({
     user_id: r.user_id,
     amount: r.refund,
   }));
+  const bulkStart = performance.now();
   const { data: updatedIds, error } = await admin.rpc("add_voting_coin_bulk", {
     p_items: bulkItems,
+  });
+  logTiming("invalid_add_voting_coin_bulk", bulkStart, {
+    poll_id: pollId,
+    success: (updatedIds ?? []).length,
+    error: !!error,
   });
   if (error) {
     console.error("[settlement] add_voting_coin_bulk failed, fallback to individual", {
@@ -212,6 +226,9 @@ export async function settlePoll(
   const lookupKey = candleStartAtNorm;
   const ohlcKey = candleStartAtNorm;
 
+  const totalStart = performance.now();
+  let phaseStart = performance.now();
+
   const [pollResult, ohlcPrices] = await Promise.all([
     admin
       .from("sentiment_polls")
@@ -221,6 +238,8 @@ export async function settlePoll(
       .maybeSingle(),
     getSettlementPricesFromOhlc(market, ohlcKey),
   ]);
+
+  logTiming("1_poll_and_ohlc", phaseStart, { market });
 
   const poll = pollResult.data;
   const pollError = pollResult.error;
@@ -261,6 +280,7 @@ export async function settlePoll(
   const reference_close = ohlcPrices?.reference_close ?? null;
   const settlement_close = ohlcPrices?.settlement_close ?? null;
 
+  phaseStart = performance.now();
   const [votesRes, existingPayoutsRes] = await Promise.all([
     admin
       .from("sentiment_votes")
@@ -270,6 +290,7 @@ export async function settlePoll(
       .not("user_id", "is", null),
     admin.from("payout_history").select("user_id").eq("poll_id", pollId),
   ]);
+  logTiming("2_votes_and_existing_payouts", phaseStart, { poll_id: pollId });
   const votes = votesRes.data ?? [];
   const alreadyPaidUserIds = new Set(
     (existingPayoutsRes.data ?? []).map((p) => p.user_id as string).filter(Boolean)
@@ -288,6 +309,7 @@ export async function settlePoll(
 
   // 무효 판정: 1명 이하 참여 → 원금 환불 (payout_history 먼저 insert, 환불 실패해도 전원 기록)
   if (participantCount <= 1) {
+    phaseStart = performance.now();
     console.error("[settlement] 무효: 1명 이하 참여", {
       poll_id: pollId,
       market: pollRow.market ?? market,
@@ -300,10 +322,14 @@ export async function settlePoll(
       pollRow.market ?? market,
       votes ?? []
     );
+    logTiming("3a_invalidRefundAll", phaseStart, { poll_id: pollId, refunded });
+    phaseStart = performance.now();
     await admin
       .from("sentiment_polls")
       .update({ settled_at: nowKstString() })
       .eq("id", pollId);
+    logTiming("3b_poll_settled_at", phaseStart, { poll_id: pollId });
+    logTiming("TOTAL_invalid_1person", totalStart, { poll_id: pollId });
     return {
       poll_id: pollId,
       poll_date: pollDateForResponse,
@@ -317,6 +343,7 @@ export async function settlePoll(
 
   // 무효 판정: 한쪽 쏠림 (롱만 or 숏만) → 원금 환불
   if (longCoinTotal === 0 || shortCoinTotal === 0) {
+    phaseStart = performance.now();
     console.error("[settlement] 무효: 한쪽 쏠림", {
       poll_id: pollId,
       market: pollRow.market ?? market,
@@ -330,10 +357,14 @@ export async function settlePoll(
       pollRow.market ?? market,
       votes ?? []
     );
+    logTiming("3a_invalidRefundAll", phaseStart, { poll_id: pollId, refunded });
+    phaseStart = performance.now();
     await admin
       .from("sentiment_polls")
       .update({ settled_at: nowKstString() })
       .eq("id", pollId);
+    logTiming("3b_poll_settled_at", phaseStart, { poll_id: pollId });
+    logTiming("TOTAL_invalid_skew", totalStart, { poll_id: pollId });
     return {
       poll_id: pollId,
       poll_date: pollDateForResponse,
@@ -387,6 +418,7 @@ export async function settlePoll(
   });
 
   if (isTie) {
+    phaseStart = performance.now();
     console.error("[settlement] 동일가 무효 (소수점 넷째자리 동일)", {
       poll_id: pollId,
       market: pollRow.market ?? market,
@@ -402,10 +434,14 @@ export async function settlePoll(
       pollRow.market ?? market,
       votes ?? []
     );
+    logTiming("3a_invalidRefundAll", phaseStart, { poll_id: pollId, refunded });
+    phaseStart = performance.now();
     await admin
       .from("sentiment_polls")
       .update({ settled_at: nowKstString() })
       .eq("id", pollId);
+    logTiming("3b_poll_settled_at", phaseStart, { poll_id: pollId });
+    logTiming("TOTAL_invalid_tie", totalStart, { poll_id: pollId });
     return {
       poll_id: pollId,
       poll_date: pollDateForResponse,
@@ -475,12 +511,15 @@ export async function settlePoll(
   const marketStr = pollRow.market ?? market;
 
   // ① ensure_users: public.users에 없는 유저 생성
+  phaseStart = performance.now();
   const winnerUserIds = winnerPayouts.map((p) => p.v.user_id!);
   await admin.rpc("ensure_users_for_settlement_bulk", {
     p_user_ids: winnerUserIds,
   });
+  logTiming("4_ensure_users_bulk", phaseStart, { poll_id: pollId, count: winnerUserIds.length });
 
   // ② add_voting_coin_bulk: 1회 RPC로 전원 지급
+  phaseStart = performance.now();
   const bulkItems = winnerPayouts.map((p) => ({
     user_id: p.v.user_id!,
     amount: p.totalAfterFee,
@@ -491,6 +530,12 @@ export async function settlePoll(
   const successUserIds = new Set(
     (bulkUpdated ?? []).map((r: { updated_user_id?: string }) => r?.updated_user_id).filter(Boolean)
   );
+  logTiming("5_add_voting_coin_bulk", phaseStart, {
+    poll_id: pollId,
+    success: successUserIds.size,
+    total: winnerPayouts.length,
+    bulk_err: !!bulkErr,
+  });
 
   if (bulkErr || successUserIds.size < winnerPayouts.length) {
     // ③ bulk 실패 또는 일부 미지급 → 개별 재시도
@@ -540,9 +585,14 @@ export async function settlePoll(
       payout_amount: 0,
     }));
   const allPayoutRows = [...winnerPayoutRows, ...loserPayoutRows];
+  phaseStart = performance.now();
   if (allPayoutRows.length > 0) {
     await admin.from("payout_history").insert(allPayoutRows);
   }
+  logTiming("6_payout_history_insert", phaseStart, {
+    poll_id: pollId,
+    rows: allPayoutRows.length,
+  });
 
   // 승패 판정 최종 결과 로그 (payout_history 기록 완료)
   const payoutSummary = [
@@ -568,10 +618,17 @@ export async function settlePoll(
     payout_summary: payoutSummary,
   });
 
+  phaseStart = performance.now();
   await admin
     .from("sentiment_polls")
     .update({ settled_at: nowKstString() })
     .eq("id", pollId);
+  logTiming("7_poll_settled_at", phaseStart, { poll_id: pollId });
+  logTiming("TOTAL_settled", totalStart, {
+    poll_id: pollId,
+    winner_count: winnerVotes.length,
+    loser_count: loserVotes.length,
+  });
 
   return {
     poll_id: pollId,

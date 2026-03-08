@@ -320,7 +320,7 @@ export default function PredictMarketPage() {
     };
 
     pollSettlementStatus(); // 즉시 1회 조회
-    const intervalId = setInterval(pollSettlementStatus, 5000);
+    const intervalId = setInterval(pollSettlementStatus, 3000);
     return () => clearInterval(intervalId);
   }, [poll?.show_settled_complete, `${poll?.settlement_status ?? ""}-${poll?.candle_start_at ?? ""}`, market]);
 

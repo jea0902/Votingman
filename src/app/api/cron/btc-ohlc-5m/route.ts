@@ -19,7 +19,7 @@ import { TIER_MARKET_ALL } from "@/lib/tier/constants";
 import { recordCronError } from "@/lib/monitor/cron-error-log";
 import { isCronAuthorized } from "@/lib/cron/auth";
 
-const CRON_START_DELAY_MS = 3000;
+const CRON_START_DELAY_MS = 1500;
 
 export async function GET(request: Request) {
   if (!isCronAuthorized(request)) {

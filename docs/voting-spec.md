@@ -423,6 +423,12 @@ if (vote === choice && isAdditionalMode && myBetAmount + chargeAmount === totalC
 - **동일가 판정**: 소수 둘째자리 → 넷째자리. 변동 0.01% 이하도 둘째자리에서 동일가로 잘못 판정되던 문제 수정.
 - **무효 알림**: payout_history insert 시 트리거로 알림 생성. 무효(payout_amount=bet_amount) 포함 모든 정산에 알림 전송.
 
+### 6.30 정산 완료 문구 + cron 지연 축소 (2026-03)
+
+- **정산 완료 문구**: 참여자는 반드시 알림 도착 후에만 "정산이 완료되었습니다" 표시. Poll API에서 `show_settled_complete` 기본값을 참여자에게 false로 고정 후, notifications에 해당 payout 알림이 있을 때만 true.
+- **정산 상태 폴링**: 5초 → 3초 간격으로 단축 (알림 도착 시 더 빠르게 반영).
+- **CRON_START_DELAY_MS**: 3000 → 1500 (1.5초 절약).
+
 ### 6.25 BTC 투표 상세 페이지 차트 (2026-03)
 
 **구성**: `BtcChart` (components/predict/BtcChart.tsx). predict/[market] 페이지에서 btc 시장일 때 표시.
