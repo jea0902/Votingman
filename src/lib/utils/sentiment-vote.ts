@@ -56,7 +56,7 @@ function formatKstDateTimeForMarket(utcMs: number, market: string): string {
   return `${y}년 ${mo}월 ${d}일 ${h}시`;
 }
 
-/** 롤링 시장: 현재 봉 마감 시각(UTC ms). 봉 시작 + 주기 전체 - 1초 조기 마감 */
+/** 롤링 시장: 현재 봉 마감 시각(UTC ms). 봉 시작 + 주기 - 10초 조기 마감 */
 function getRollingCloseUtcMs(market: "btc_4h" | "btc_1h" | "btc_15m" | "btc_5m"): number {
   const startAt = getCurrentCandleStartAt(market);
   return new Date(startAt).getTime() + ROLLING_FULL_PERIOD_MS[market] - VOTING_CLOSE_EARLY_MS;
@@ -68,7 +68,7 @@ function getNextCandleStartUtcMs(market: "btc_4h" | "btc_1h" | "btc_15m" | "btc_
   return new Date(startAt).getTime() + ROLLING_FULL_PERIOD_MS[market];
 }
 
-/** btc_1d: 현재 캔들 마감 시각(UTC ms) = candle_start_at + 24h - 1초 조기 마감 */
+/** btc_1d: 현재 캔들 마감 시각(UTC ms) = candle_start_at + 24h - 10초 조기 마감 */
 function getBtc1dCloseUtcMs(): number {
   const startAt = getCurrentCandleStartAt("btc_1d");
   const periodMs = CANDLE_PERIOD_MS["btc_1d"] ?? 24 * 60 * 60 * 1000;
@@ -105,14 +105,9 @@ export function isVotingOpenKST(market?: string): boolean {
     return Date.now() < getRollingCloseUtcMs(m);
   }
   
-  // btc_1d: UTC 기준 통일. getCurrentCandleStartAt과 동일한 캔들 사용.
-  // 마감 = candle_start_at + 24h = UTC 00:00 (cron 수집 시각과 일치)
+  // btc_1d: UTC 기준 통일. 10초 조기 마감 적용 (getBtc1dCloseUtcMs와 동일)
   if (m === "btc_1d") {
-    const periodMs = CANDLE_PERIOD_MS[m];
-    if (!periodMs) return false;
-    const startAt = getCurrentCandleStartAt(m);
-    const closeUtcMs = new Date(startAt).getTime() + periodMs;
-    return Date.now() < closeUtcMs;
+    return Date.now() < getBtc1dCloseUtcMs();
   }
   
   // 기타 시장 (ndq, sp500, kospi, kosdaq)

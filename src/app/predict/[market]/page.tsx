@@ -305,6 +305,9 @@ export default function PredictMarketPage() {
         .then((json) => {
           if (json?.success && json?.data) {
             const d = json.data;
+            if (d.show_settled_complete) {
+              window.dispatchEvent(new CustomEvent("refresh-notifications"));
+            }
             setPoll(prevPoll => {
               if (!prevPoll) return null;
               return {

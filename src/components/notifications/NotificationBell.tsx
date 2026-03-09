@@ -218,17 +218,22 @@ export function NotificationBell({ userId }: NotificationBellProps) {
       }
     );
     
-    // 30초마다 새 알림 체크 (세션이 있을 때만)
+    // 10초마다 새 알림 체크 (30초→10초로 단축, 정산 후 배지 갱신 속도 개선)
     const interval = setInterval(async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user?.id === userId) {
         await fetchNotifications();
       }
-    }, 30000);
+    }, 10000);
+
+    // predict 페이지에서 "정산 완료" 시 즉시 새로고침 요청 (폴링 대기 없이 배지 갱신)
+    const onRefresh = () => fetchNotifications();
+    window.addEventListener('refresh-notifications', onRefresh);
     
     return () => {
       subscription?.unsubscribe();
       clearInterval(interval);
+      window.removeEventListener('refresh-notifications', onRefresh);
     };
   }, [userId]);
 

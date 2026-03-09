@@ -361,6 +361,10 @@ if (vote === choice && isAdditionalMode && myBetAmount + chargeAmount === totalC
 - **Poll API** settlement_status: 동일 1초 조기
 - **sentiment-vote.ts** `getRollingCloseUtcMs`, `getBtc1dCloseUtcMs`: 카운트다운·마감 문구 1초 앞당김
 
+### 6.31 10초 조기 마감 통일 (2026-03)
+
+**수정**: `VOTING_CLOSE_EARLY_MS = 10000`. 모든 시장(btc_1d, 4h, 1h, 15m, 5m) 마감 10초 전부터 투표 차단.
+
 ### 6.23 정산 완료 문구 — 알림 도착 시에만 표시 (2026-03)
 
 **증상**: "정산 중입니다..." 이후 "정산이 완료되었습니다"가 나와도 알림은 약 2초 후에 옴. 문구와 알림 시점 불일치.
@@ -428,6 +432,38 @@ if (vote === choice && isAdditionalMode && myBetAmount + chargeAmount === totalC
 - **정산 완료 문구**: 참여자는 반드시 알림 도착 후에만 "정산이 완료되었습니다" 표시. Poll API에서 `show_settled_complete` 기본값을 참여자에게 false로 고정 후, notifications에 해당 payout 알림이 있을 때만 true.
 - **정산 상태 폴링**: 5초 → 3초 간격으로 단축 (알림 도착 시 더 빠르게 반영).
 - **CRON_START_DELAY_MS**: 3000 → 1500 (1.5초 절약).
+
+### 6.32 정산·알림 최적화 요약 (2026-03)
+
+**초기 증상**: 정산(승패 판정) → 알림까지 40초 이상 소요. Navbar 알림 배지 갱신도 40초.
+
+**최종 결과**: 정산 및 알림 **20초 내외** (2계정 테스트 기준).
+
+#### 최적화 과정
+
+| 단계 | 내용 | 효과 |
+|------|------|------|
+| **6.26** | refreshMarketStats fire-and-forget | 정산 직후 블로킹 제거 (10~30초 절약) |
+| **6.27** | invalidRefundAll/승자/패자 배치 처리, RPC 병렬 | N회 순차 → 1회 배치 |
+| **6.28** | add_voting_coin_bulk, ensure_users_for_settlement_bulk | N회 RPC → 1회 bulk RPC |
+| **6.28** | payout_history winner+loser 통합 insert | 2 round-trip → 1 round-trip |
+| **6.29** | 동일가 판정 소수 넷째자리, 무효 알림 트리거 | 잘못된 무효 감소, 무효도 알림 |
+| **6.30** | CRON_START_DELAY_MS 3s→1.5s, 정산 완료 문구 알림 도착 시만, 폴링 5s→3s | 1.5초 절약, UX 개선 |
+| **6.32** | NotificationBell 폴링 30s→10s, predict "정산 완료" 시 즉시 refresh-notifications 이벤트 | 배지 갱신 40s→20s 내외 |
+
+#### 적용 파일
+
+| 구분 | 파일 |
+|------|------|
+| 정산 | `settlement-service.ts` (bulk RPC, 통합 insert, 구간별 timing 로그) |
+| DB | `20260310100000_add_voting_coin_bulk.sql`, `20260311110000_revert_payout_notification_to_row_trigger.sql` |
+| Cron | `btc-ohlc-5m/15m/1h/4h/daily` (CRON_START_DELAY_MS 1500) |
+| Poll API | `show_settled_complete` 참여자 알림 도착 시만 true |
+| UI | `NotificationBell.tsx` (10초 폴링, refresh-notifications 이벤트), `predict/[market]/page.tsx` (3초 폴링, 이벤트 dispatch) |
+
+#### 정산 구간별 시간 측정
+
+`[settlement] timing` 로그로 병목 구간 확인 가능. phase: `1_poll_and_ohlc`, `2_votes_and_existing_payouts`, `4_ensure_users_bulk`, `5_add_voting_coin_bulk`, `6_payout_history_insert`, `7_poll_settled_at`, `TOTAL_settled` 등.
 
 ### 6.25 BTC 투표 상세 페이지 차트 (2026-03)
 
@@ -734,3 +770,5 @@ ORDER BY p.settled_at DESC, ph.payout_amount DESC NULLS LAST;
 | 2026-03-09 | 크론 호출 시각·getRecentCandleStartAts 타이밍(6.21): 21:50 직전 도착 시 21:40 캔들 찾음→폴 불일치. 5초 지연 적용, 테스트 성공 |
 | 2026-03-09 | 1초 조기 마감(6.22): VOTING_CLOSE_EARLY_MS=1000. Vote/Poll API, sentiment-vote 적용 |
 | 2026-03-09 | 정산 완료 문구(6.23): show_settled_complete. 참여자는 알림 도착 시에만 "정산이 완료되었습니다" 표시 |
+| 2026-03-11 | 정산·알림 최적화(6.26~6.32): add_voting_coin_bulk, ensure_users_bulk, payout 통합 insert, refreshMarketStats 비동기, NotificationBell 10초 폴링+refresh 이벤트. 40초→20초 내외 |
+| 2026-03-11 | 10초 조기 마감 통일(6.31): VOTING_CLOSE_EARLY_MS=10000 |
