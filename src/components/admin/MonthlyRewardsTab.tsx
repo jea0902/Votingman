@@ -10,19 +10,43 @@ interface RewardClaim {
   id: string;
   user_id: string;
   period: string;
+  rank: number | null;
   phone_number: string;
   privacy_consent: boolean;
   paid_at: string | null;
   created_at: string;
   nickname: string;
+  created_at_kst: string;
+  paid_at_kst: string;
 }
+
+const START_YEAR = 2026;
+const START_MONTH = 3;
 
 function getDefaultPeriod(): string {
   const now = new Date();
   const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
   const y = kst.getUTCFullYear();
-  const m = String(kst.getUTCMonth() + 1).padStart(2, "0");
-  return `${y}-${m}`;
+  const m = kst.getUTCMonth() + 1;
+  if (y < START_YEAR || (y === START_YEAR && m < START_MONTH)) {
+    return `${START_YEAR}-${String(START_MONTH).padStart(2, "0")}`;
+  }
+  return `${y}-${String(m).padStart(2, "0")}`;
+}
+
+function buildPeriodOptions(): { year: number; month: number }[] {
+  const now = new Date();
+  const endY = now.getFullYear();
+  const endM = now.getMonth() + 1;
+  const options: { year: number; month: number }[] = [];
+  for (let y = START_YEAR; y <= endY; y++) {
+    const startM = y === START_YEAR ? START_MONTH : 1;
+    const lastM = y === endY ? endM : 12;
+    for (let m = startM; m <= lastM; m++) {
+      options.push({ year: y, month: m });
+    }
+  }
+  return options.reverse();
 }
 
 function formatPhone(phone: string): string {
@@ -99,12 +123,7 @@ export function MonthlyRewardsTab() {
     [fetchClaims]
   );
 
-  const periods: string[] = [];
-  const now = new Date();
-  for (let i = 0; i < 6; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    periods.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
-  }
+  const periodOptions = buildPeriodOptions();
 
   return (
     <Card className="border-border bg-card">
@@ -118,18 +137,49 @@ export function MonthlyRewardsTab() {
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-3">
           <span className="text-sm font-medium">대상 월:</span>
-          {periods.map((p) => (
-            <Button
-              key={p}
-              variant={period === p ? "default" : "outline"}
-              size="sm"
-              onClick={() => setPeriod(p)}
+          <div className="flex items-center gap-2">
+            <select
+              value={period.split("-")[0]}
+              onChange={(e) => {
+                const y = parseInt(e.target.value, 10);
+                const monthsForYear = periodOptions.filter((o) => o.year === y);
+                const first = monthsForYear[0];
+                if (first) {
+                  setPeriod(`${y}-${String(first.month).padStart(2, "0")}`);
+                }
+              }}
+              className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
             >
-              {p}
-            </Button>
-          ))}
+              {[...new Set(periodOptions.map((o) => o.year))].map((y) => (
+                <option key={y} value={y}>
+                  {y}년
+                </option>
+              ))}
+            </select>
+            <select
+              value={period.split("-")[1]}
+              onChange={(e) => {
+                const m = e.target.value;
+                const [y] = period.split("-");
+                setPeriod(`${y}-${m}`);
+              }}
+              className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+            >
+              {periodOptions
+                .filter((o) => o.year === parseInt(period.split("-")[0], 10))
+                .map((o) => ({
+                  m: String(o.month).padStart(2, "0"),
+                  label: `${o.month}월`,
+                }))
+                .map(({ m, label }) => (
+                  <option key={m} value={m}>
+                    {label}
+                  </option>
+                ))}
+            </select>
+          </div>
         </div>
 
         <Button variant="outline" size="sm" onClick={fetchClaims} disabled={isLoading}>
@@ -159,23 +209,27 @@ export function MonthlyRewardsTab() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/50 text-left">
+                  <th className="px-3 py-2">순위</th>
                   <th className="px-3 py-2">닉네임</th>
                   <th className="px-3 py-2">휴대폰</th>
-                  <th className="px-3 py-2">신청일시</th>
+                  <th className="px-3 py-2">신청일시 (KST)</th>
                   <th className="px-3 py-2">지급</th>
                 </tr>
               </thead>
               <tbody>
                 {claims.map((c) => (
                   <tr key={c.id} className="border-b last:border-0">
+                    <td className="px-3 py-2 font-medium">{c.rank ?? "-"}위</td>
                     <td className="px-3 py-2 font-medium">{c.nickname}</td>
                     <td className="px-3 py-2 font-mono">{formatPhone(c.phone_number)}</td>
                     <td className="px-3 py-2 text-muted-foreground">
-                      {c.created_at?.slice(0, 19).replace("T", " ") ?? "-"}
+                      {c.created_at_kst ?? "-"}
                     </td>
                     <td className="px-3 py-2">
                       {c.paid_at ? (
-                        <span className="text-green-600 dark:text-green-400">완료</span>
+                        <span className="text-green-600 dark:text-green-400" title={c.paid_at_kst}>
+                          완료
+                        </span>
                       ) : (
                         <Button
                           variant="outline"

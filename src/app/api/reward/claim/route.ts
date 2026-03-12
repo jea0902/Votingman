@@ -1,24 +1,14 @@
 /**
  * POST /api/reward/claim
  * TOP 10 보상(선물하기 3만원권) 수령 신청
- * - 서버 세션에서 user_id 확인
- * - user_stats market='all' 기준 MMR TOP 10인지 검증
- * - reward_claims에 period(YYYY-MM), 휴대폰 번호, 개인정보 동의 저장
- * - paid_at: 관리자가 수동 지급 후 업데이트
+ * - 신청 기간: 월말 22:00 KST ~ 다음날 10:00 KST
+ * - reward_snapshot에 있는 유저만 신청 가능 (월말 22:00 스냅샷 기준)
+ * - reward_claims에 period, 휴대폰 번호, 개인정보 동의, rank 저장
  */
 
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient, createSupabaseAdmin } from "@/lib/supabase/server";
-
-const TOP_N_FOR_REWARD = 10;
-
-function getCurrentPeriodKst(): string {
-  const now = new Date();
-  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-  const y = kst.getUTCFullYear();
-  const m = String(kst.getUTCMonth() + 1).padStart(2, "0");
-  return `${y}-${m}`;
-}
+import { getClaimablePeriodKst } from "@/lib/reward/claim-window";
 
 export async function POST(request: Request) {
   try {
@@ -58,34 +48,32 @@ export async function POST(request: Request) {
       );
     }
 
-    const admin = createSupabaseAdmin();
-
-    // TOP 10 확인: user_stats market='all' 기준 MMR 순
-    const { data: statsRows, error: statsError } = await admin
-      .from("user_stats")
-      .select("user_id")
-      .eq("market", "all")
-      .order("mmr", { ascending: false })
-      .limit(TOP_N_FOR_REWARD);
-
-    if (statsError || !statsRows) {
-      console.error("Reward claim: user_stats error", statsError);
+    const period = getClaimablePeriodKst();
+    if (!period) {
       return NextResponse.json(
-        { success: false, error: { code: "SERVER_ERROR", message: "랭킹 확인에 실패했습니다." } },
-        { status: 500 }
-      );
-    }
-
-    const top10UserIds = new Set(statsRows.map((r) => r.user_id));
-    if (!top10UserIds.has(user.id)) {
-      return NextResponse.json(
-        { success: false, error: { code: "FORBIDDEN", message: "TOP 10에 해당하는 유저만 보상을 신청할 수 있습니다." } },
+        { success: false, error: { code: "FORBIDDEN", message: "보상 신청 기간이 아닙니다. (월말 22:00 ~ 다음날 10:00 KST)" } },
         { status: 403 }
       );
     }
 
+    const admin = createSupabaseAdmin();
+
+    const { data: snapshotRow, error: snapshotError } = await admin
+      .from("reward_snapshot")
+      .select("rank")
+      .eq("period", period)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (snapshotError || !snapshotRow) {
+      return NextResponse.json(
+        { success: false, error: { code: "FORBIDDEN", message: "해당 월 스냅샷 TOP 10에 포함된 유저만 보상을 신청할 수 있습니다." } },
+        { status: 403 }
+      );
+    }
+
+    const rank = snapshotRow.rank;
     const normalizedPhone = phoneNumber.replace(/-/g, "");
-    const period = getCurrentPeriodKst();
 
     const { error: insertError } = await admin.from("reward_claims").upsert(
       {
@@ -93,6 +81,7 @@ export async function POST(request: Request) {
         period,
         phone_number: normalizedPhone,
         privacy_consent: privacyConsent,
+        rank,
       },
       { onConflict: "user_id,period" }
     );

@@ -19,6 +19,7 @@ import type { LeaderboardTop30Item, LeaderboardTop30Response } from "@/app/api/l
 export default function LeaderboardPage() {
   const { currentUser, isLoadingUser } = useCurrentUser();
   const [top30Data, setTop30Data] = useState<LeaderboardTop30Response | null>(null);
+  const [hasClaimed, setHasClaimed] = useState(false);
   const [claimModalOpen, setClaimModalOpen] = useState(false);
 
   useEffect(() => {
@@ -33,10 +34,37 @@ export default function LeaderboardPage() {
     return () => { cancelled = true; };
   }, []);
 
+  const [claimStatus, setClaimStatus] = useState<{
+    canClaim: boolean;
+    hasClaimed: boolean;
+    inSnapshot: boolean;
+    claimWindowOpen: boolean;
+    rank: number | null;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    let cancelled = false;
+    fetch("/api/reward/claim/status", { credentials: "include" })
+      .then((res) => res.json())
+      .then((json) => {
+        if (cancelled) return;
+        if (json.success && json.data) {
+          setClaimStatus(json.data);
+          setHasClaimed(json.data.hasClaimed);
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [currentUser?.id]);
+
   const myEntry = currentUser && top30Data?.top30
     ? top30Data.top30.find((item: LeaderboardTop30Item) => item.user_id === currentUser.id)
     : null;
-  const isTop10 = myEntry != null && myEntry.rank <= 10;
+  const canClaim = claimStatus?.canClaim ?? false;
+  const hasClaimedFromStatus = claimStatus?.hasClaimed ?? false;
+  const claimWindowOpen = claimStatus?.claimWindowOpen ?? false;
+  const snapshotRank = claimStatus?.rank;
 
   const handleClaimSubmit = async (phoneNumber: string, privacyConsent: boolean) => {
     const res = await fetch("/api/reward/claim", {
@@ -48,6 +76,8 @@ export default function LeaderboardPage() {
     if (!json.success) {
       throw new Error(json.error?.message ?? "제출에 실패했습니다.");
     }
+    setHasClaimed(true);
+    setClaimStatus((prev) => (prev ? { ...prev, hasClaimed: true, canClaim: false } : null));
   };
 
   return (
@@ -63,7 +93,7 @@ export default function LeaderboardPage() {
             <span className="text-muted-foreground">현재 상금</span>
             <span className="text-foreground">월 30만 원</span>
           </div>
-          {!isLoadingUser && isTop10 && myEntry && (
+          {!isLoadingUser && canClaim && (
             <Button
               size="sm"
               onClick={() => setClaimModalOpen(true)}
@@ -73,15 +103,35 @@ export default function LeaderboardPage() {
               보상 받기
             </Button>
           )}
+          {!isLoadingUser && claimWindowOpen && hasClaimedFromStatus && (
+            <span className="rounded-lg border border-border bg-muted/50 px-4 py-2 text-sm font-medium text-muted-foreground">
+              보상 신청 완료
+            </span>
+          )}
+          {!isLoadingUser && !claimWindowOpen && claimStatus && (
+            <span className="rounded-lg border border-border bg-muted/30 px-4 py-2 text-sm text-muted-foreground">
+              보상 신청 기간: 매월 마지막 날 22:00 ~ 다음날 10:00 (KST)
+            </span>
+          )}
         </div>
       </section>
 
-      <ClaimRewardModal
-        open={claimModalOpen}
-        onOpenChange={setClaimModalOpen}
-        rank={myEntry?.rank ?? 0}
-        onSubmit={handleClaimSubmit}
-      />
+      {(snapshotRank ?? myEntry?.rank) != null && (
+        <ClaimRewardModal
+          open={claimModalOpen}
+          onOpenChange={setClaimModalOpen}
+          rank={snapshotRank ?? myEntry?.rank ?? 0}
+          onSubmit={handleClaimSubmit}
+        />
+      )}
+
+      {/* 유의사항 */}
+      <section className="mb-8 flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3">
+        <Info className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+        <p className="text-xs font-medium text-destructive">
+          매월 마지막 날 22:00 KST에 MMR TOP 10 스냅샷, 신청 기한은 다음날 10:00 KST까지. 매월 1일 15:00에 보상 지급, 명예 배지는 개인 프로필에 표시됩니다.
+        </p>
+      </section>
 
       {/* 보상 내용 */}
       <section className="mb-8 rounded-lg border border-border bg-muted/20 p-4">
@@ -121,14 +171,6 @@ export default function LeaderboardPage() {
       {/* TOP 30 테이블 */}
       <section className="mb-8">
         <MarketTop30Positions variant="leaderboard" />
-      </section>
-
-      {/* 유의사항 */}
-      <section className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3">
-        <Info className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
-        <p className="text-xs font-medium text-destructive">
-          매월 마지막 날짜 기준 23:00에 MMR TOP 30의 인원을 스냅샷으로 찍어, 매월 1일 15:00에 보상 지급, 명예 배지는 개인 프로필에 표시됩니다.
-        </p>
       </section>
     </div>
   );

@@ -1,7 +1,8 @@
 /**
- * GET /api/admin/daily-stats?days=30
+ * GET /api/admin/daily-stats?period=3m
  *
  * 관리자 전용: active_users_state 일별 집계 조회 (그래프 시각화용)
+ * period: "1m" | "3m" | "6m" | "1y" | "all" (기본값: "3m")
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -43,19 +44,45 @@ async function requireAdmin() {
   return { user };
 }
 
+function getStartDateForPeriod(period: string): string {
+  const now = new Date();
+  const start = new Date(now);
+  switch (period) {
+    case "1m":
+      start.setMonth(now.getMonth() - 1);
+      break;
+    case "3m":
+      start.setMonth(now.getMonth() - 3);
+      break;
+    case "6m":
+      start.setMonth(now.getMonth() - 6);
+      break;
+    case "1y":
+      start.setFullYear(now.getFullYear() - 1);
+      break;
+    case "all":
+      start.setFullYear(2020, 0, 1);
+      break;
+    default:
+      start.setMonth(now.getMonth() - 3);
+  }
+  return start.toISOString().split("T")[0];
+}
+
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth.error;
 
   const { searchParams } = new URL(request.url);
-  const daysParam = searchParams.get("days");
-  const days = Math.min(90, Math.max(7, parseInt(daysParam ?? "30", 10) || 30));
+  const period = searchParams.get("period") ?? "3m";
+  const startDateStr = getStartDateForPeriod(period);
 
   try {
     const admin = createSupabaseAdmin();
     const { data: rows, error } = await admin
       .from("active_users_state")
       .select("stat_date, active_user_count, vote_count")
+      .gte("stat_date", startDateStr)
       .order("stat_date", { ascending: true });
 
     if (error) {
@@ -66,11 +93,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const list = (rows ?? []).slice(-days);
-
     return NextResponse.json({
       success: true,
-      data: { rows: list },
+      data: { rows: rows ?? [], period },
     });
   } catch (err) {
     console.error("[admin/daily-stats] Error:", err);

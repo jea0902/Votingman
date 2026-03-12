@@ -2,11 +2,11 @@
 
 /**
  * 보상 받기 모달
- * [축하 메시지] → [번호 입력창] → [개인정보 동의] → [제출 버튼]
+ * [축하 메시지] → [번호 입력창] → [개인정보 동의] → [제출 버튼] → [확인 팝업]
  */
 
 import { useState } from "react";
-import { Gift, Loader2 } from "lucide-react";
+import { Gift, Loader2, AlertTriangle } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -16,6 +16,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+
+function formatPhoneDisplay(digits: string): string {
+  if (digits.length === 10) return digits.replace(/(\d{3})(\d{3})(\d{4})/, "$1-$2-$3");
+  if (digits.length === 11) return digits.replace(/(\d{3})(\d{4})(\d{4})/, "$1-$2-$3");
+  return digits;
+}
 
 type Props = {
   open: boolean;
@@ -33,10 +39,11 @@ export function ClaimRewardModal({
   const [phoneNumber, setPhoneNumber] = useState("");
   const [privacyConsent, setPrivacyConsent] = useState(false);
   const [privacyModalOpen, setPrivacyModalOpen] = useState(false);
+  const [confirmModalOpen, setConfirmModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  const handleSubmit = async () => {
+  const validateAndOpenConfirm = () => {
     setError("");
     const trimmed = phoneNumber.trim().replace(/-/g, "");
     if (!trimmed) {
@@ -51,18 +58,28 @@ export function ClaimRewardModal({
       setError("개인정보 수집·이용에 동의해주세요.");
       return;
     }
+    setConfirmModalOpen(true);
+  };
 
+  const handleConfirmSubmit = async () => {
+    const trimmed = phoneNumber.trim().replace(/-/g, "");
     setIsSubmitting(true);
     try {
       await onSubmit(trimmed, privacyConsent);
+      setConfirmModalOpen(false);
       onOpenChange(false);
       setPhoneNumber("");
       setPrivacyConsent(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "제출에 실패했습니다.");
+      setConfirmModalOpen(false);
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleEdit = () => {
+    setConfirmModalOpen(false);
   };
 
   return (
@@ -129,18 +146,59 @@ export function ClaimRewardModal({
             {/* 4. 제출 버튼 */}
             <Button
               className="w-full"
-              onClick={handleSubmit}
+              onClick={validateAndOpenConfirm}
               disabled={isSubmitting}
             >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  제출 중...
-                </>
-              ) : (
-                "제출"
-              )}
+              제출
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 휴대폰 번호 확인 팝업 */}
+      <Dialog open={confirmModalOpen} onOpenChange={setConfirmModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-600" />
+              휴대폰 번호 확인
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-foreground">
+              입력하신 휴대폰 번호가{" "}
+              <strong className="font-semibold text-foreground">
+                {formatPhoneDisplay(phoneNumber.trim().replace(/-/g, ""))}
+              </strong>
+              가 맞습니까?
+            </p>
+            <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
+              한 번 제출하면 수정할 수 없습니다. 번호를 다시 확인해 주세요.
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={handleEdit}
+                disabled={isSubmitting}
+              >
+                수정
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={handleConfirmSubmit}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    제출 중...
+                  </>
+                ) : (
+                  "제출"
+                )}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

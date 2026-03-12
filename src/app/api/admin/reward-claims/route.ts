@@ -55,12 +55,16 @@ export async function GET(request: NextRequest) {
         id,
         user_id,
         period,
+        rank,
         phone_number,
         privacy_consent,
         paid_at,
-        created_at
+        created_at,
+        created_at_kst,
+        paid_at_kst
       `)
       .eq("period", period)
+      .order("rank", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: true });
 
     if (error) {
@@ -80,6 +84,8 @@ export async function GET(request: NextRequest) {
     const rows = (claims ?? []).map((c) => ({
       ...c,
       nickname: userMap.get(c.user_id) ?? "-",
+      created_at_kst: c.created_at_kst ?? "-",
+      paid_at_kst: c.paid_at_kst ?? "-",
     }));
 
     return NextResponse.json({ success: true, data: { claims: rows } });

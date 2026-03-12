@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Users, RefreshCw, Loader2, UserPlus, Vote, Eye, UserCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { DailyStatsChart, type DailyStatRow } from "./DailyStatsChart";
+import { DailyStatsChart } from "./DailyStatsChart";
 
 interface AdminStats {
   activeUserCount: number;
@@ -54,7 +54,6 @@ function StatCard({
 
 export function ActiveStatusTab() {
   const [stats, setStats] = useState<AdminStats | null>(null);
-  const [dailyStats, setDailyStats] = useState<DailyStatRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,23 +61,16 @@ export function ActiveStatusTab() {
     setIsLoading(true);
     setError(null);
     try {
-      const [statsRes, dailyRes] = await Promise.all([
-        fetch("/api/admin/stats"),
-        fetch("/api/admin/daily-stats?days=30"),
-      ]);
-      const statsJson = await statsRes.json();
-      const dailyJson = await dailyRes.json();
+      const res = await fetch("/api/admin/stats");
+      const json = await res.json();
 
-      if (!statsRes.ok) {
-        setError(statsJson?.error?.message ?? "조회에 실패했습니다.");
+      if (!res.ok) {
+        setError(json?.error?.message ?? "조회에 실패했습니다.");
         return;
       }
 
-      if (statsJson.success && statsJson.data) {
-        setStats(statsJson.data);
-      }
-      if (dailyJson.success && dailyJson.data?.rows) {
-        setDailyStats(dailyJson.data.rows);
+      if (json.success && json.data) {
+        setStats(json.data);
       }
     } catch {
       setError("서버와 통신할 수 없습니다.");
@@ -146,11 +138,11 @@ export function ActiveStatusTab() {
         <CardHeader>
           <CardTitle className="text-lg">일별 성장 (활성 유저 · 투표 수)</CardTitle>
           <p className="text-sm text-muted-foreground">
-            active_users_state 집계. 매일 KST 23:59 크론 실행 후 갱신.
+            시장 분위기 미결제약정 그래프와 동일한 구조. 매일 KST 23:59 크론 실행 후 갱신.
           </p>
         </CardHeader>
         <CardContent>
-          <DailyStatsChart rows={dailyStats} />
+          <DailyStatsChart />
         </CardContent>
       </Card>
     </div>
