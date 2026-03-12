@@ -412,9 +412,14 @@ export async function settlePoll(
     };
   }
 
-  // 동일가: 시가·종가가 소수점 넷째자리까지 완전히 같을 때만 무효 (둘째자리는 변동 0.01% 이하도 동일가로 잘못 판정됨)
-  const refRounded = Math.round(reference_close * 10000) / 10000;
-  const settleRounded = Math.round(settlement_close * 10000) / 10000;
+  // 동일가: 시장별 소수점 자리 기준으로 비교
+  // - XRP(xrp_*)  : 소수점 넷째자리까지 동일하면 무효
+  // - 그 외(btc/eth 등): 소수점 둘째자리까지 동일하면 무효
+  const marketForCalc = pollRow.market ?? market;
+  const decimals = marketForCalc.startsWith("xrp_") ? 4 : 2;
+  const factor = 10 ** decimals;
+  const refRounded = Math.round(reference_close * factor) / factor;
+  const settleRounded = Math.round(settlement_close * factor) / factor;
   const isTie = refRounded === settleRounded;
 
   // 정산 시점 가격 로그 (동일가/승패 원인 검증용)
@@ -434,7 +439,7 @@ export async function settlePoll(
 
   if (isTie) {
     phaseStart = performance.now();
-    console.error("[settlement] 동일가 무효 (소수점 넷째자리 동일)", {
+    console.error("[settlement] 동일가 무효 (시장별 소수점 자리 동일)", {
       poll_id: pollId,
       market: pollRow.market ?? market,
       ohlc_key: ohlcKey,
@@ -469,7 +474,7 @@ export async function settlePoll(
   }
 
   const winnerSide: "long" | "short" =
-    settlement_close > reference_close ? "long" : "short";
+    settleRounded > refRounded ? "long" : "short";
   const winnerVotes = (votes ?? []).filter((v) => choiceNorm(v.choice) === winnerSide);
   const loserVotes = (votes ?? []).filter((v) => choiceNorm(v.choice) !== winnerSide);
 
