@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
   // users 테이블에서 사용자 확인 (인증 상태 체크)
   const { data: userData, error: userError } = await supabase
     .from('users')
-    .select('user_id, nickname, deleted_at, phone_number, phone_verified_at, privacy_agreed_at')
+    .select('user_id, nickname, deleted_at, privacy_agreed_at')
     .eq('user_id', userId)
     .maybeSingle();
 
@@ -59,10 +59,9 @@ export async function GET(request: NextRequest) {
         .eq('user_id', userId);
     }
 
-    // 미완료 인증 단계 체크 (기존 사용자용)
-    if (!userData.privacy_agreed_at || !userData.phone_verified_at) {
-      const missingStep = !userData.privacy_agreed_at ? 'privacy' : 'phone';
-      return NextResponse.redirect(`${origin}/signup?step=${missingStep}&existing=true`);
+    // 미완료 인증 단계 체크 (기존 사용자용) - 약관 동의 완료 여부
+    if (!userData.privacy_agreed_at) {
+      return NextResponse.redirect(`${origin}/signup?step=privacy&existing=true`);
     }
     
     return NextResponse.redirect(`${origin}/home`);

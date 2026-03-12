@@ -14,13 +14,20 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
-type SignupStep = "social" | "nickname" | "privacy" | "phone";
+type SignupStep = "social" | "nickname" | "privacy";
 
 // 랜덤 8자리 영숫자 레퍼럴 코드 생성
 function generateReferralCode(): string {
@@ -30,20 +37,6 @@ function generateReferralCode(): string {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return result;
-}
-
-// 휴대폰 번호 형식 검증
-function validatePhoneNumber(phone: string): boolean {
-  const cleanPhone = phone.replace(/[^0-9]/g, '');
-  return /^010[0-9]{8}$/.test(cleanPhone);
-}
-
-// 휴대폰 번호 포맷팅 (010-0000-0000)
-function formatPhoneNumber(phone: string): string {
-  const cleanPhone = phone.replace(/[^0-9]/g, '');
-  if (cleanPhone.length <= 3) return cleanPhone;
-  if (cleanPhone.length <= 7) return `${cleanPhone.slice(0, 3)}-${cleanPhone.slice(3)}`;
-  return `${cleanPhone.slice(0, 3)}-${cleanPhone.slice(3, 7)}-${cleanPhone.slice(7, 11)}`;
 }
 
 export default function SignupPage() {
@@ -66,16 +59,9 @@ export default function SignupPage() {
   const [privacyConsent, setPrivacyConsent] = useState(false);
   const [termsConsent, setTermsConsent] = useState(false);
   const [marketingConsent, setMarketingConsent] = useState(false);
-
-  // 휴대폰 인증 관련 상태
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [verificationCode, setVerificationCode] = useState("");
-  const [isVerificationSent, setIsVerificationSent] = useState(false);
-  const [isSendingSms, setIsSendingSms] = useState(false);
-  const [isVerifyingCode, setIsVerifyingCode] = useState(false);
-  const [phoneVerified, setPhoneVerified] = useState(false);
-  const [smsTimer, setSmsTimer] = useState(0);
-  const [smsError, setSmsError] = useState("");
+  const [privacyModalOpen, setPrivacyModalOpen] = useState(false);
+  const [termsModalOpen, setTermsModalOpen] = useState(false);
+  const [marketingModalOpen, setMarketingModalOpen] = useState(false);
 
   const handleGoogleSignup = async () => {
     setIsGoogleLoading(true);
@@ -231,120 +217,17 @@ export default function SignupPage() {
     }
   };
 
-  // SMS 발송 함수 (네이버 클라우드 SENS 구조)
-  const sendSmsVerification = async () => {
-    if (!validatePhoneNumber(phoneNumber)) {
-      setSmsError("올바른 휴대폰 번호를 입력해주세요. (010-0000-0000)");
-      return;
-    }
-
-    setIsSendingSms(true);
-    setSmsError("");
-
-    try {
-      const response = await fetch('/api/auth/send-sms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          phoneNumber: phoneNumber.replace(/[^0-9]/g, '') 
-        }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setIsVerificationSent(true);
-        setSmsTimer(180); // 3분 타이머
-        
-        // 타이머 시작
-        const timer = setInterval(() => {
-          setSmsTimer(prev => {
-            if (prev <= 1) {
-              clearInterval(timer);
-              setIsVerificationSent(false);
-              return 0;
-            }
-            return prev - 1;
-          });
-        }, 1000);
-
-      } else {
-        setSmsError(data.error || "SMS 발송에 실패했습니다.");
-      }
-    } catch (err) {
-      console.error("SMS send failed:", err);
-      setSmsError("네트워크 오류가 발생했습니다. 다시 시도해주세요.");
-    } finally {
-      setIsSendingSms(false);
-    }
-  };
-
-  // SMS 인증 확인 함수
-  const verifyPhoneCode = async () => {
-    if (!verificationCode || verificationCode.length !== 6) {
-      setSmsError("6자리 인증번호를 입력해주세요.");
-      return;
-    }
-
-    setIsVerifyingCode(true);
-    setSmsError("");
-
-    try {
-      const response = await fetch('/api/auth/verify-sms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phoneNumber: phoneNumber.replace(/[^0-9]/g, ''),
-          code: verificationCode
-        }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.verified) {
-        setPhoneVerified(true);
-        setSmsTimer(0);
-        // 다음 단계로 자동 진행 또는 완료 처리
-      } else {
-        setSmsError(data.error || "인증번호가 일치하지 않습니다.");
-        setVerificationCode("");
-      }
-    } catch (err) {
-      console.error("SMS verify failed:", err);
-      setSmsError("인증 확인 중 오류가 발생했습니다.");
-    } finally {
-      setIsVerifyingCode(false);
-    }
-  };
-
-  // 다음 단계 진행 함수들
   const proceedToPrivacy = () => {
     setStep("privacy");
   };
 
-  const proceedToPhone = () => {
-    if (!privacyConsent || !termsConsent) {
-      setError("필수 약관에 동의해주세요.");
-      return;
-    }
-    setStep("phone");
-    setError("");
-  };
-
-  const proceedToComplete = async () => {
-    if (!phoneVerified) {
-      setSmsError("휴대폰 인증을 완료해주세요.");
-      return;
-    }
-    
-    // 최종 회원가입 처리
-    await handleFinalSubmit();
-  };
-
   const handleFinalSubmit = async () => {
-
     if (!nicknameAvailable) {
       setError("사용 가능한 닉네임을 입력해주세요.");
+      return;
+    }
+    if (!privacyConsent || !termsConsent) {
+      setError("필수 약관에 동의해주세요.");
       return;
     }
 
@@ -384,9 +267,9 @@ export default function SignupPage() {
             user_id: session.user.id,
             nickname: nickname.trim(),
             deleted_at: null,
-            phone_number: phoneNumber.replace(/[^0-9]/g, ''),
-            phone_verified_at: new Date().toISOString(),
             privacy_agreed_at: new Date().toISOString(),
+            privacy_agreed: privacyConsent,
+            service_agreed: termsConsent,
             marketing_agreed: marketingConsent,
           })
           .eq('email', session.user.email!);
@@ -401,9 +284,9 @@ export default function SignupPage() {
             email: session.user.email!,
             nickname: nickname.trim(),
             referral_code: newReferralCode,
-            phone_number: phoneNumber.replace(/[^0-9]/g, ''),
-            phone_verified_at: new Date().toISOString(),
             privacy_agreed_at: new Date().toISOString(),
+            privacy_agreed: privacyConsent,
+            service_agreed: termsConsent,
             marketing_agreed: marketingConsent,
           });
 
@@ -446,7 +329,6 @@ export default function SignupPage() {
             {step === "social" && "소셜 계정으로 간편하게 가입하세요"}
             {step === "nickname" && "닉네임을 설정해주세요"}
             {step === "privacy" && "서비스 이용을 위한 필수 약관에 동의해주세요"}
-            {step === "phone" && "본인 인증을 위해 휴대폰 번호를 인증해주세요"}
           </CardDescription>
         </CardHeader>
 
@@ -494,7 +376,7 @@ export default function SignupPage() {
                       <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
                       <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
                     </svg>
-                    Google로 3초 가입
+                    Google로 간편가입
                   </>
                 )}
               </Button>
@@ -516,7 +398,7 @@ export default function SignupPage() {
                     <svg className="mr-2 h-5 w-5" viewBox="0 0 24 24" fill="#191919">
                       <path d="M12 3C6.477 3 2 6.477 2 10.5c0 2.548 1.516 4.788 3.809 6.13l-.971 3.603a.375.375 0 0 0 .545.415L9.51 18.35A11.1 11.1 0 0 0 12 18c5.523 0 10-3.477 10-7.5S17.523 3 12 3z" />
                     </svg>
-                    카카오로 3초 가입
+                    카카오로 간편가입
                   </>
                 )}
               </Button>
@@ -627,7 +509,17 @@ export default function SignupPage() {
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium text-foreground">[필수] 개인정보 수집·이용 동의</span>
-                        <button className="text-xs text-primary underline">보기</button>
+                        <button
+                          type="button"
+                          className="text-xs text-primary underline hover:text-primary/80"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setPrivacyModalOpen(true);
+                          }}
+                        >
+                          보기
+                        </button>
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">
                         서비스 제공을 위한 필수 개인정보 수집에 동의합니다.
@@ -645,7 +537,17 @@ export default function SignupPage() {
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium text-foreground">[필수] 서비스 이용약관 동의</span>
-                        <button className="text-xs text-primary underline">보기</button>
+                        <button
+                          type="button"
+                          className="text-xs text-primary underline hover:text-primary/80"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setTermsModalOpen(true);
+                          }}
+                        >
+                          보기
+                        </button>
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">
                         보팅맨 서비스 이용약관에 동의합니다.
@@ -663,7 +565,17 @@ export default function SignupPage() {
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <span className="text-sm text-foreground">[선택] 마케팅 정보 수신 동의</span>
-                        <button className="text-xs text-primary underline">보기</button>
+                        <button
+                          type="button"
+                          className="text-xs text-primary underline hover:text-primary/80"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setMarketingModalOpen(true);
+                          }}
+                        >
+                          보기
+                        </button>
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">
                         이벤트, 혜택 정보 등 마케팅 알림을 받겠습니다. (이메일, SMS)
@@ -709,159 +621,8 @@ export default function SignupPage() {
                   이전
                 </Button>
                 <Button
-                  onClick={proceedToPhone}
-                  disabled={!privacyConsent || !termsConsent}
-                  className="flex-1"
-                  size="lg"
-                >
-                  다음 단계
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* STEP 4: 휴대폰 인증 */}
-          {step === "phone" && (
-            <div className="space-y-6">
-              <div className="rounded-lg bg-muted/50 border border-border px-4 py-3">
-                <p className="text-xs text-muted-foreground mb-1">가입 계정</p>
-                <p className="text-sm font-medium text-foreground">{userEmail}</p>
-                <p className="text-xs text-muted-foreground mt-1">닉네임: {nickname}</p>
-              </div>
-
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="phoneNumber">
-                    휴대폰 번호 <span className="text-destructive">*</span>
-                  </Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="phoneNumber"
-                      type="tel"
-                      value={formatPhoneNumber(phoneNumber)}
-                      onChange={(e) => setPhoneNumber(e.target.value)}
-                      placeholder="010-0000-0000"
-                      maxLength={13}
-                      disabled={phoneVerified}
-                      className="flex-1"
-                    />
-                    <Button
-                      type="button"
-                      onClick={sendSmsVerification}
-                      disabled={isSendingSms || phoneVerified || !validatePhoneNumber(phoneNumber)}
-                      variant="outline"
-                      className="whitespace-nowrap"
-                    >
-                      {isSendingSms ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : phoneVerified ? (
-                        "인증완료"
-                      ) : isVerificationSent ? (
-                        "재전송"
-                      ) : (
-                        "인증번호"
-                      )}
-                    </Button>
-                  </div>
-
-                  {isVerificationSent && !phoneVerified && (
-                    <p className="text-xs text-primary">
-                      인증번호가 발송되었습니다. ({Math.floor(smsTimer / 60)}:{String(smsTimer % 60).padStart(2, '0')})
-                    </p>
-                  )}
-                </div>
-
-                {isVerificationSent && !phoneVerified && (
-                  <div className="space-y-2">
-                    <Label htmlFor="verificationCode">
-                      인증번호 <span className="text-destructive">*</span>
-                    </Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="verificationCode"
-                        type="text"
-                        value={verificationCode}
-                        onChange={(e) => setVerificationCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
-                        placeholder="6자리 인증번호 입력"
-                        maxLength={6}
-                        className="flex-1"
-                      />
-                      <Button
-                        type="button"
-                        onClick={verifyPhoneCode}
-                        disabled={isVerifyingCode || verificationCode.length !== 6}
-                        variant="default"
-                        className="whitespace-nowrap"
-                      >
-                        {isVerifyingCode ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          "인증확인"
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                {phoneVerified && (
-                  <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
-                    <CheckCircle2 className="h-4 w-4" />
-                    <span className="text-sm">휴대폰 인증이 완료되었습니다</span>
-                  </div>
-                )}
-
-                {/* 개발 모드 안내 */}
-                {process.env.NODE_ENV === 'development' && (
-                  <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 px-3 py-2 space-y-2">
-                    <p className="text-xs text-blue-600 dark:text-blue-400">
-                      🔧 개발 모드: <strong>인증번호 123456</strong> 또는 콘솔에서 확인하세요
-                    </p>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        try {
-                          const response = await fetch('/api/auth/reset-sms', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ phoneNumber: phoneNumber.replace(/[^0-9]/g, '') })
-                          });
-                          if (response.ok) {
-                            setIsVerificationSent(false);
-                            setVerificationCode("");
-                            setPhoneVerified(false);
-                            setSmsTimer(0);
-                            setSmsError("테스트 데이터가 초기화되었습니다. 다시 시도해보세요.");
-                          }
-                        } catch (err) {
-                          console.error('Reset failed:', err);
-                        }
-                      }}
-                      className="text-xs px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-                    >
-                      🔄 테스트 초기화
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {smsError && (
-                <div className="rounded-md bg-destructive/10 border border-destructive/20 px-3 py-2 text-sm text-destructive">
-                  {smsError}
-                </div>
-              )}
-
-              <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => setStep("privacy")}
-                  className="flex-1"
-                  size="lg"
-                >
-                  이전
-                </Button>
-                <Button
-                  onClick={proceedToComplete}
-                  disabled={!phoneVerified}
+                  onClick={handleFinalSubmit}
+                  disabled={!privacyConsent || !termsConsent || isSubmitting}
                   className="flex-1"
                   size="lg"
                 >
@@ -904,6 +665,178 @@ export default function SignupPage() {
               ← 홈으로 돌아가기
             </Link>
           </div>
+
+          {/* 개인정보 수집·이용 동의 상세 모달 */}
+          <Dialog open={privacyModalOpen} onOpenChange={setPrivacyModalOpen}>
+            <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>[개인정보 수집 및 이용 동의]</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-5 text-sm text-foreground">
+                <div>
+                  <p className="font-medium mb-2">1. 수집 항목</p>
+                  <ul className="text-muted-foreground space-y-1 pl-4 list-disc">
+                    <li>(소셜) 이메일, 닉네임, 프로필 이미지</li>
+                    <li>(이용 시) 서비스 로그, IP, 기기 정보</li>
+                    <li>(보상 시) 휴대폰 번호</li>
+                  </ul>
+                </div>
+                <div>
+                  <p className="font-medium mb-2">2. 목적</p>
+                  <p className="text-muted-foreground pl-4">
+                    회원 식별, 서비스 운영, 보상 지급 및 부정 이용 방지
+                  </p>
+                </div>
+                <div>
+                  <p className="font-medium mb-2">3. 보유 기간</p>
+                  <div className="text-muted-foreground pl-4 space-y-1">
+                    <p>회원 탈퇴 시 즉시 파기</p>
+                    <p className="pl-2">(단, 보상 관련 기록은 CS 대응을 위해 6개월 보관)</p>
+                  </div>
+                </div>
+                <div>
+                  <p className="font-medium mb-2">4. 거부 권리</p>
+                  <p className="text-muted-foreground pl-4">
+                    동의를 거부할 수 있으나, 이 경우 가입 및 보상 수령이 제한됩니다.
+                  </p>
+                </div>
+              </div>
+              <DialogFooter className="gap-2 sm:gap-0">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setPrivacyConsent(false);
+                    setPrivacyModalOpen(false);
+                  }}
+                >
+                  비동의
+                </Button>
+                <Button
+                  onClick={() => {
+                    setPrivacyConsent(true);
+                    setPrivacyModalOpen(false);
+                  }}
+                >
+                  동의
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* 서비스 이용약관 상세 모달 */}
+          <Dialog open={termsModalOpen} onOpenChange={setTermsModalOpen}>
+            <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>[서비스 이용약관]</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 text-sm text-foreground">
+                <div>
+                  <p className="font-medium mb-1">제1조 (목적)</p>
+                  <p className="text-muted-foreground pl-4">
+                    본 약관은 &apos;보팅맨&apos;이 제공하는 예측 정보 공유 서비스의 이용 조건 및 절차를 규정합니다.
+                  </p>
+                </div>
+                <div>
+                  <p className="font-medium mb-1">제2조 (서비스의 성격)</p>
+                  <p className="text-muted-foreground pl-4">
+                    본 서비스는 정보 공유 및 예측 마켓 플랫폼이며, 결과의 정확성을 보장하지 않습니다.
+                  </p>
+                </div>
+                <div>
+                  <p className="font-medium mb-1">제3조 (회원의 의무)</p>
+                  <p className="text-muted-foreground pl-4">
+                    유저는 부정 거래, 다계정 생성, 시스템 해킹 시도 등 서비스 운영을 방해하는 행위를 해서는 안 됩니다.
+                  </p>
+                </div>
+                <div>
+                  <p className="font-medium mb-1">제4조 (보상 지급)</p>
+                  <p className="text-muted-foreground pl-4">
+                    TOP 10 보상은 본인 인증이 완료된 유저에게만 지급되며, 부정 행위 적발 시 취소될 수 있습니다.
+                  </p>
+                </div>
+                <div>
+                  <p className="font-medium mb-1">제5조 (책임 제한)</p>
+                  <p className="text-muted-foreground pl-4">
+                    서비스는 정보 비대칭 해소를 목표로 하나, 투자 결정에 대한 최종 책임은 유저 본인에게 있습니다.
+                  </p>
+                </div>
+              </div>
+              <DialogFooter className="gap-2 sm:gap-0">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setTermsConsent(false);
+                    setTermsModalOpen(false);
+                  }}
+                >
+                  비동의
+                </Button>
+                <Button
+                  onClick={() => {
+                    setTermsConsent(true);
+                    setTermsModalOpen(false);
+                  }}
+                >
+                  동의
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* 마케팅 정보 수신 동의 상세 모달 */}
+          <Dialog open={marketingModalOpen} onOpenChange={setMarketingModalOpen}>
+            <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>[선택] 마케팅 정보 수신 동의</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-5 text-sm text-foreground">
+                <div>
+                  <p className="font-medium mb-2">1. 수집 및 이용 목적</p>
+                  <ul className="text-muted-foreground space-y-1 pl-4 list-disc">
+                    <li>보팅맨 서비스의 신규 기능 안내, 이벤트 소식, 랭킹 및 보상 정보 알림</li>
+                    <li>개인 맞춤형 서비스 추천 및 타겟 마케팅 활용</li>
+                  </ul>
+                </div>
+                <div>
+                  <p className="font-medium mb-2">2. 수집 항목</p>
+                  <p className="text-muted-foreground pl-4">
+                    이메일, 닉네임, 서비스 이용 기록
+                  </p>
+                </div>
+                <div>
+                  <p className="font-medium mb-2">3. 보유 및 이용 기간</p>
+                  <p className="text-muted-foreground pl-4">
+                    회원 탈퇴 시 또는 동의 철회 시까지
+                  </p>
+                </div>
+                <div>
+                  <p className="font-medium mb-2">4. 동의 거부 권리 및 불이익</p>
+                  <p className="text-muted-foreground pl-4">
+                    귀하는 마케팅 정보 수신 동의를 거부할 권리가 있습니다. 동의하지 않아도 서비스 이용은 가능하나, 보팅맨이 제공하는 이벤트 정보나 혜택 안내를 받지 못할 수 있습니다.
+                  </p>
+                </div>
+              </div>
+              <DialogFooter className="gap-2 sm:gap-0">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setMarketingConsent(false);
+                    setMarketingModalOpen(false);
+                  }}
+                >
+                  비동의
+                </Button>
+                <Button
+                  onClick={() => {
+                    setMarketingConsent(true);
+                    setMarketingModalOpen(false);
+                  }}
+                >
+                  동의
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </CardContent>
       </Card>
     </div>
