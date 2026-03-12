@@ -25,6 +25,7 @@ import {
   normalizeToDbMarket,
   MIN_BET_VTC,
 } from "@/lib/constants/sentiment-markets";
+import { getPriceFractionDigits } from "@/lib/utils/price-format";
 import { createClient } from "@/lib/supabase/client";
 import dynamic from "next/dynamic";
 
@@ -478,6 +479,7 @@ export default function PredictMarketPage() {
   );
 
   const priceToBeat = poll?.price_open ?? null;
+  const priceFractionDigits = getPriceFractionDigits(market);
   const balance = user?.voting_coin_balance ?? 0;
   const myBetAmount =
     poll?.my_vote && poll.my_vote.bet_amount > 0 ? poll.my_vote.bet_amount : 0;
@@ -633,8 +635,8 @@ export default function PredictMarketPage() {
               <p className="mt-1 text-lg font-bold text-amber-700 dark:text-amber-500">
                 {currentPrice != null
                   ? `$${currentPrice.toLocaleString(FIXED_LOCALE, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
+                      minimumFractionDigits: priceFractionDigits,
+                      maximumFractionDigits: priceFractionDigits,
                     })}`
                   : isCoinMarket
                     ? "불러오는 중…"
