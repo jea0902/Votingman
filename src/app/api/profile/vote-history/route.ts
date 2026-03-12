@@ -15,12 +15,18 @@ import { getOhlcByMarketAndCandleStart } from "@/lib/btc-ohlc/repository";
 import { MARKET_LABEL } from "@/lib/constants/sentiment-markets";
 import { getPollDateDisplayForKst } from "@/lib/utils/poll-date-display";
 
-const BTC_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"] as const;
+/** 시가·종가·가격변동률 조회 대상 (btc_ohlc에 저장된 코인 시장) */
+const COIN_MARKETS = [
+  "btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m",
+  "eth_1d", "eth_4h", "eth_1h", "eth_15m", "eth_5m",
+  "usdt_1d", "usdt_4h", "usdt_1h", "usdt_15m", "usdt_5m",
+  "xrp_1d", "xrp_4h", "xrp_1h", "xrp_15m", "xrp_5m",
+] as const;
 
 export type VoteHistoryRow = {
   /** 예측 대상일 (poll_date, DB 저장값) */
   poll_date: string;
-  /** 예측 대상일 표시용 (btc_1d일 때 KST 보정) */
+  /** 예측 대상일 표시용 (btc_1d/eth_1d/usdt_1d일 때 KST 보정) */
   poll_date_display: string;
   /** 정산 완료 시각 */
   settled_at: string;
@@ -155,7 +161,7 @@ export async function GET(request: NextRequest) {
           : null;
       if (
         candleStartAt &&
-        BTC_MARKETS.includes(market as (typeof BTC_MARKETS)[number])
+        COIN_MARKETS.includes(market as (typeof COIN_MARKETS)[number])
       ) {
         const ohlc = await getOhlcByMarketAndCandleStart(
           market,

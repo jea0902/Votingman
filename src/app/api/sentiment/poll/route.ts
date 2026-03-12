@@ -28,6 +28,7 @@ const COIN_MARKETS = [
   "btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m",
   "eth_1d", "eth_4h", "eth_1h", "eth_15m", "eth_5m",
   "usdt_1d", "usdt_4h", "usdt_1h", "usdt_15m", "usdt_5m",
+  "xrp_1d", "xrp_4h", "xrp_1h", "xrp_15m", "xrp_5m",
 ] as const;
 
 export async function GET(request: NextRequest) {
@@ -65,7 +66,7 @@ export async function GET(request: NextRequest) {
             : base;
       const previousCandleStartAt = getPreviousCandleStartAt(market, ohlcKey);
       // btc_4h: 차트가 Binance API를 쓰므로 목표가도 Binance에서 직접 조회해 직전 4h 봉 종가와 정확히 일치시키기
-      if (market === "btc_4h" || market === "eth_4h" || market === "usdt_4h") {
+      if (market === "btc_4h" || market === "eth_4h" || market === "usdt_4h" || market === "xrp_4h") {
         try {
           price_open = await fetchPreviousCandleClose(market, ohlcKey);
         } catch (e) {

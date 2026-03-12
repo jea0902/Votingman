@@ -69,6 +69,11 @@ const MARKET_FILTERS = [
   { value: "usdt_1h", label: "1시간 후 USDT" },
   { value: "usdt_15m", label: "15분 후 USDT" },
   { value: "usdt_5m", label: "5분 후 USDT" },
+  { value: "xrp_1d", label: "1일 후 XRP" },
+  { value: "xrp_4h", label: "4시간 후 XRP" },
+  { value: "xrp_1h", label: "1시간 후 XRP" },
+  { value: "xrp_15m", label: "15분 후 XRP" },
+  { value: "xrp_5m", label: "5분 후 XRP" },
 ] as const;
 
 export function UnsettledVotesTab() {

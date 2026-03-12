@@ -56,6 +56,11 @@ const TV_SYMBOL: Record<SentimentMarket, string> = {
   usdt_1h: "BINANCE:USDTBUSD",
   usdt_15m: "BINANCE:USDTBUSD",
   usdt_5m: "BINANCE:USDTBUSD",
+  xrp_1d: "BINANCE:XRPUSDT",
+  xrp_4h: "BINANCE:XRPUSDT",
+  xrp_1h: "BINANCE:XRPUSDT",
+  xrp_15m: "BINANCE:XRPUSDT",
+  xrp_5m: "BINANCE:XRPUSDT",
 };
 
 const AdvancedRealTimeChart = dynamic(

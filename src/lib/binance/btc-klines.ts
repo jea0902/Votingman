@@ -47,6 +47,11 @@ export const MARKET_TO_INTERVAL: Record<string, string> = {
   usdt_1h: "1h",
   usdt_4h: "4h",
   usdt_1d: "1d",
+  xrp_5m: "5m",
+  xrp_15m: "15m",
+  xrp_1h: "1h",
+  xrp_4h: "4h",
+  xrp_1d: "1d",
 };
 
 /** market → Binance symbol */
@@ -68,6 +73,11 @@ export const MARKET_TO_SYMBOL: Record<string, string> = {
   usdt_1h: "USDTBUSD",
   usdt_4h: "USDTBUSD",
   usdt_1d: "USDTBUSD",
+  xrp_5m: "XRPUSDT",
+  xrp_15m: "XRPUSDT",
+  xrp_1h: "XRPUSDT",
+  xrp_4h: "XRPUSDT",
+  xrp_1d: "XRPUSDT",
 };
 
 export type BtcOhlcRow = {
@@ -202,6 +212,7 @@ const KST_ALIGNED_MARKETS = [
   "btc_5m", "btc_15m", "btc_1h", "btc_4h", "btc_1d",
   "eth_5m", "eth_15m", "eth_1h", "eth_4h", "eth_1d",
   "usdt_5m", "usdt_15m", "usdt_1h", "usdt_4h", "usdt_1d",
+  "xrp_5m", "xrp_15m", "xrp_1h", "xrp_4h", "xrp_1d",
 ] as const;
 
 const POLL_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -220,7 +231,7 @@ export async function fetchOhlcForPollDate(
 ): Promise<BtcOhlcRow[]> {
   if (!POLL_DATE_REGEX.test(pollDate)) return [];
   const m =
-    market === "btc" ? "btc_1d" : market === "eth" ? "eth_1d" : market === "usdt" ? "usdt_1d" : market;
+    market === "btc" ? "btc_1d" : market === "eth" ? "eth_1d" : market === "usdt" ? "usdt_1d" : market === "xrp" ? "xrp_1d" : market;
   if (!KST_ALIGNED_MARKETS.includes(m as (typeof KST_ALIGNED_MARKETS)[number])) {
     return [];
   }
@@ -253,7 +264,7 @@ export async function fetchKlinesKstAligned(
   limit: number
 ): Promise<BtcOhlcRow[]> {
   const m =
-    market === "btc" ? "btc_1d" : market === "eth" ? "eth_1d" : market === "usdt" ? "usdt_1d" : market;
+    market === "btc" ? "btc_1d" : market === "eth" ? "eth_1d" : market === "usdt" ? "usdt_1d" : market === "xrp" ? "xrp_1d" : market;
   if (!KST_ALIGNED_MARKETS.includes(m as (typeof KST_ALIGNED_MARKETS)[number])) {
     return [];
   }

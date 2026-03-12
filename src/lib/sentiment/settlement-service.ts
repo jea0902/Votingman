@@ -81,6 +81,11 @@ const COIN_MARKETS_SETTLE = [
   "usdt_1h",
   "usdt_15m",
   "usdt_5m",
+  "xrp_1d",
+  "xrp_4h",
+  "xrp_1h",
+  "xrp_15m",
+  "xrp_5m",
   "btc_1W",
   "btc_1M",
   "btc_12M",
@@ -223,7 +228,7 @@ export async function settlePoll(
       status: "already_settled",
       participant_count: 0,
       winner_side: null,
-      error: "지원 market: btc/eth/usdt 1d,4h,1h,15m,5m",
+      error: "지원 market: btc/eth/usdt/xrp 1d,4h,1h,15m,5m",
     };
   }
 
@@ -785,6 +790,7 @@ const BACKFILL_MARKETS = [
   "btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m",
   "eth_1d", "eth_4h", "eth_1h", "eth_15m", "eth_5m",
   "usdt_1d", "usdt_4h", "usdt_1h", "usdt_15m", "usdt_5m",
+  "xrp_1d", "xrp_4h", "xrp_1h", "xrp_15m", "xrp_5m",
 ] as const;
 
 export type BackfillAndSettleResult =
@@ -854,7 +860,7 @@ export async function backfillAndSettlePoll(
       status: "unsupported_market",
       participant_count: 0,
       winner_side: null,
-      error: `백필 지원: btc/eth/usdt 1d,4h,1h,15m,5m만 가능. (${market})`,
+      error: `백필 지원: btc/eth/usdt/xrp 1d,4h,1h,15m,5m만 가능. (${market})`,
     };
   }
 
@@ -873,9 +879,9 @@ export async function backfillAndSettlePoll(
 
   // 1d: Binance는 00:00 UTC만 있음. 4h: Binance는 00/04/08/12/16/20 UTC만 있음.
   const ohlcLookupKey =
-    market === "btc_1d" || market === "eth_1d" || market === "usdt_1d"
+    market === "btc_1d" || market === "eth_1d" || market === "usdt_1d" || market === "xrp_1d"
       ? getBtc1dCandleStartAtUtc(candleStartAt.slice(0, 10))
-      : market === "btc_4h" || market === "eth_4h" || market === "usdt_4h"
+      : market === "btc_4h" || market === "eth_4h" || market === "usdt_4h" || market === "xrp_4h"
         ? normalizeBtc4hCandleStartAt(candleStartAt)
         : candleStartAt;
 

@@ -1,8 +1,8 @@
 /**
  * 예측 대상일(poll_date) 화면 표시용 KST 보정
  *
- * - btc_1d: DB의 poll_date는 UTC 날짜. 봉 마감일(KST) = UTC+1일 이므로 표시 시 +1일
- * - btc_4h, btc_1h, btc_15m: poll_date는 이미 KST → 그대로 반환
+ * - btc_1d/eth_1d/usdt_1d: DB의 poll_date는 UTC 날짜. 봉 마감일(KST) = UTC+1일 이므로 표시 시 +1일
+ * - btc_4h, btc_1h, btc_15m 등: poll_date는 이미 KST → 그대로 반환
  */
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -17,12 +17,15 @@ function addOneDayUtc(dateStr: string): string {
   return `${yy}-${mm}-${dd}`;
 }
 
+/** 1일봉 코인 시장 (UTC 날짜 → KST 보정 대상) */
+const COIN_1D_MARKETS = ["btc_1d", "eth_1d", "usdt_1d", "xrp_1d"] as const;
+
 /**
  * 화면에 "예측 대상일"로 보여줄 때 사용할 날짜(YYYY-MM-DD).
- * btc_1d일 때만 UTC → KST 봉 마감일로 보정, 나머지는 poll_date 그대로.
+ * btc_1d/eth_1d/usdt_1d일 때 UTC → KST 봉 마감일로 보정, 나머지는 poll_date 그대로.
  */
 export function getPollDateDisplayForKst(market: string, pollDate: string): string {
   if (!DATE_REGEX.test(pollDate)) return pollDate;
-  if (market === "btc_1d") return addOneDayUtc(pollDate);
+  if (COIN_1D_MARKETS.includes(market as (typeof COIN_1D_MARKETS)[number])) return addOneDayUtc(pollDate);
   return pollDate;
 }

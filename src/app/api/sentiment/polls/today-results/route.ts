@@ -17,6 +17,7 @@ const COIN_MARKETS = [
   "btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m",
   "eth_1d", "eth_4h", "eth_1h", "eth_15m", "eth_5m",
   "usdt_1d", "usdt_4h", "usdt_1h", "usdt_15m", "usdt_5m",
+  "xrp_1d", "xrp_4h", "xrp_1h", "xrp_15m", "xrp_5m",
 ] as const;
 
 export type TodayResultItem = {
@@ -39,7 +40,9 @@ export async function GET(request: NextRequest) {
     const todayKst = getTodayKstDateString();
     const todayUtc = getTodayUtcDateString();
     const pollDate =
-      market === "btc_1d" || market === "eth_1d" || market === "usdt_1d" ? todayUtc : todayKst;
+      market === "btc_1d" || market === "eth_1d" || market === "usdt_1d" || market === "xrp_1d"
+        ? todayUtc
+        : todayKst;
     const candleStartAts = getCandlesForPollDate(market, pollDate);
     if (candleStartAts.length === 0) {
       return NextResponse.json({ success: true, data: { results: [] } });

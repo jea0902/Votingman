@@ -41,6 +41,10 @@ const ROLLING_MARKETS: SentimentMarket[] = [
   "usdt_1h",
   "usdt_15m",
   "usdt_5m",
+  "xrp_4h",
+  "xrp_1h",
+  "xrp_15m",
+  "xrp_5m",
   "ndq_4h",
   "sp500_4h",
   "kospi_4h",
@@ -64,9 +68,9 @@ function isRollingMarket(m: SentimentMarket): boolean {
 
 /** 롤링 시장: 주기 전체(다음 봉 시작까지) — 밀리초 */
 function getRollingPeriodMs(m: SentimentMarket): number {
-  if (m === "btc_1h") return 60 * 60 * 1000;
-  if (m === "btc_15m") return 15 * 60 * 1000;
-  if (m === "btc_5m") return 5 * 60 * 1000;
+  if (m === "btc_1h" || m === "eth_1h" || m === "usdt_1h" || m === "xrp_1h") return 60 * 60 * 1000;
+  if (m === "btc_15m" || m === "eth_15m" || m === "usdt_15m" || m === "xrp_15m") return 15 * 60 * 1000;
+  if (m === "btc_5m" || m === "eth_5m" || m === "usdt_5m" || m === "xrp_5m") return 5 * 60 * 1000;
   return ROLLING_4H_MS; // btc_4h 및 모든 *_4h 시장
 }
 
@@ -98,10 +102,10 @@ function getNextCandleStartUtcMs(market: SentimentMarket): number {
   return new Date(startAt).getTime() + getRollingPeriodMs(market);
 }
 
-/** btc_1d: 현재 캔들 마감 시각(UTC ms) = candle_start_at + 24h - 10초 조기 마감 */
-function getBtc1dCloseUtcMs(): number {
-  const startAt = getCurrentCandleStartAt("btc_1d");
-  const periodMs = CANDLE_PERIOD_MS["btc_1d"] ?? 24 * 60 * 60 * 1000;
+/** btc_1d/eth_1d/usdt_1d/xrp_1d: 현재 캔들 마감 시각(UTC ms) = candle_start_at + 24h - 10초 조기 마감 */
+function getCoin1dCloseUtcMs(market: "btc_1d" | "eth_1d" | "usdt_1d" | "xrp_1d"): number {
+  const startAt = getCurrentCandleStartAt(market);
+  const periodMs = CANDLE_PERIOD_MS[market] ?? 24 * 60 * 60 * 1000;
   return new Date(startAt).getTime() + periodMs - VOTING_CLOSE_EARLY_MS;
 }
 
@@ -135,9 +139,9 @@ export function isVotingOpenKST(market?: string): boolean {
     return Date.now() < getRollingCloseUtcMs(m);
   }
   
-  // btc_1d: UTC 기준 통일. 10초 조기 마감 적용 (getBtc1dCloseUtcMs와 동일)
-  if (m === "btc_1d") {
-    return Date.now() < getBtc1dCloseUtcMs();
+  // btc_1d/eth_1d/usdt_1d/xrp_1d: UTC 기준 통일. 10초 조기 마감 적용
+  if (m === "btc_1d" || m === "eth_1d" || m === "usdt_1d" || m === "xrp_1d") {
+    return Date.now() < getCoin1dCloseUtcMs(m);
   }
   
   // 기타 시장 (ndq, sp500, kospi, kosdaq)
@@ -150,9 +154,9 @@ export function isVotingOpenKST(market?: string): boolean {
 export function getVotingCloseLabel(market?: string): string {
   const m: SentimentMarket = market && isSentimentMarket(market) ? market : "btc_1d";
   if (m.endsWith("_4h")) return "투표 마감: 현재 4시간봉 종료 시";
-  if (m === "btc_1h") return "투표 마감: 현재 1시간봉 종료 시";
-  if (m === "btc_15m") return "투표 마감: 현재 15분봉 종료 시";
-  if (m === "btc_5m") return "투표 마감: 현재 5분봉 종료 시";
+  if (m === "btc_1h" || m === "eth_1h" || m === "usdt_1h" || m === "xrp_1h") return "투표 마감: 현재 1시간봉 종료 시";
+  if (m === "btc_15m" || m === "eth_15m" || m === "usdt_15m" || m === "xrp_15m") return "투표 마감: 현재 15분봉 종료 시";
+  if (m === "btc_5m" || m === "eth_5m" || m === "usdt_5m" || m === "xrp_5m") return "투표 마감: 현재 5분봉 종료 시";
   const { hour, minute } = MARKET_CLOSE_KST[m];
   const h = String(hour).padStart(2, "0");
   const min = String(minute).padStart(2, "0");
@@ -171,19 +175,19 @@ export function getMillisUntilClose(
   candleStartAt?: string | null
 ): number {
   const m: SentimentMarket = market && isSentimentMarket(market) ? market : "btc_1d";
-  if (isRollingMarket(m) || m === "btc_1d") {
+  const isCoin1d = m === "btc_1d" || m === "eth_1d" || m === "usdt_1d" || m === "xrp_1d";
+  if (isRollingMarket(m) || isCoin1d) {
     let closeUtcMs: number;
-    if (candleStartAt && (m === "btc_1d" || isRollingMarket(m))) {
-      const periodMs =
-        m === "btc_1d"
-          ? (CANDLE_PERIOD_MS["btc_1d"] ?? 24 * 60 * 60 * 1000)
-          : getRollingPeriodMs(m);
+    if (candleStartAt && (isCoin1d || isRollingMarket(m))) {
+      const periodMs = isCoin1d
+        ? (CANDLE_PERIOD_MS[m] ?? 24 * 60 * 60 * 1000)
+        : getRollingPeriodMs(m);
       closeUtcMs =
         new Date(candleStartAt).getTime() + periodMs - VOTING_CLOSE_EARLY_MS;
     } else if (isRollingMarket(m)) {
       closeUtcMs = getRollingCloseUtcMs(m);
     } else {
-      closeUtcMs = getBtc1dCloseUtcMs();
+      closeUtcMs = getCoin1dCloseUtcMs(m as "btc_1d" | "eth_1d" | "usdt_1d" | "xrp_1d");
     }
     return Math.max(0, closeUtcMs - Date.now());
   }
@@ -217,11 +221,11 @@ export function getCloseTimeKstString(
 
   // 폴의 candle_start_at이 있으면 해당 폴 마감 시각 사용
   // 표시: 봉 경계 시각(period 정각). 카운트다운은 period-1초까지 → UI 일치
-  if (candleStartAt && (m === "btc_1d" || isRollingMarket(m))) {
-    const periodMs =
-      m === "btc_1d"
-        ? (CANDLE_PERIOD_MS["btc_1d"] ?? 24 * 60 * 60 * 1000)
-        : getRollingPeriodMs(m);
+  const isCoin1d = m === "btc_1d" || m === "eth_1d" || m === "usdt_1d" || m === "xrp_1d";
+  if (candleStartAt && (isCoin1d || isRollingMarket(m))) {
+    const periodMs = isCoin1d
+      ? (CANDLE_PERIOD_MS[m] ?? 24 * 60 * 60 * 1000)
+      : getRollingPeriodMs(m);
     const closeUtcMs =
       new Date(candleStartAt).getTime() + periodMs - VOTING_CLOSE_EARLY_MS;
     const boundaryUtcMs = closeUtcMs + VOTING_CLOSE_EARLY_MS;
@@ -234,9 +238,9 @@ export function getCloseTimeKstString(
     return `${formatKstDateTimeForMarket(boundaryUtcMs, m)}에 마감`;
   }
 
-  // btc_1d: UTC 기준 통일 (KST 09:00 = UTC 00:00)
-  if (m === "btc_1d") {
-    const closeUtcMs = getBtc1dCloseUtcMs();
+  // btc_1d/eth_1d/usdt_1d: UTC 기준 통일 (KST 09:00 = UTC 00:00)
+  if (isCoin1d) {
+    const closeUtcMs = getCoin1dCloseUtcMs(m);
     const boundaryUtcMs = closeUtcMs + VOTING_CLOSE_EARLY_MS;
     return `${formatKstDateTimeForMarket(boundaryUtcMs, m)}에 마감`;
   }
@@ -272,8 +276,8 @@ export function getLateVotingMultiplier(market?: string): number {
   let totalMs: number;
   if (isRollingMarket(m)) {
     totalMs = getRollingPeriodMs(m);
-  } else if (m === "btc_1d") {
-    totalMs = CANDLE_PERIOD_MS["btc_1d"] ?? 24 * 60 * 60 * 1000;
+  } else if (m === "btc_1d" || m === "eth_1d" || m === "usdt_1d" || m === "xrp_1d") {
+    totalMs = CANDLE_PERIOD_MS[m] ?? 24 * 60 * 60 * 1000;
   } else {
     totalMs = 24 * 60 * 60 * 1000; // ndq 등: 대략 24h
   }
@@ -306,9 +310,9 @@ export function getNextOpenTimeKstString(market?: string): string {
     const nextStartUtcMs = getNextCandleStartUtcMs(m);
     return `${formatKstDateTimeForMarket(nextStartUtcMs, m)}부터`;
   }
-  // btc_1d: 마감 직후(UTC 00:00 = KST 09:00)에 새 투표 시작
-  if (m === "btc_1d") {
-    const nextStartUtcMs = getBtc1dCloseUtcMs();
+  // btc_1d/eth_1d/usdt_1d/xrp_1d: 마감 직후(UTC 00:00 = KST 09:00)에 새 투표 시작
+  if (m === "btc_1d" || m === "eth_1d" || m === "usdt_1d" || m === "xrp_1d") {
+    const nextStartUtcMs = getCoin1dCloseUtcMs(m);
     return `${formatKstDateTimeForMarket(nextStartUtcMs, m)}부터`;
   }
   const utcMs = Date.now();

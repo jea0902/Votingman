@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
     for (const market of [
       "btc_5m", "btc_15m", "btc_1h", "btc_4h", "btc_1d",
       "eth_5m", "eth_15m", "eth_1h", "eth_4h", "eth_1d",
+      "xrp_5m", "xrp_15m", "xrp_1h", "xrp_4h", "xrp_1d",
     ]) {
       const { data } = await admin
         .from("btc_ohlc")
@@ -51,26 +52,33 @@ export async function GET(request: NextRequest) {
       switch (market.market) {
         case "btc_5m":
         case "eth_5m":
+        case "usdt_5m":
+        case "xrp_5m":
           expectedInterval = 5;
           missingCandles = Math.floor(minutesSince / 5);
           break;
         case "btc_15m":
         case "eth_15m":
+        case "xrp_15m":
           expectedInterval = 15;
           missingCandles = Math.floor(minutesSince / 15);
           break;
         case "btc_1h":
         case "eth_1h":
+        case "xrp_1h":
           expectedInterval = 60;
           missingCandles = Math.floor(minutesSince / 60);
           break;
         case "btc_4h":
         case "eth_4h":
+        case "usdt_4h":
+        case "xrp_4h":
           expectedInterval = 240;
           missingCandles = Math.floor(minutesSince / 240);
           break;
         case "btc_1d":
         case "eth_1d":
+        case "xrp_1d":
           expectedInterval = 1440;
           missingCandles = Math.floor(minutesSince / 1440);
           break;

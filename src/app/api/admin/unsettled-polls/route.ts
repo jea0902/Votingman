@@ -9,7 +9,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdmin } from "@/lib/supabase/server";
 
 const MARKET_FILTER_TO_DB: Record<string, readonly string[]> = {
-  btc: ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m", "eth_1d", "eth_4h", "eth_1h", "eth_15m", "eth_5m", "usdt_1d", "usdt_4h", "usdt_1h", "usdt_15m", "usdt_5m"],
+  btc: ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m", "eth_1d", "eth_4h", "eth_1h", "eth_15m", "eth_5m", "usdt_1d", "usdt_4h", "usdt_1h", "usdt_15m", "usdt_5m", "xrp_1d", "xrp_4h", "xrp_1h", "xrp_15m", "xrp_5m"],
   eth_1d: ["eth_1d"],
   eth_4h: ["eth_4h"],
   eth_1h: ["eth_1h"],
@@ -20,6 +20,11 @@ const MARKET_FILTER_TO_DB: Record<string, readonly string[]> = {
   usdt_1h: ["usdt_1h"],
   usdt_15m: ["usdt_15m"],
   usdt_5m: ["usdt_5m"],
+  xrp_1d: ["xrp_1d"],
+  xrp_4h: ["xrp_4h"],
+  xrp_1h: ["xrp_1h"],
+  xrp_15m: ["xrp_15m"],
+  xrp_5m: ["xrp_5m"],
   kospi_1d: ["kospi_1d"],
   kospi_4h: ["kospi_4h"],
   kosdaq_1d: ["kosdaq_1d"],

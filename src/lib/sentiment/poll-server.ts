@@ -36,6 +36,11 @@ const COIN_MARKETS = [
   "usdt_1h",
   "usdt_15m",
   "usdt_5m",
+  "xrp_1d",
+  "xrp_4h",
+  "xrp_1h",
+  "xrp_15m",
+  "xrp_5m",
 ] as const;
 
 const ROLLING_MARKETS = [
@@ -51,6 +56,10 @@ const ROLLING_MARKETS = [
   "usdt_1h",
   "usdt_15m",
   "usdt_5m",
+  "xrp_4h",
+  "xrp_1h",
+  "xrp_15m",
+  "xrp_5m",
   "ndq_4h",
   "sp500_4h",
   "kospi_4h",

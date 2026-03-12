@@ -21,6 +21,11 @@ export const SENTIMENT_MARKETS = [
   "usdt_1h",
   "usdt_15m",
   "usdt_5m",
+  "xrp_1d",
+  "xrp_4h",
+  "xrp_1h",
+  "xrp_15m",
+  "xrp_5m",
   "ndq_1d",
   "ndq_4h",
   "sp500_1d",
@@ -63,7 +68,7 @@ export const MIN_BET_VTC = 500;
 /** API/UI 입력 "btc"를 DB용 "btc_1d"로 정규화 */
 export function normalizeToDbMarket(market: string): SentimentMarket {
   const normalized =
-    market === "btc" ? "btc_1d" : market === "eth" ? "eth_1d" : market === "usdt" ? "usdt_1d" : market;
+    market === "btc" ? "btc_1d" : market === "eth" ? "eth_1d" : market === "usdt" ? "usdt_1d" : market === "xrp" ? "xrp_1d" : market;
   return SENTIMENT_MARKETS.includes(normalized as SentimentMarket)
     ? (normalized as SentimentMarket)
     : "btc_1d";
@@ -87,6 +92,11 @@ export const MARKET_CLOSE_KST: Record<SentimentMarket, { hour: number; minute: n
   usdt_1h: { hour: 20, minute: 30 },
   usdt_15m: { hour: 20, minute: 30 },
   usdt_5m: { hour: 20, minute: 30 },
+  xrp_1d: { hour: 9, minute: 0 },
+  xrp_4h: { hour: 20, minute: 30 },
+  xrp_1h: { hour: 20, minute: 30 },
+  xrp_15m: { hour: 20, minute: 30 },
+  xrp_5m: { hour: 20, minute: 30 },
   ndq_1d: { hour: 3, minute: 30 },
   ndq_4h: { hour: 20, minute: 30 },
   sp500_1d: { hour: 3, minute: 30 },
@@ -136,6 +146,11 @@ export const MARKET_LABEL: Record<SentimentMarket, string> = {
   usdt_1h: "테더 1시간",
   usdt_15m: "테더 15분",
   usdt_5m: "테더 5분",
+  xrp_1d: "리플 1일",
+  xrp_4h: "리플 4시간",
+  xrp_1h: "리플 1시간",
+  xrp_15m: "리플 15분",
+  xrp_5m: "리플 5분",
   ndq_1d: "1일 후 나스닥",
   ndq_4h: "4시간 후 나스닥",
   sp500_1d: "1일 후 SPX",
@@ -179,6 +194,6 @@ export const MARKET_SECTIONS: { sectionLabel: string; markets: SentimentMarket[]
 
 export function isSentimentMarket(value: string): value is SentimentMarket {
   const normalized =
-    value === "btc" ? "btc_1d" : value === "eth" ? "eth_1d" : value === "usdt" ? "usdt_1d" : value;
+    value === "btc" ? "btc_1d" : value === "eth" ? "eth_1d" : value === "usdt" ? "usdt_1d" : value === "xrp" ? "xrp_1d" : value;
   return SENTIMENT_MARKETS.includes(normalized as SentimentMarket);
 }

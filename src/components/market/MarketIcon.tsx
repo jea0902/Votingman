@@ -12,6 +12,7 @@ const COIN_MARKETS = [
   "btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m",
   "eth_1d", "eth_4h", "eth_1h", "eth_15m", "eth_5m",
   "usdt_1d", "usdt_4h", "usdt_1h", "usdt_15m", "usdt_5m",
+  "xrp_1d", "xrp_4h", "xrp_1h", "xrp_15m", "xrp_5m",
 ] as const;
 function isCoinMarket(m: string): m is (typeof COIN_MARKETS)[number] {
   return COIN_MARKETS.includes(m as (typeof COIN_MARKETS)[number]);
@@ -33,12 +34,18 @@ const COIN_ICON: Record<string, string> = {
   usdt_1h: "https://assets.coingecko.com/coins/images/325/small/Tether.png",
   usdt_15m: "https://assets.coingecko.com/coins/images/325/small/Tether.png",
   usdt_5m: "https://assets.coingecko.com/coins/images/325/small/Tether.png",
+  xrp_1d: "https://assets.coingecko.com/coins/images/44/small/xrp-symbol-white-128.png",
+  xrp_4h: "https://assets.coingecko.com/coins/images/44/small/xrp-symbol-white-128.png",
+  xrp_1h: "https://assets.coingecko.com/coins/images/44/small/xrp-symbol-white-128.png",
+  xrp_15m: "https://assets.coingecko.com/coins/images/44/small/xrp-symbol-white-128.png",
+  xrp_5m: "https://assets.coingecko.com/coins/images/44/small/xrp-symbol-white-128.png",
 };
 
 const TIMEFRAME_LABEL: Record<string, string> = {
   btc_1d: "1D", btc_4h: "4H", btc_1h: "1H", btc_15m: "15m", btc_5m: "5m",
   eth_1d: "1D", eth_4h: "4H", eth_1h: "1H", eth_15m: "15m", eth_5m: "5m",
   usdt_1d: "1D", usdt_4h: "4H", usdt_1h: "1H", usdt_15m: "15m", usdt_5m: "5m",
+  xrp_1d: "1D", xrp_4h: "4H", xrp_1h: "1H", xrp_15m: "15m", xrp_5m: "5m",
 };
 
 const STOCK_ICON_URL: Record<string, string> = {

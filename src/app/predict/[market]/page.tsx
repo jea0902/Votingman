@@ -115,6 +115,11 @@ const CARD_TITLE: Record<string, string> = {
   usdt_1h: "[1시간 후] 테더 상승/하락",
   usdt_15m: "[15분 후] 테더 상승/하락",
   usdt_5m: "[5분 후] 테더 상승/하락",
+  xrp_1d: "[1일 후] 리플 상승/하락",
+  xrp_4h: "[4시간 후] 리플 상승/하락",
+  xrp_1h: "[1시간 후] 리플 상승/하락",
+  xrp_15m: "[15분 후] 리플 상승/하락",
+  xrp_5m: "[5분 후] 리플 상승/하락",
   ndq_1d: "[1일 후] 나스닥100 상승/하락",
   ndq_4h: "[4시간 후] 나스닥100 상승/하락",
   sp500_1d: "[1일 후] SPX 상승/하락",
@@ -208,6 +213,7 @@ export default function PredictMarketPage() {
     "btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m",
     "eth_1d", "eth_4h", "eth_1h", "eth_15m", "eth_5m",
     "usdt_1d", "usdt_4h", "usdt_1h", "usdt_15m", "usdt_5m",
+    "xrp_1d", "xrp_4h", "xrp_1h", "xrp_15m", "xrp_5m",
   ];
   const isBtcMarketForVote = COIN_MARKETS_FOR_VOTE.includes(market);
   const isBtcMarket = market.startsWith("btc_");
@@ -283,7 +289,7 @@ export default function PredictMarketPage() {
   const isCoinMarket =
     COIN_MARKETS_FOR_VOTE.includes(market);
   const binanceSymbol =
-    market.startsWith("btc_") ? "BTCUSDT" : market.startsWith("eth_") ? "ETHUSDT" : market.startsWith("usdt_") ? "USDTBUSD" : "BTCUSDT";
+    market.startsWith("btc_") ? "BTCUSDT" : market.startsWith("eth_") ? "ETHUSDT" : market.startsWith("usdt_") ? "USDTBUSD" : market.startsWith("xrp_") ? "XRPUSDT" : "BTCUSDT";
 
   /** 코스피 시장: KospiChart (Yahoo Finance) */
   const isKospiMarket = market === "kospi_1d" || market === "kospi_4h";
@@ -292,6 +298,7 @@ export default function PredictMarketPage() {
     market.startsWith("btc_") ||
     market.startsWith("eth_") ||
     market.startsWith("usdt_") ||
+    market.startsWith("xrp_") ||
     ["ndq_1d", "ndq_4h", "sp500_1d", "sp500_4h", "kosdaq_1d", "kosdaq_4h"].includes(market) ||
     market.startsWith("dow_jones_") ||
     market.startsWith("wti_") ||
@@ -556,6 +563,7 @@ export default function PredictMarketPage() {
     ["btc_1d", "btc_4h"],
     ["eth_1d", "eth_4h"],
     ["usdt_1d", "usdt_4h"],
+    ["xrp_1d", "xrp_4h"],
     ["ndq_1d", "ndq_4h"],
     ["sp500_1d", "sp500_4h"],
     ["kospi_1d", "kospi_4h"],

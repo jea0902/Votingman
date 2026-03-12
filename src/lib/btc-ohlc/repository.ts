@@ -91,9 +91,9 @@ export async function getOhlcByMarketAndCandleStart(
     }
   }
 
-  // fallback: 1d만 날짜 00:00 UTC로 재시도. 4h/1h/15m/5m은 동일 키로만 재시도(다른 봉 참조 방지)
+  // fallback: 1d 코인 시장만 날짜 00:00 UTC로 재시도. 4h/1h/15m/5m은 동일 키로만 재시도(다른 봉 참조 방지)
   let key = exactKey;
-  if (market === "btc_1d") {
+  if (market === "btc_1d" || market === "eth_1d" || market === "usdt_1d" || market === "xrp_1d") {
     key = getBtc1dCandleStartAtUtc(exactKey.slice(0, 10));
   }
   const { data, error } = await admin

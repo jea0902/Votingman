@@ -28,6 +28,11 @@ const JOBS = [
   { job_name: "eth-ohlc-1h", label: "ETH 1시간봉" },
   { job_name: "eth-ohlc-15m", label: "ETH 15분봉" },
   { job_name: "eth-ohlc-5m", label: "ETH 5분봉" },
+  { job_name: "xrp-ohlc-daily", label: "XRP 1일봉" },
+  { job_name: "xrp-ohlc-4h", label: "XRP 4시간봉" },
+  { job_name: "xrp-ohlc-1h", label: "XRP 1시간봉" },
+  { job_name: "xrp-ohlc-15m", label: "XRP 15분봉" },
+  { job_name: "xrp-ohlc-5m", label: "XRP 5분봉" },
 ];
 
 export function CronStatusPanel() {
