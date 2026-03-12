@@ -137,7 +137,7 @@ export function NotificationBell({ userId }: NotificationBellProps) {
       }
 
       const text = await response.text();
-      let result: { success?: boolean };
+      let result: { success?: boolean } | null = null;
       try {
         result = text && (response.headers.get("content-type") ?? "").includes("application/json")
           ? JSON.parse(text)

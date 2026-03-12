@@ -37,8 +37,10 @@ export type VoteFilterKey =
   | "usd_bond";
 
 /** USDT 제외: 투표 박스 숨김 (수집·정산 테스트 후 제거 예정) */
-const HIDDEN_USDT_MARKETS = ["usdt_1d", "usdt_4h", "usdt_1h", "usdt_15m", "usdt_5m"] as const;
-const DISPLAY_MARKETS = SENTIMENT_MARKETS.filter((m) => !HIDDEN_USDT_MARKETS.includes(m));
+const HIDDEN_USDT_MARKETS = new Set<string>([
+  "usdt_1d", "usdt_4h", "usdt_1h", "usdt_15m", "usdt_5m",
+]);
+const DISPLAY_MARKETS = SENTIMENT_MARKETS.filter((m) => !HIDDEN_USDT_MARKETS.has(m));
 
 const FILTER_OPTIONS: { key: VoteFilterKey; label: string; markets: SentimentMarket[] }[] = [
   { key: "all", label: "전체", markets: [...DISPLAY_MARKETS] },
