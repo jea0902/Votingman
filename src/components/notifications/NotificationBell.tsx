@@ -68,17 +68,25 @@ export function NotificationBell({ userId }: NotificationBellProps) {
         setUnreadCount(0);
         return;
       }
-      
-      const result = await response.json();
-      console.log('NotificationBell: API 응답 데이터', result);
 
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || 'API 호출 실패');
+      // HTML(404/500 페이지) 반환 시 JSON 파싱 에러 방지
+      const contentType = response.headers.get("content-type") ?? "";
+      const text = await response.text();
+      let result: { success?: boolean; data?: { notifications?: unknown[]; unread_count?: number } } | null = null;
+      try {
+        result = text && contentType.includes("application/json") ? JSON.parse(text) : null;
+      } catch {
+        result = null;
+      }
+      if (!result?.success || !result?.data) {
+        setNotifications([]);
+        setUnreadCount(0);
+        return;
       }
 
-      const notifications = result.data.notifications as NotificationRow[];
+      const notifications = (result.data.notifications ?? []) as NotificationRow[];
       setNotifications(notifications);
-      setUnreadCount(result.data.unread_count);
+      setUnreadCount(result.data.unread_count ?? 0);
     } catch (error) {
       // 네트워크 오류(서버 중단, 오프라인 등) → 기존 데이터 유지, 콘솔만 조용히
       const isNetworkError =
@@ -128,10 +136,17 @@ export function NotificationBell({ userId }: NotificationBellProps) {
         return;
       }
 
-      const result = await response.json();
-      
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || '읽음 처리 실패');
+      const text = await response.text();
+      let result: { success?: boolean };
+      try {
+        result = text && (response.headers.get("content-type") ?? "").includes("application/json")
+          ? JSON.parse(text)
+          : null;
+      } catch {
+        result = null;
+      }
+      if (!response.ok || !result?.success) {
+        return;
       }
 
       // 로컬 상태 업데이트

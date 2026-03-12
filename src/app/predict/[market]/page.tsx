@@ -562,7 +562,6 @@ export default function PredictMarketPage() {
   const pairMarkets: [string, string][] = [
     ["btc_1d", "btc_4h"],
     ["eth_1d", "eth_4h"],
-    ["usdt_1d", "usdt_4h"],
     ["xrp_1d", "xrp_4h"],
     ["ndq_1d", "ndq_4h"],
     ["sp500_1d", "sp500_4h"],

@@ -36,8 +36,12 @@ export type VoteFilterKey =
   | "usd_krw"
   | "usd_bond";
 
+/** USDT 제외: 투표 박스 숨김 (수집·정산 테스트 후 제거 예정) */
+const HIDDEN_USDT_MARKETS = ["usdt_1d", "usdt_4h", "usdt_1h", "usdt_15m", "usdt_5m"] as const;
+const DISPLAY_MARKETS = SENTIMENT_MARKETS.filter((m) => !HIDDEN_USDT_MARKETS.includes(m));
+
 const FILTER_OPTIONS: { key: VoteFilterKey; label: string; markets: SentimentMarket[] }[] = [
-  { key: "all", label: "전체", markets: [...SENTIMENT_MARKETS] },
+  { key: "all", label: "전체", markets: [...DISPLAY_MARKETS] },
   {
     key: "btc",
     label: "COIN",
@@ -52,11 +56,6 @@ const FILTER_OPTIONS: { key: VoteFilterKey; label: string; markets: SentimentMar
       "eth_1h",
       "eth_15m",
       "eth_5m",
-      "usdt_1d",
-      "usdt_4h",
-      "usdt_1h",
-      "usdt_15m",
-      "usdt_5m",
       "xrp_1d",
       "xrp_4h",
       "xrp_1h",

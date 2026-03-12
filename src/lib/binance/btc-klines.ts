@@ -89,8 +89,19 @@ export type BtcOhlcRow = {
   low: number;
 };
 
+/** 심볼별 OHLC 소수점 자리 (XRP ~$1대 → 4자리, BTC/ETH → 2자리) */
+const PRECISION_BY_SYMBOL: Record<string, number> = {
+  XRPUSDT: 4,
+};
+const DEFAULT_PRECISION = 2;
+
+function roundToPrecision(n: number, decimals: number): number {
+  const factor = 10 ** decimals;
+  return Math.round(n * factor) / factor;
+}
+
 /** Binance klines 응답: [openTime, open, high, low, close, volume, ...] */
-function parseCandle(row: unknown[]): BtcOhlcRow | null {
+function parseCandle(row: unknown[], symbol?: string): BtcOhlcRow | null {
   if (!Array.isArray(row) || row.length < 6) return null;
   const openTime = row[0] as number;
   const open = parseFloat(String(row[1]));
@@ -98,13 +109,14 @@ function parseCandle(row: unknown[]): BtcOhlcRow | null {
   const low = parseFloat(String(row[3]));
   const close = parseFloat(String(row[4]));
   if (!Number.isFinite(open) || !Number.isFinite(close)) return null;
+  const decimals = symbol ? (PRECISION_BY_SYMBOL[symbol] ?? DEFAULT_PRECISION) : DEFAULT_PRECISION;
   return {
     market: "",
     candle_start_at: new Date(openTime).toISOString(),
-    open: Math.round(open * 100) / 100,
-    close: Math.round(close * 100) / 100,
-    high: Number.isFinite(high) ? Math.round(high * 100) / 100 : open,
-    low: Number.isFinite(low) ? Math.round(low * 100) / 100 : open,
+    open: roundToPrecision(open, decimals),
+    close: roundToPrecision(close, decimals),
+    high: Number.isFinite(high) ? roundToPrecision(high, decimals) : open,
+    low: Number.isFinite(low) ? roundToPrecision(low, decimals) : open,
   };
 }
 
@@ -133,8 +145,9 @@ export async function fetchKlines(
   const data = (await res.json()) as unknown[];
   if (!Array.isArray(data)) return [];
 
+  const sym = symbol ?? SYMBOL;
   return data
-    .map((row) => parseCandle(row as unknown[]))
+    .map((row) => parseCandle(row as unknown[], sym))
     .filter((r): r is BtcOhlcRow => r != null);
 }
 

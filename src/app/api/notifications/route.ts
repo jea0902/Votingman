@@ -1,24 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import {
+  createSupabaseServerClient,
+  createSupabaseAdmin,
+} from "@/lib/supabase/server";
 
 /**
  * 알림 목록 조회 API
- * 
+ *
  * GET /api/notifications?limit=10&offset=0
  * - 현재 로그인 사용자의 알림 목록 조회
  * - 최신순 정렬
  * - 페이지네이션 지원
+ * - admin 클라이언트 사용: RLS auth.uid() 서버 전달 이슈 회피, user_id로 필터링하여 본인 데이터만 반환
  */
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createSupabaseServerClient();
-    
-    // 현재 로그인 사용자 확인
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
+    const serverClient = await createSupabaseServerClient();
+
+    // 현재 로그인 사용자 확인 (쿠키 기반)
+    const {
+      data: { user },
+      error: authError,
+    } = await serverClient.auth.getUser();
+
     if (authError || !user) {
-      console.log('알림 API: 인증 실패 - 401 반환');
+      console.log("알림 API: 인증 실패 - 401 반환");
       return NextResponse.json(
         { success: false, error: "인증이 필요합니다." },
         { status: 401 }
@@ -26,34 +33,37 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const limit = Math.min(parseInt(searchParams.get('limit') || '10'), 50);
-    const offset = parseInt(searchParams.get('offset') || '0');
+    const limit = Math.min(parseInt(searchParams.get("limit") || "10"), 50);
+    const offset = parseInt(searchParams.get("offset") || "0");
 
-    // 알림 목록 조회
-    const { data: notifications, error: notificationsError } = await supabase
-      .from('notifications')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
+    const admin = createSupabaseAdmin();
+
+    // 알림 목록 조회 (admin: RLS 우회, user_id로 본인만 필터)
+    const { data: notifications, error: notificationsError } = await admin
+      .from("notifications")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (notificationsError) {
-      console.error('Failed to fetch notifications:', notificationsError);
-      return NextResponse.json(
-        { error: "알림 조회에 실패했습니다." },
-        { status: 500 }
-      );
+      console.error("Failed to fetch notifications:", notificationsError);
+      return NextResponse.json({
+        success: false,
+        error: "알림 조회에 실패했습니다.",
+        data: { notifications: [], unread_count: 0 },
+      });
     }
 
     // 읽지 않은 알림 수 조회
-    const { count: unreadCount, error: countError } = await supabase
-      .from('notifications')
-      .select('id', { count: 'exact' })
-      .eq('user_id', user.id)
-      .eq('is_read', false);
+    const { count: unreadCount, error: countError } = await admin
+      .from("notifications")
+      .select("id", { count: "exact" })
+      .eq("user_id", user.id)
+      .eq("is_read", false);
 
     if (countError) {
-      console.error('Failed to count unread notifications:', countError);
+      console.error("Failed to count unread notifications:", countError);
     }
 
     return NextResponse.json({
@@ -84,10 +94,9 @@ export async function GET(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const supabase = await createSupabaseServerClient();
-    
-    // 현재 로그인 사용자 확인
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const serverClient = await createSupabaseServerClient();
+
+    const { data: { user }, error: authError } = await serverClient.auth.getUser();
     if (authError || !user) {
       return NextResponse.json(
         { error: "인증이 필요합니다." },
@@ -97,16 +106,17 @@ export async function PATCH(request: NextRequest) {
 
     const { notification_id, mark_all_read } = await request.json();
 
+    const admin = createSupabaseAdmin();
+
     if (mark_all_read) {
-      // 모든 알림 읽음 처리
-      const { error: updateError } = await supabase
-        .from('notifications')
-        .update({ 
-          is_read: true, 
-          read_at: new Date().toISOString() 
+      const { error: updateError } = await admin
+        .from("notifications")
+        .update({
+          is_read: true,
+          read_at: new Date().toISOString(),
         })
-        .eq('user_id', user.id)
-        .eq('is_read', false);
+        .eq("user_id", user.id)
+        .eq("is_read", false);
 
       if (updateError) {
         console.error('Failed to mark all notifications as read:', updateError);
@@ -122,15 +132,14 @@ export async function PATCH(request: NextRequest) {
       });
 
     } else if (notification_id) {
-      // 특정 알림 읽음 처리
-      const { error: updateError } = await supabase
-        .from('notifications')
-        .update({ 
-          is_read: true, 
-          read_at: new Date().toISOString() 
+      const { error: updateError } = await admin
+        .from("notifications")
+        .update({
+          is_read: true,
+          read_at: new Date().toISOString(),
         })
-        .eq('id', notification_id)
-        .eq('user_id', user.id);
+        .eq("id", notification_id)
+        .eq("user_id", user.id);
 
       if (updateError) {
         console.error('Failed to mark notification as read:', updateError);
