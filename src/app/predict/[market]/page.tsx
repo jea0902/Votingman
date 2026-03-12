@@ -576,8 +576,10 @@ export default function PredictMarketPage() {
     market === a ? [b] : market === b ? [a] : []
   );
   const relatedMarkets = [
-    ...ACTIVE_MARKETS.filter((m) => m !== market),
-    ...pairRelated,
+    ...new Set([
+      ...ACTIVE_MARKETS.filter((m) => m !== market),
+      ...pairRelated,
+    ]),
   ];
 
   return (
