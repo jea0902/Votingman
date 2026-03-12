@@ -210,6 +210,7 @@ export default function PredictMarketPage() {
     "usdt_1d", "usdt_4h", "usdt_1h", "usdt_15m", "usdt_5m",
   ];
   const isBtcMarketForVote = COIN_MARKETS_FOR_VOTE.includes(market);
+  const isBtcMarket = market.startsWith("btc_");
   const voteOpen =
     isBtcMarketForVote && poll?.settlement_status !== undefined
       ? poll.settlement_status === "open"
@@ -416,7 +417,7 @@ export default function PredictMarketPage() {
       // voteOpen true→false(마감): 현재 폴 유지(정산 대기). refetch 시 새 폴로 바뀌어 투표/VTC가 사라짐
       if (voteOpen) {
         fetchPoll();
-        if (isBtcMarket) {
+        if (isCoinMarket) {
           setTodayResultsLoading(true);
           fetch(`/api/sentiment/polls/today-results?market=${market}`)
             .then((res) => res.json())
@@ -429,7 +430,7 @@ export default function PredictMarketPage() {
         }
       }
     }
-  }, [voteOpen, fetchPoll, market, isBtcMarket]);
+  }, [voteOpen, fetchPoll, market, isCoinMarket]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -572,7 +573,7 @@ export default function PredictMarketPage() {
     ["usd30y_1d", "usd30y_4h"],
   ];
   const pairRelated = pairMarkets.flatMap(([a, b]) =>
-    market === a ? [b as const] : market === b ? [a as const] : []
+    market === a ? [b] : market === b ? [a] : []
   );
   const relatedMarkets = [
     ...ACTIVE_MARKETS.filter((m) => m !== market),
@@ -626,7 +627,7 @@ export default function PredictMarketPage() {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })}`
-                  : isBtcMarket
+                  : isCoinMarket
                     ? "불러오는 중…"
                     : "—"}
               </p>
@@ -687,7 +688,7 @@ export default function PredictMarketPage() {
             )}
           </div>
 
-          {isBtcMarket && (
+          {isCoinMarket && (
             <div
               ref={todayResultsContainerRef}
               className="rounded-lg border border-border bg-card p-4"
@@ -1037,7 +1038,7 @@ export default function PredictMarketPage() {
               className="rounded-xl border border-border bg-card/50 p-4 transition-colors hover:border-primary/50 hover:bg-card"
             >
               <span className="font-medium text-foreground">
-                {CARD_TITLE[m] ?? `${MARKET_LABEL[m]} 상승/하락`}
+                {CARD_TITLE[m as keyof typeof CARD_TITLE] ?? `${MARKET_LABEL[m as keyof typeof MARKET_LABEL]} 상승/하락`}
               </span>
             </Link>
           ))}

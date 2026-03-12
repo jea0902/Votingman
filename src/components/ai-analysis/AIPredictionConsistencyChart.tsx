@@ -126,7 +126,7 @@ interface Props {
 export function AIPredictionConsistencyChart({ className }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ReturnType<typeof createChart> | null>(null);
-  const seriesRefs = useRef<Record<string, InstanceType<typeof LineSeries> | null>>({
+  const seriesRefs = useRef<Record<string, { setData: (data: { time: UTCTimestamp; value: number }[]) => void } | null>>({
     chatgpt: null,
     gemini: null,
     claude: null,
