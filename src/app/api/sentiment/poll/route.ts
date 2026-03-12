@@ -24,7 +24,11 @@ import { getOhlcByMarketAndCandleStart } from "@/lib/btc-ohlc/repository";
 import { fetchPreviousCandleClose } from "@/lib/binance/btc-klines";
 import { isSentimentMarket } from "@/lib/constants/sentiment-markets";
 
-const BTC_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"] as const;
+const COIN_MARKETS = [
+  "btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m",
+  "eth_1d", "eth_4h", "eth_1h", "eth_15m", "eth_5m",
+  "usdt_1d", "usdt_4h", "usdt_1h", "usdt_15m", "usdt_5m",
+] as const;
 
 export async function GET(request: NextRequest) {
   try {
@@ -34,9 +38,9 @@ export async function GET(request: NextRequest) {
     const candleStartAtParam = searchParams.get("candle_start_at");
 
     const { poll } =
-      candleStartAtParam && BTC_MARKETS.includes(market as (typeof BTC_MARKETS)[number])
+      candleStartAtParam && COIN_MARKETS.includes(market as (typeof COIN_MARKETS)[number])
         ? await getOrCreatePollByMarketAndCandleStartAt(
-            market as (typeof BTC_MARKETS)[number],
+            market as (typeof COIN_MARKETS)[number],
             candleStartAtParam
           )
         : await getOrCreateTodayPollByMarket(market);
@@ -49,7 +53,7 @@ export async function GET(request: NextRequest) {
         : null;
     if (
       candleStartAt &&
-      BTC_MARKETS.includes(market as (typeof BTC_MARKETS)[number])
+      COIN_MARKETS.includes(market as (typeof COIN_MARKETS)[number])
     ) {
       // 목표가 = 이전 봉 종가 (새 봉의 시가). btc_1d/btc_4h는 UTC 기준으로만 조회 (Binance와 동일).
       const base = toCanonicalCandleStartAt(candleStartAt);
@@ -61,7 +65,7 @@ export async function GET(request: NextRequest) {
             : base;
       const previousCandleStartAt = getPreviousCandleStartAt(market, ohlcKey);
       // btc_4h: 차트가 Binance API를 쓰므로 목표가도 Binance에서 직접 조회해 직전 4h 봉 종가와 정확히 일치시키기
-      if (market === "btc_4h") {
+      if (market === "btc_4h" || market === "eth_4h" || market === "usdt_4h") {
         try {
           price_open = await fetchPreviousCandleClose(market, ohlcKey);
         } catch (e) {
@@ -133,7 +137,7 @@ export async function GET(request: NextRequest) {
 
     if (pollRow.settled_at) {
       settlement_status = "settled";
-    } else if (candleStartAt && BTC_MARKETS.includes(market as (typeof BTC_MARKETS)[number])) {
+    } else if (candleStartAt && COIN_MARKETS.includes(market as (typeof COIN_MARKETS)[number])) {
       const periodMs = CANDLE_PERIOD_MS[market];
       const closeUtcMs = new Date(candleStartAt).getTime() + (periodMs ?? 0) - VOTING_CLOSE_EARLY_MS;
       if (periodMs && Date.now() >= closeUtcMs) {

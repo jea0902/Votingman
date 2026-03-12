@@ -13,7 +13,11 @@ import {
 } from "@/lib/binance/btc-kst";
 import { getCandlesForPollDate } from "@/lib/btc-ohlc/candle-utils";
 
-const BTC_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"] as const;
+const COIN_MARKETS = [
+  "btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m",
+  "eth_1d", "eth_4h", "eth_1h", "eth_15m", "eth_5m",
+  "usdt_1d", "usdt_4h", "usdt_1h", "usdt_15m", "usdt_5m",
+] as const;
 
 export type TodayResultItem = {
   candle_start_at: string;
@@ -25,7 +29,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const market = searchParams.get("market") ?? "";
 
-    if (!BTC_MARKETS.includes(market as (typeof BTC_MARKETS)[number])) {
+    if (!COIN_MARKETS.includes(market as (typeof COIN_MARKETS)[number])) {
       return NextResponse.json({
         success: true,
         data: { results: [] },
@@ -34,7 +38,8 @@ export async function GET(request: NextRequest) {
 
     const todayKst = getTodayKstDateString();
     const todayUtc = getTodayUtcDateString();
-    const pollDate = market === "btc_1d" ? todayUtc : todayKst;
+    const pollDate =
+      market === "btc_1d" || market === "eth_1d" || market === "usdt_1d" ? todayUtc : todayKst;
     const candleStartAts = getCandlesForPollDate(market, pollDate);
     if (candleStartAts.length === 0) {
       return NextResponse.json({ success: true, data: { results: [] } });

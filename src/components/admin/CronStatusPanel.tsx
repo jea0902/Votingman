@@ -18,11 +18,16 @@ type UnsettledPoll = {
 };
 
 const JOBS = [
-  { job_name: "btc-ohlc-daily", label: "1일봉" },
-  { job_name: "btc-ohlc-4h", label: "4시간봉" },
-  { job_name: "btc-ohlc-1h", label: "1시간봉" },
-  { job_name: "btc-ohlc-15m", label: "15분봉" },
-  { job_name: "btc-ohlc-5m", label: "5분봉" },
+  { job_name: "btc-ohlc-daily", label: "BTC 1일봉" },
+  { job_name: "btc-ohlc-4h", label: "BTC 4시간봉" },
+  { job_name: "btc-ohlc-1h", label: "BTC 1시간봉" },
+  { job_name: "btc-ohlc-15m", label: "BTC 15분봉" },
+  { job_name: "btc-ohlc-5m", label: "BTC 5분봉" },
+  { job_name: "eth-ohlc-daily", label: "ETH 1일봉" },
+  { job_name: "eth-ohlc-4h", label: "ETH 4시간봉" },
+  { job_name: "eth-ohlc-1h", label: "ETH 1시간봉" },
+  { job_name: "eth-ohlc-15m", label: "ETH 15분봉" },
+  { job_name: "eth-ohlc-5m", label: "ETH 5분봉" },
 ];
 
 export function CronStatusPanel() {

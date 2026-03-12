@@ -20,9 +20,73 @@ export type TodayPollResult = {
   created: boolean;
 };
 
-const BTC_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"] as const;
+const COIN_MARKETS = [
+  "btc_1d",
+  "btc_4h",
+  "btc_1h",
+  "btc_15m",
+  "btc_5m",
+  "eth_1d",
+  "eth_4h",
+  "eth_1h",
+  "eth_15m",
+  "eth_5m",
+  "usdt_1d",
+  "usdt_4h",
+  "usdt_1h",
+  "usdt_15m",
+  "usdt_5m",
+] as const;
 
-const ROLLING_MARKETS = ["btc_4h", "btc_1h", "btc_15m", "btc_5m"] as const;
+const ROLLING_MARKETS = [
+  "btc_4h",
+  "btc_1h",
+  "btc_15m",
+  "btc_5m",
+  "eth_4h",
+  "eth_1h",
+  "eth_15m",
+  "eth_5m",
+  "usdt_4h",
+  "usdt_1h",
+  "usdt_15m",
+  "usdt_5m",
+  "ndq_4h",
+  "sp500_4h",
+  "kospi_4h",
+  "kosdaq_4h",
+  "dow_jones_4h",
+  "wti_4h",
+  "xau_4h",
+  "shanghai_4h",
+  "nikkei_4h",
+  "eurostoxx50_4h",
+  "hang_seng_4h",
+  "usd_krw_4h",
+  "jpy_krw_4h",
+  "usd10y_4h",
+  "usd30y_4h",
+] as const;
+
+/** getCurrentCandleStartAt 사용 시장 (coin + 모든 *_4h) */
+const MARKETS_USE_CURRENT_CANDLE = [
+  ...COIN_MARKETS,
+  "ndq_4h",
+  "sp500_4h",
+  "kospi_4h",
+  "kosdaq_4h",
+  "dow_jones_4h",
+  "wti_4h",
+  "xau_4h",
+  "shanghai_4h",
+  "nikkei_4h",
+  "eurostoxx50_4h",
+  "hang_seng_4h",
+  "usd_krw_4h",
+  "jpy_krw_4h",
+  "usd10y_4h",
+  "usd30y_4h",
+] as const;
 
 /**
  * 오늘(KST) 현재 진행 중인 캔들에 해당하는 폴 조회/생성
@@ -34,9 +98,11 @@ export async function getOrCreateTodayPollByMarket(
 ): Promise<TodayPollResult> {
   const m: SentimentMarket = isSentimentMarket(market) ? market : "btc_1d";
   const todayKst = getTodayKstDateString();
-  let candleStartAt = BTC_MARKETS.includes(m as (typeof BTC_MARKETS)[number])
+  let candleStartAt = MARKETS_USE_CURRENT_CANDLE.includes(
+    m as (typeof MARKETS_USE_CURRENT_CANDLE)[number]
+  )
     ? getCurrentCandleStartAt(m)
-    : getBtc1dCandleStartAt(todayKst); // ndq 등: KST 일봉 기준
+    : getBtc1dCandleStartAt(todayKst); // ndq, kospi_1d 등: KST 일봉 기준
   let result = await getOrCreatePollByMarketAndCandleStartAt(m, candleStartAt, todayKst);
   const pollRow = result.poll as { settled_at?: string | null };
   if (

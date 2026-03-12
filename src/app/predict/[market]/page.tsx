@@ -56,6 +56,23 @@ const KospiChart = dynamic(
     ),
   }
 );
+
+const TradingViewChart = dynamic(
+  () =>
+    import("@/components/predict/TradingViewChart").then((m) => ({
+      default: m.TradingViewChart,
+    })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-[500px] flex-col items-center justify-center gap-4 rounded-lg border border-border bg-card">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" />
+        <span className="text-sm text-muted-foreground">차트 불러오는 중…</span>
+      </div>
+    ),
+  }
+);
+
 import { PollRulesContent } from "@/components/predict/PollRulesContent";
 import { MarketContextContent } from "@/components/predict/MarketContextContent";
 import { CountdownTimer } from "@/components/predict/CountdownTimer";
@@ -88,10 +105,46 @@ const CARD_TITLE: Record<string, string> = {
   btc_1h: "[1시간 후] 비트코인 상승/하락",
   btc_15m: "[15분 후] 비트코인 상승/하락",
   btc_5m: "[5분 후] 비트코인 상승/하락",
-  ndq: "나스닥100 상승/하락",
-  sp500: "S&P 500 상승/하락",
-  kospi: "코스피 상승/하락",
-  kosdaq: "코스닥 상승/하락",
+  eth_1d: "[1일 후] 이더리움 상승/하락",
+  eth_4h: "[4시간 후] 이더리움 상승/하락",
+  eth_1h: "[1시간 후] 이더리움 상승/하락",
+  eth_15m: "[15분 후] 이더리움 상승/하락",
+  eth_5m: "[5분 후] 이더리움 상승/하락",
+  usdt_1d: "[1일 후] 테더 상승/하락",
+  usdt_4h: "[4시간 후] 테더 상승/하락",
+  usdt_1h: "[1시간 후] 테더 상승/하락",
+  usdt_15m: "[15분 후] 테더 상승/하락",
+  usdt_5m: "[5분 후] 테더 상승/하락",
+  ndq_1d: "[1일 후] 나스닥100 상승/하락",
+  ndq_4h: "[4시간 후] 나스닥100 상승/하락",
+  sp500_1d: "[1일 후] SPX 상승/하락",
+  sp500_4h: "[4시간 후] SPX 상승/하락",
+  kospi_1d: "[1일 후] 코스피 상승/하락",
+  kospi_4h: "[4시간 후] 코스피 상승/하락",
+  kosdaq_1d: "[1일 후] 코스닥 상승/하락",
+  kosdaq_4h: "[4시간 후] 코스닥 상승/하락",
+  dow_jones_1d: "[1일 후] 다우존스 상승/하락",
+  dow_jones_4h: "[4시간 후] 다우존스 상승/하락",
+  wti_1d: "[1일 후] WTI 상승/하락",
+  wti_4h: "[4시간 후] WTI 상승/하락",
+  xau_1d: "[1일 후] 금현물 상승/하락",
+  xau_4h: "[4시간 후] 금현물 상승/하락",
+  shanghai_1d: "[1일 후] 상해종합 상승/하락",
+  shanghai_4h: "[4시간 후] 상해종합 상승/하락",
+  nikkei_1d: "[1일 후] 니케이225 상승/하락",
+  nikkei_4h: "[4시간 후] 니케이225 상승/하락",
+  eurostoxx50_1d: "[1일 후] 유로스톡스50 상승/하락",
+  eurostoxx50_4h: "[4시간 후] 유로스톡스50 상승/하락",
+  hang_seng_1d: "[1일 후] 항셍 상승/하락",
+  hang_seng_4h: "[4시간 후] 항셍 상승/하락",
+  usd_krw_1d: "[1일 후] USD/KRW 상승/하락",
+  usd_krw_4h: "[4시간 후] USD/KRW 상승/하락",
+  jpy_krw_1d: "[1일 후] JPY/KRW 상승/하락",
+  jpy_krw_4h: "[4시간 후] JPY/KRW 상승/하락",
+  usd10y_1d: "[1일 후] 미국 10년물 상승/하락",
+  usd10y_4h: "[4시간 후] 미국 10년물 상승/하락",
+  usd30y_1d: "[1일 후] 미국 30년물 상승/하락",
+  usd30y_4h: "[4시간 후] 미국 30년물 상승/하락",
 };
 
 export default function PredictMarketPage() {
@@ -150,8 +203,13 @@ export default function PredictMarketPage() {
     return () => ro.disconnect();
   }, [todayResults.length]);
 
-  // btc 시장: poll.settlement_status(btc_ohlc 기준)만 사용. 시간 계산 금지.
-  const isBtcMarketForVote = ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"].includes(market);
+  // 코인 시장(btc/eth/usdt): poll.settlement_status(btc_ohlc 기준)만 사용. 시간 계산 금지.
+  const COIN_MARKETS_FOR_VOTE = [
+    "btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m",
+    "eth_1d", "eth_4h", "eth_1h", "eth_15m", "eth_5m",
+    "usdt_1d", "usdt_4h", "usdt_1h", "usdt_15m", "usdt_5m",
+  ];
+  const isBtcMarketForVote = COIN_MARKETS_FOR_VOTE.includes(market);
   const voteOpen =
     isBtcMarketForVote && poll?.settlement_status !== undefined
       ? poll.settlement_status === "open"
@@ -220,15 +278,35 @@ export default function PredictMarketPage() {
     }
   }, [market]);
 
-  /** btc 계열 현재가 조회 (Binance 공개 API) */
-  const isBtcMarket = ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"].includes(market);
+  /** 코인 시장 현재가 조회 (Binance 공개 API) */
+  const isCoinMarket =
+    COIN_MARKETS_FOR_VOTE.includes(market);
+  const binanceSymbol =
+    market.startsWith("btc_") ? "BTCUSDT" : market.startsWith("eth_") ? "ETHUSDT" : market.startsWith("usdt_") ? "USDTBUSD" : "BTCUSDT";
 
-  /** 코스피 시장: TradingView 차트 (KRX API 미승인으로 차트만 우선 구현) */
-  const isKospiMarket = market === "kospi";
+  /** 코스피 시장: KospiChart (Yahoo Finance) */
+  const isKospiMarket = market === "kospi_1d" || market === "kospi_4h";
+  /** TradingView 차트 지원 시장 (코인, ndq, sp500, kosdaq, 다우존스, WTI, 금, 상해, 니케이, 유로스톡스, 항셍) */
+  const isTradingViewMarket =
+    market.startsWith("btc_") ||
+    market.startsWith("eth_") ||
+    market.startsWith("usdt_") ||
+    ["ndq_1d", "ndq_4h", "sp500_1d", "sp500_4h", "kosdaq_1d", "kosdaq_4h"].includes(market) ||
+    market.startsWith("dow_jones_") ||
+    market.startsWith("wti_") ||
+    market.startsWith("xau_") ||
+    market.startsWith("shanghai_") ||
+    market.startsWith("nikkei_") ||
+    market.startsWith("eurostoxx50_") ||
+    market.startsWith("hang_seng_") ||
+    market.startsWith("usd_krw_") ||
+    market.startsWith("jpy_krw_") ||
+    market.startsWith("usd10y_") ||
+    market.startsWith("usd30y_");
   useEffect(() => {
-    if (!isBtcMarket) return;
+    if (!isCoinMarket) return;
     let cancelled = false;
-    fetch("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT")
+    fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${binanceSymbol}`)
       .then((res) => res.json())
       .then((data) => {
         if (!cancelled && data?.price) {
@@ -238,7 +316,7 @@ export default function PredictMarketPage() {
       .catch(() => {});
     const id = setInterval(() => {
       if (cancelled) return;
-      fetch("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT")
+      fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${binanceSymbol}`)
         .then((res) => res.json())
         .then((data) => {
           if (!cancelled && data?.price) {
@@ -251,11 +329,11 @@ export default function PredictMarketPage() {
       cancelled = true;
       clearInterval(id);
     };
-  }, [isBtcMarket]);
+  }, [isCoinMarket, binanceSymbol]);
 
-  /** 당일(KST) 정산된 폴 결과 (btc 시장만) */
+  /** 당일(KST) 정산된 폴 결과 (코인 시장) */
   useEffect(() => {
-    if (!isBtcMarket) return;
+    if (!isCoinMarket) return;
     let cancelled = false;
     setTodayResultsLoading(true);
     fetch(`/api/sentiment/polls/today-results?market=${market}`)
@@ -272,7 +350,7 @@ export default function PredictMarketPage() {
     return () => {
       cancelled = true;
     };
-  }, [market, isBtcMarket]);
+  }, [market, isCoinMarket]);
 
   useEffect(() => {
     fetchPoll();
@@ -473,7 +551,33 @@ export default function PredictMarketPage() {
     setConfirmingChoice(choice);
   };
 
-  const relatedMarkets = ACTIVE_MARKETS.filter((m) => m !== market);
+  const pairMarkets: [string, string][] = [
+    ["btc_1d", "btc_4h"],
+    ["eth_1d", "eth_4h"],
+    ["usdt_1d", "usdt_4h"],
+    ["ndq_1d", "ndq_4h"],
+    ["sp500_1d", "sp500_4h"],
+    ["kospi_1d", "kospi_4h"],
+    ["kosdaq_1d", "kosdaq_4h"],
+    ["dow_jones_1d", "dow_jones_4h"],
+    ["wti_1d", "wti_4h"],
+    ["xau_1d", "xau_4h"],
+    ["shanghai_1d", "shanghai_4h"],
+    ["nikkei_1d", "nikkei_4h"],
+    ["eurostoxx50_1d", "eurostoxx50_4h"],
+    ["hang_seng_1d", "hang_seng_4h"],
+    ["usd_krw_1d", "usd_krw_4h"],
+    ["jpy_krw_1d", "jpy_krw_4h"],
+    ["usd10y_1d", "usd10y_4h"],
+    ["usd30y_1d", "usd30y_4h"],
+  ];
+  const pairRelated = pairMarkets.flatMap(([a, b]) =>
+    market === a ? [b as const] : market === b ? [a as const] : []
+  );
+  const relatedMarkets = [
+    ...ACTIVE_MARKETS.filter((m) => m !== market),
+    ...pairRelated,
+  ];
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">
@@ -572,6 +676,8 @@ export default function PredictMarketPage() {
                 defaultInterval="1d"
                 className="min-h-[400px]"
               />
+            ) : isTradingViewMarket ? (
+              <TradingViewChart market={market} className="min-h-[400px]" />
             ) : (
               <div className="flex h-[500px] items-center justify-center rounded-lg border-border bg-muted/20">
                 <p className="text-sm text-muted-foreground">

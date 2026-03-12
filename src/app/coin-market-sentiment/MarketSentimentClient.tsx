@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * 시장 분위기 페이지 (구 고수 포지션)
+ * 코인 분위기 페이지 (구 고수 포지션)
  *
  * - 바이낸스 공식 API 기반 팩트 데이터만 표시
  * - 롱/숏 비율, 고래 롱/숏, 테이커 비율, 펀딩비율, 실시간 청산
@@ -35,7 +35,7 @@ export default function MarketSentimentClient() {
 
   const fetchData = useCallback(async () => {
     try {
-      const res = await fetch("/api/market-sentiment");
+      const res = await fetch("/api/coin-market-sentiment");
       if (!res.ok) throw new Error("데이터 로드 실패");
       const json = await res.json();
       setData(json);
@@ -70,7 +70,7 @@ export default function MarketSentimentClient() {
         {/* 헤더 */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-foreground">시장 분위기</h1>
+            <h1 className="text-xl font-bold text-foreground">코인 분위기</h1>
             <p className="text-xs text-muted-foreground mt-0.5">
               바이낸스 공식 API · 실제 데이터만 표시
             </p>

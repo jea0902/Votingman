@@ -18,7 +18,11 @@ import { toCanonicalCandleStartAt } from "@/lib/btc-ohlc/candle-utils";
 import { getOhlcByMarketAndCandleStart } from "@/lib/btc-ohlc/repository";
 import { CANDLE_PERIOD_MS, VOTING_CLOSE_EARLY_MS } from "@/lib/btc-ohlc/candle-utils";
 
-const BTC_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"] as const;
+const COIN_MARKETS = [
+  "btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m",
+  "eth_1d", "eth_4h", "eth_1h", "eth_15m", "eth_5m",
+  "usdt_1d", "usdt_4h", "usdt_1h", "usdt_15m", "usdt_5m",
+] as const;
 
 /** 폴의 캔들 마감 시각이 지났는지 (투표 불가). 1초 조기 마감 적용 */
 function isPollCandleClosed(
@@ -90,7 +94,7 @@ export async function POST(request: NextRequest) {
     const pollMarket = poll.market ?? market;
     if (
       candleStartAt &&
-      BTC_MARKETS.includes(pollMarket as (typeof BTC_MARKETS)[number])
+      COIN_MARKETS.includes(pollMarket as (typeof COIN_MARKETS)[number])
     ) {
       if (isPollCandleClosed(candleStartAt, pollMarket)) {
         return NextResponse.json(

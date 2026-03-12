@@ -193,7 +193,7 @@ export function OpenInterestChart({ className }: Props) {
         setError(null);
 
         try {
-            const res = await fetch(`/api/market-sentiment/oi-chart?period=${p}`);
+            const res = await fetch(`/api/coin-market-sentiment/oi-chart?period=${p}`);
             if (!res.ok) throw new Error("데이터 로드 실패");
             const json = await res.json();
             const raw: OIDataPoint[] = json.data ?? [];

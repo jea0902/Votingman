@@ -26,19 +26,49 @@ const ROLLING_HALF_PERIOD_MS: Record<"btc_4h" | "btc_1h" | "btc_15m" | "btc_5m",
   btc_5m: 2.5 * 60 * 1000,
 };
 
-const ROLLING_MARKETS: SentimentMarket[] = ["btc_4h", "btc_1h", "btc_15m", "btc_5m"];
+const ROLLING_4H_MS = 4 * 60 * 60 * 1000;
 
-function isRollingMarket(m: SentimentMarket): m is "btc_4h" | "btc_1h" | "btc_15m" | "btc_5m" {
+const ROLLING_MARKETS: SentimentMarket[] = [
+  "btc_4h",
+  "btc_1h",
+  "btc_15m",
+  "btc_5m",
+  "eth_4h",
+  "eth_1h",
+  "eth_15m",
+  "eth_5m",
+  "usdt_4h",
+  "usdt_1h",
+  "usdt_15m",
+  "usdt_5m",
+  "ndq_4h",
+  "sp500_4h",
+  "kospi_4h",
+  "kosdaq_4h",
+  "dow_jones_4h",
+  "wti_4h",
+  "xau_4h",
+  "shanghai_4h",
+  "nikkei_4h",
+  "eurostoxx50_4h",
+  "hang_seng_4h",
+  "usd_krw_4h",
+  "jpy_krw_4h",
+  "usd10y_4h",
+  "usd30y_4h",
+];
+
+function isRollingMarket(m: SentimentMarket): boolean {
   return ROLLING_MARKETS.includes(m);
 }
 
 /** 롤링 시장: 주기 전체(다음 봉 시작까지) — 밀리초 */
-const ROLLING_FULL_PERIOD_MS: Record<"btc_4h" | "btc_1h" | "btc_15m" | "btc_5m", number> = {
-  btc_4h: 4 * 60 * 60 * 1000,
-  btc_1h: 60 * 60 * 1000,
-  btc_15m: 15 * 60 * 1000,
-  btc_5m: 5 * 60 * 1000,
-};
+function getRollingPeriodMs(m: SentimentMarket): number {
+  if (m === "btc_1h") return 60 * 60 * 1000;
+  if (m === "btc_15m") return 15 * 60 * 1000;
+  if (m === "btc_5m") return 5 * 60 * 1000;
+  return ROLLING_4H_MS; // btc_4h 및 모든 *_4h 시장
+}
 
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
@@ -57,15 +87,15 @@ function formatKstDateTimeForMarket(utcMs: number, market: string): string {
 }
 
 /** 롤링 시장: 현재 봉 마감 시각(UTC ms). 봉 시작 + 주기 - 10초 조기 마감 */
-function getRollingCloseUtcMs(market: "btc_4h" | "btc_1h" | "btc_15m" | "btc_5m"): number {
+function getRollingCloseUtcMs(market: SentimentMarket): number {
   const startAt = getCurrentCandleStartAt(market);
-  return new Date(startAt).getTime() + ROLLING_FULL_PERIOD_MS[market] - VOTING_CLOSE_EARLY_MS;
+  return new Date(startAt).getTime() + getRollingPeriodMs(market) - VOTING_CLOSE_EARLY_MS;
 }
 
 /** 롤링 시장: 다음 봉 시작 시각(UTC ms) = 현재 봉 시작 + 주기 전체 */
-function getNextCandleStartUtcMs(market: "btc_4h" | "btc_1h" | "btc_15m" | "btc_5m"): number {
+function getNextCandleStartUtcMs(market: SentimentMarket): number {
   const startAt = getCurrentCandleStartAt(market);
-  return new Date(startAt).getTime() + ROLLING_FULL_PERIOD_MS[market];
+  return new Date(startAt).getTime() + getRollingPeriodMs(market);
 }
 
 /** btc_1d: 현재 캔들 마감 시각(UTC ms) = candle_start_at + 24h - 10초 조기 마감 */
@@ -119,7 +149,7 @@ export function isVotingOpenKST(market?: string): boolean {
 /** 마감 시각 라벨 (표기용). 4h/1h/15m/5m은 봉 종료 시점 */
 export function getVotingCloseLabel(market?: string): string {
   const m: SentimentMarket = market && isSentimentMarket(market) ? market : "btc_1d";
-  if (m === "btc_4h") return "투표 마감: 현재 4시간봉 종료 시";
+  if (m.endsWith("_4h")) return "투표 마감: 현재 4시간봉 종료 시";
   if (m === "btc_1h") return "투표 마감: 현재 1시간봉 종료 시";
   if (m === "btc_15m") return "투표 마감: 현재 15분봉 종료 시";
   if (m === "btc_5m") return "투표 마감: 현재 5분봉 종료 시";
@@ -147,7 +177,7 @@ export function getMillisUntilClose(
       const periodMs =
         m === "btc_1d"
           ? (CANDLE_PERIOD_MS["btc_1d"] ?? 24 * 60 * 60 * 1000)
-          : ROLLING_FULL_PERIOD_MS[m];
+          : getRollingPeriodMs(m);
       closeUtcMs =
         new Date(candleStartAt).getTime() + periodMs - VOTING_CLOSE_EARLY_MS;
     } else if (isRollingMarket(m)) {
@@ -191,7 +221,7 @@ export function getCloseTimeKstString(
     const periodMs =
       m === "btc_1d"
         ? (CANDLE_PERIOD_MS["btc_1d"] ?? 24 * 60 * 60 * 1000)
-        : ROLLING_FULL_PERIOD_MS[m];
+        : getRollingPeriodMs(m);
     const closeUtcMs =
       new Date(candleStartAt).getTime() + periodMs - VOTING_CLOSE_EARLY_MS;
     const boundaryUtcMs = closeUtcMs + VOTING_CLOSE_EARLY_MS;
@@ -241,7 +271,7 @@ export function getLateVotingMultiplier(market?: string): number {
 
   let totalMs: number;
   if (isRollingMarket(m)) {
-    totalMs = ROLLING_FULL_PERIOD_MS[m];
+    totalMs = getRollingPeriodMs(m);
   } else if (m === "btc_1d") {
     totalMs = CANDLE_PERIOD_MS["btc_1d"] ?? 24 * 60 * 60 * 1000;
   } else {

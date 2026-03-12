@@ -19,15 +19,59 @@ export type PollsData = Record<string, PollData>;
 export type HomeTabKey = "btc" | "us" | "kr";
 
 /** 필터 옵션 */
-export type VoteFilterKey = "all" | "btc" | "kospi" | "kosdaq" | "ndq" | "sp500";
+export type VoteFilterKey =
+  | "all"
+  | "btc"
+  | "kospi"
+  | "kosdaq"
+  | "ndq"
+  | "sp500"
+  | "dow_jones"
+  | "wti"
+  | "xau"
+  | "shanghai"
+  | "nikkei"
+  | "eurostoxx50"
+  | "hang_seng"
+  | "usd_krw"
+  | "usd_bond";
 
 const FILTER_OPTIONS: { key: VoteFilterKey; label: string; markets: SentimentMarket[] }[] = [
   { key: "all", label: "전체", markets: [...SENTIMENT_MARKETS] },
-  { key: "btc", label: "BTC", markets: ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"] },
-  { key: "kospi", label: "KOSPI", markets: ["kospi"] },
-  { key: "kosdaq", label: "KOSDAQ", markets: ["kosdaq"] },
-  { key: "ndq", label: "NASDAQ", markets: ["ndq"] },
-  { key: "sp500", label: "S&P500", markets: ["sp500"] },
+  {
+    key: "btc",
+    label: "COIN",
+    markets: [
+      "btc_1d",
+      "btc_4h",
+      "btc_1h",
+      "btc_15m",
+      "btc_5m",
+      "eth_1d",
+      "eth_4h",
+      "eth_1h",
+      "eth_15m",
+      "eth_5m",
+      "usdt_1d",
+      "usdt_4h",
+      "usdt_1h",
+      "usdt_15m",
+      "usdt_5m",
+    ],
+  },
+  { key: "kospi", label: "KOSPI", markets: ["kospi_1d", "kospi_4h"] },
+  { key: "kosdaq", label: "KOSDAQ", markets: ["kosdaq_1d", "kosdaq_4h"] },
+  { key: "ndq", label: "NASDAQ", markets: ["ndq_1d", "ndq_4h"] },
+  { key: "sp500", label: "S&P500", markets: ["sp500_1d", "sp500_4h"] },
+  { key: "dow_jones", label: "다우존스", markets: ["dow_jones_1d", "dow_jones_4h"] },
+  { key: "wti", label: "WTI", markets: ["wti_1d", "wti_4h"] },
+  { key: "xau", label: "금현물", markets: ["xau_1d", "xau_4h"] },
+  { key: "shanghai", label: "상해종합", markets: ["shanghai_1d", "shanghai_4h"] },
+  { key: "nikkei", label: "니케이225", markets: ["nikkei_1d", "nikkei_4h"] },
+  { key: "eurostoxx50", label: "유로스톡스50", markets: ["eurostoxx50_1d", "eurostoxx50_4h"] },
+  { key: "hang_seng", label: "항셍", markets: ["hang_seng_1d", "hang_seng_4h"] },
+  { key: "usd_krw", label: "환율", markets: ["usd_krw_1d", "usd_krw_4h", "jpy_krw_1d", "jpy_krw_4h"] },
+  { key: "usd_bond", label: "미국채권", markets: ["usd10y_1d", "usd10y_4h", "usd30y_1d", "usd30y_4h"] },
 ];
 
 type Props = Record<string, never>;

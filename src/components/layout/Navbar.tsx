@@ -35,11 +35,11 @@ const NAV_LINKS: NavLink[] = [
     hasDropdown: true,
     subItems: [
       { href: "/breaking-news", label: "속보", icon: Zap },
-      { href: "/market-sentiment", label: "시장분위기", icon: TrendingUp },
+      { href: "/coin-market-sentiment", label: "코인 분위기", icon: TrendingUp },
       { href: "/buffet-pick", label: "버핏 원픽", icon: Brain },
     ]
   },
-  { href: "/analysis", label: "분석" },
+  { href: "/ai-analysis", label: "AI 분석" },
   { href: "/leaderboard", label: "보상" },
   { href: "/arbitrage", label: "아비트라지" },
   { href: "/community", label: "건의" },

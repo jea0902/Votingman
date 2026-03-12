@@ -222,24 +222,39 @@ export function getCandlesForPollDate(
   market: string,
   pollDate: string
 ): string[] {
-  const m = market === "btc" ? "btc_1d" : market;
+  const m =
+    market === "btc"
+      ? "btc_1d"
+      : market === "eth"
+        ? "eth_1d"
+        : market === "usdt"
+          ? "usdt_1d"
+          : market;
   const result: string[] = [];
 
   switch (m) {
     case "btc_1d":
+    case "eth_1d":
+    case "usdt_1d":
       result.push(getBtc1dCandleStartAtUtc(pollDate));
       break;
     case "btc_4h":
+    case "eth_4h":
+    case "usdt_4h":
       for (let i = 0; i < 6; i++) {
         result.push(getBtc4hCandleStartAtUtc(pollDate, i));
       }
       break;
     case "btc_1h":
+    case "eth_1h":
+    case "usdt_1h":
       for (let h = 0; h < 24; h++) {
         result.push(getBtc1hCandleStartAt(pollDate, h));
       }
       break;
     case "btc_15m":
+    case "eth_15m":
+    case "usdt_15m":
       for (let h = 0; h < 24; h++) {
         for (let s = 0; s < 4; s++) {
           result.push(getBtc15mCandleStartAt(pollDate, h, s));
@@ -247,18 +262,66 @@ export function getCandlesForPollDate(
       }
       break;
     case "btc_5m":
+    case "eth_5m":
+    case "usdt_5m":
       for (let h = 0; h < 24; h++) {
         for (let s = 0; s < 12; s++) {
           result.push(getBtc5mCandleStartAt(pollDate, h, s));
         }
       }
       break;
-    case "ndq":
-    case "sp500":
-    case "kospi":
-    case "kosdaq":
+    case "ndq_1d":
+    case "sp500_1d":
+    case "kospi_1d":
+    case "kosdaq_1d":
+    case "dow_jones_1d":
+    case "wti_1d":
+    case "xau_1d":
+    case "shanghai_1d":
+    case "nikkei_1d":
+    case "eurostoxx50_1d":
+    case "hang_seng_1d":
+    case "usd_krw_1d":
+    case "jpy_krw_1d":
+    case "usd10y_1d":
+    case "usd30y_1d":
       result.push(getBtc1dCandleStartAt(pollDate));
       break;
+    case "dow_jones_4h":
+    case "wti_4h":
+    case "xau_4h":
+    case "shanghai_4h":
+    case "nikkei_4h":
+    case "eurostoxx50_4h":
+    case "hang_seng_4h":
+    case "usd_krw_4h":
+    case "jpy_krw_4h":
+    case "usd10y_4h":
+    case "usd30y_4h":
+    case "sp500_4h": {
+      for (let s = 0; s < 6; s++) {
+        result.push(getBtc4hCandleStartAt(pollDate, s));
+      }
+      break;
+    }
+    case "ndq_4h": {
+      for (let s = 0; s < 6; s++) {
+        result.push(getBtc4hCandleStartAt(pollDate, s));
+      }
+      break;
+    }
+    case "kosdaq_4h": {
+      for (let s = 0; s < 6; s++) {
+        result.push(getBtc4hCandleStartAt(pollDate, s));
+      }
+      break;
+    }
+    case "kospi_4h": {
+      for (let s = 0; s < 6; s++) {
+        result.push(getBtc4hCandleStartAt(pollDate, s));
+      }
+      break;
+    }
     default:
       return [];
   }
@@ -272,21 +335,32 @@ export function getCandleStartAtForMarket(
   pollDate: string,
   options?: { hour?: number; slot4h?: number; slot15m?: number; slot5m?: number }
 ): string {
-  const m = market === "btc" ? "btc_1d" : market;
+  const m =
+    market === "btc" ? "btc_1d" : market === "eth" ? "eth_1d" : market === "usdt" ? "usdt_1d" : market;
   switch (m) {
     case "btc_1d":
+    case "eth_1d":
+    case "usdt_1d":
       return getBtc1dCandleStartAtUtc(pollDate);
     case "btc_4h":
+    case "eth_4h":
+    case "usdt_4h":
       return getBtc4hCandleStartAtUtc(pollDate, options?.slot4h ?? 0);
     case "btc_1h":
+    case "eth_1h":
+    case "usdt_1h":
       return getBtc1hCandleStartAt(pollDate, options?.hour ?? 0);
     case "btc_15m":
+    case "eth_15m":
+    case "usdt_15m":
       return getBtc15mCandleStartAt(
         pollDate,
         options?.hour ?? 0,
         options?.slot15m ?? 0
       );
     case "btc_5m":
+    case "eth_5m":
+    case "usdt_5m":
       return getBtc5mCandleStartAt(
         pollDate,
         options?.hour ?? 0,
@@ -312,7 +386,8 @@ export function getRecentCandleStartAts(
   market: string,
   count: number
 ): string[] {
-  const m = market === "btc" ? "btc_1d" : market;
+  const m =
+    market === "btc" ? "btc_1d" : market === "eth" ? "eth_1d" : market === "usdt" ? "usdt_1d" : market;
   const now = new Date();
   const kstMs = now.getTime() + KST_OFFSET_MS;
 
@@ -326,18 +401,28 @@ export function getRecentCandleStartAts(
     let targetKstMs: number;
     switch (m) {
       case "btc_1d":
+      case "eth_1d":
+      case "usdt_1d":
         targetKstMs = kstMs - (i + 1) * MS_1D;
         break;
       case "btc_4h":
+      case "eth_4h":
+      case "usdt_4h":
         targetKstMs = kstMs - (i + 1) * MS_4H;
         break;
       case "btc_1h":
+      case "eth_1h":
+      case "usdt_1h":
         targetKstMs = kstMs - (i + 1) * MS_1H;
         break;
       case "btc_15m":
+      case "eth_15m":
+      case "usdt_15m":
         targetKstMs = kstMs - (i + 1) * MS_15M;
         break;
       case "btc_5m":
+      case "eth_5m":
+      case "usdt_5m":
         targetKstMs = kstMs - (i + 1) * MS_5M;
         break;
       default:
@@ -352,7 +437,9 @@ export function getRecentCandleStartAts(
     const mm = kst.getUTCMinutes();
 
     switch (m) {
-      case "btc_1d": {
+      case "btc_1d":
+      case "eth_1d":
+      case "usdt_1d": {
         const utcMs = now.getTime() - (i + 1) * MS_1D;
         const utc = new Date(utcMs);
         const uy = utc.getUTCFullYear();
@@ -361,7 +448,9 @@ export function getRecentCandleStartAts(
         result.push(getBtc1dCandleStartAtUtc(`${uy}-${pad(um)}-${pad(ud)}`));
         break;
       }
-      case "btc_4h": {
+      case "btc_4h":
+      case "eth_4h":
+      case "usdt_4h": {
         // UTC 00, 04, 08, 12, 16, 20 (Binance 4h와 동일)
         const utcMs4h = now.getTime() - (i + 1) * MS_4H;
         const utc = new Date(utcMs4h);
@@ -374,12 +463,18 @@ export function getRecentCandleStartAts(
         break;
       }
       case "btc_1h":
+      case "eth_1h":
+      case "usdt_1h":
         result.push(getBtc1hCandleStartAt(dateStr(dy, dm, dd), hh));
         break;
       case "btc_15m":
+      case "eth_15m":
+      case "usdt_15m":
         result.push(getBtc15mCandleStartAt(dateStr(dy, dm, dd), hh, Math.floor(mm / 15)));
         break;
-      case "btc_5m": {
+      case "btc_5m":
+      case "eth_5m":
+      case "usdt_5m": {
         // UTC 기준 (바이낸스와 동일)
         const utcMs = now.getTime() - (i + 1) * MS_5M;
         const utc = new Date(utcMs);
@@ -415,15 +510,20 @@ export function getCurrentCandleStartAt(market: string): string {
 
   const dateStr = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 
-  const mNorm = market === "btc" ? "btc_1d" : market;
+  const mNorm =
+    market === "btc" ? "btc_1d" : market === "eth" ? "eth_1d" : market === "usdt" ? "usdt_1d" : market;
   switch (mNorm) {
-    case "btc_1d": {
+    case "btc_1d":
+    case "eth_1d":
+    case "usdt_1d": {
       // btc_1d: Binance UTC 00:00 정렬. 투표 마감 KST 09:00 = UTC 00:00
       // 투표 기간 09:01~다음날 09:00. 현재 UTC 날짜의 캔들 = 다음 00:00 UTC에 마감
       // 예: UTC 03-06 15:00(KST 03-07 00:00) → 03-06 캔들(03-07 00:00 마감)
       return getBtc1dCandleStartAtUtc(getTodayUtcDateString());
     }
-    case "btc_4h": {
+    case "btc_4h":
+    case "eth_4h":
+    case "usdt_4h": {
       // UTC 00, 04, 08, 12, 16, 20 (Binance 4h와 동일, 1h 집계 없음)
       const utc = new Date(utcMs);
       const utcY = utc.getUTCFullYear();
@@ -435,12 +535,18 @@ export function getCurrentCandleStartAt(market: string): string {
       return getBtc4hCandleStartAtUtc(utcDateStr, slot4h);
     }
     case "btc_1h":
+    case "eth_1h":
+    case "usdt_1h":
       return getBtc1hCandleStartAt(dateStr, h);
-    case "btc_15m": {
+    case "btc_15m":
+    case "eth_15m":
+    case "usdt_15m": {
       const slot15 = Math.floor(min / 15);
       return getBtc15mCandleStartAt(dateStr, h, slot15);
     }
-    case "btc_5m": {
+    case "btc_5m":
+    case "eth_5m":
+    case "usdt_5m": {
       // UTC 기준 (바이낸스와 동일) - 목표가 = 직전 5분봉 종가
       const utc = new Date(utcMs);
       const utcHour = utc.getUTCHours();
@@ -451,6 +557,31 @@ export function getCurrentCandleStartAt(market: string): string {
       const utcDateStr = `${utcY}-${String(utcM).padStart(2, "0")}-${String(utcD).padStart(2, "0")}`;
       const slot5 = Math.floor(utcMin / 5);
       return getBtc5mCandleStartAtUtc(utcDateStr, utcHour, slot5);
+    }
+    case "ndq_4h":
+    case "sp500_4h":
+    case "kospi_4h":
+    case "kosdaq_4h":
+    case "dow_jones_4h":
+    case "wti_4h":
+    case "xau_4h":
+    case "shanghai_4h":
+    case "nikkei_4h":
+    case "eurostoxx50_4h":
+    case "usd_krw_4h":
+    case "jpy_krw_4h":
+    case "usd10y_4h":
+    case "usd30y_4h":
+    case "hang_seng_4h": {
+      // btc_4h와 동일: UTC 00, 04, 08, 12, 16, 20
+      const utc = new Date(utcMs);
+      const utcY = utc.getUTCFullYear();
+      const utcM = utc.getUTCMonth() + 1;
+      const utcD = utc.getUTCDate();
+      const utcHour = utc.getUTCHours();
+      const utcDateStr = `${utcY}-${String(utcM).padStart(2, "0")}-${String(utcD).padStart(2, "0")}`;
+      const slot4h = Math.floor(utcHour / 4);
+      return getBtc4hCandleStartAtUtc(utcDateStr, slot4h);
     }
     default:
       throw new Error(`Unsupported market: ${market}`);
@@ -467,6 +598,31 @@ export const CANDLE_PERIOD_MS: Record<string, number> = {
   btc_1h: MS_1H,
   btc_4h: MS_4H,
   btc_1d: MS_1D,
+  eth_5m: MS_5M,
+  eth_15m: MS_15M,
+  eth_1h: MS_1H,
+  eth_4h: MS_4H,
+  eth_1d: MS_1D,
+  usdt_5m: MS_5M,
+  usdt_15m: MS_15M,
+  usdt_1h: MS_1H,
+  usdt_4h: MS_4H,
+  usdt_1d: MS_1D,
+  ndq_4h: MS_4H,
+  sp500_4h: MS_4H,
+  kospi_4h: MS_4H,
+  kosdaq_4h: MS_4H,
+  dow_jones_4h: MS_4H,
+  wti_4h: MS_4H,
+  xau_4h: MS_4H,
+  shanghai_4h: MS_4H,
+  nikkei_4h: MS_4H,
+  eurostoxx50_4h: MS_4H,
+  hang_seng_4h: MS_4H,
+  usd_krw_4h: MS_4H,
+  jpy_krw_4h: MS_4H,
+  usd10y_4h: MS_4H,
+  usd30y_4h: MS_4H,
 };
 
 /**

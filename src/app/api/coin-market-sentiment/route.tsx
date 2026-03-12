@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 /**
- * 바이낸스 공식 API - 시장 분위기 데이터
+ * 바이낸스 공식 API - 코인 분위기 데이터
  *
  * 제공 데이터:
  * - 롱/숏 비율 (전체 유저)
@@ -77,7 +77,7 @@ fetchBinance("/fapi/v1/premiumIndex?symbol=XRPUSDT"),
       updatedAt: new Date().toISOString(),
     });
   } catch (err) {
-    console.error("Market sentiment API error:", err);
+    console.error("Coin market sentiment API error:", err);
     return NextResponse.json(
       { error: "시장 데이터를 불러오는 데 실패했습니다." },
       { status: 500 }

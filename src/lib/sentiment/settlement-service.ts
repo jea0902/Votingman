@@ -65,12 +65,22 @@ export async function updateBtcOhlcForPoll(
   return { price_open: null, price_close: null };
 }
 
-const BTC_MARKETS_SETTLE = [
+const COIN_MARKETS_SETTLE = [
   "btc_1d",
   "btc_4h",
   "btc_1h",
   "btc_15m",
   "btc_5m",
+  "eth_1d",
+  "eth_4h",
+  "eth_1h",
+  "eth_15m",
+  "eth_5m",
+  "usdt_1d",
+  "usdt_4h",
+  "usdt_1h",
+  "usdt_15m",
+  "usdt_5m",
   "btc_1W",
   "btc_1M",
   "btc_12M",
@@ -205,7 +215,7 @@ export async function settlePoll(
     ? pollDate
     : candleStartAtToPollDateKst(candleStartAt);
 
-  if (!BTC_MARKETS_SETTLE.includes(market as (typeof BTC_MARKETS_SETTLE)[number])) {
+  if (!COIN_MARKETS_SETTLE.includes(market as (typeof COIN_MARKETS_SETTLE)[number])) {
     return {
       poll_id: "",
       poll_date: pollDateForResponse,
@@ -213,7 +223,7 @@ export async function settlePoll(
       status: "already_settled",
       participant_count: 0,
       winner_side: null,
-      error: "지원 market: btc_1d, btc_4h, btc_1h, btc_15m, btc_5m, btc_1W, btc_1M, btc_12M",
+      error: "지원 market: btc/eth/usdt 1d,4h,1h,15m,5m",
     };
   }
 
@@ -770,8 +780,12 @@ export async function invalidatePollAsAdmin(
   };
 }
 
-/** 백필 후 정산 지원 시장 (btc만, Binance OHLC 사용) */
-const BACKFILL_MARKETS = ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"] as const;
+/** 백필 후 정산 지원 시장 (코인, Binance OHLC 사용) */
+const BACKFILL_MARKETS = [
+  "btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m",
+  "eth_1d", "eth_4h", "eth_1h", "eth_15m", "eth_5m",
+  "usdt_1d", "usdt_4h", "usdt_1h", "usdt_15m", "usdt_5m",
+] as const;
 
 export type BackfillAndSettleResult =
   | (SettlementResult & { backfilled?: boolean })
@@ -840,7 +854,7 @@ export async function backfillAndSettlePoll(
       status: "unsupported_market",
       participant_count: 0,
       winner_side: null,
-      error: `백필 지원: btc_1d, btc_4h, btc_1h, btc_15m, btc_5m만 가능. (${market})`,
+      error: `백필 지원: btc/eth/usdt 1d,4h,1h,15m,5m만 가능. (${market})`,
     };
   }
 
@@ -857,12 +871,11 @@ export async function backfillAndSettlePoll(
     };
   }
 
-  // btc_1d: Binance는 00:00 UTC만 있음. 15:00 등 잘못된 값이어도 해당일 00:00으로 조회·수집
-  // btc_4h: Binance는 00/04/08/12/16/20 UTC만 있음. 03:00 등 비경계 값이어도 해당 구간 경계로 조회·수집
+  // 1d: Binance는 00:00 UTC만 있음. 4h: Binance는 00/04/08/12/16/20 UTC만 있음.
   const ohlcLookupKey =
-    market === "btc_1d"
+    market === "btc_1d" || market === "eth_1d" || market === "usdt_1d"
       ? getBtc1dCandleStartAtUtc(candleStartAt.slice(0, 10))
-      : market === "btc_4h"
+      : market === "btc_4h" || market === "eth_4h" || market === "usdt_4h"
         ? normalizeBtc4hCandleStartAt(candleStartAt)
         : candleStartAt;
 

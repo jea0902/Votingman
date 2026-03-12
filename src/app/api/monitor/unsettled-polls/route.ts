@@ -21,6 +21,11 @@ const JOB_TO_MARKET: Record<string, string> = {
   "btc-ohlc-1h": "btc_1h",
   "btc-ohlc-15m": "btc_15m",
   "btc-ohlc-5m": "btc_5m",
+  "eth-ohlc-daily": "eth_1d",
+  "eth-ohlc-4h": "eth_4h",
+  "eth-ohlc-1h": "eth_1h",
+  "eth-ohlc-15m": "eth_15m",
+  "eth-ohlc-5m": "eth_5m",
 };
 
 /** DB에서 오는 candle_start_at을 UTC ms로 해석 (타임존 없으면 UTC로 간주) */
@@ -62,7 +67,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: "job_name 필요: btc-ohlc-daily, btc-ohlc-4h, btc-ohlc-1h, btc-ohlc-15m, btc-ohlc-5m",
+        error: "job_name 필요: btc-ohlc-*, eth-ohlc-* (daily, 4h, 1h, 15m, 5m)",
       },
       { status: 400 }
     );

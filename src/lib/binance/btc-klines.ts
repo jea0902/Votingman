@@ -37,6 +37,37 @@ export const MARKET_TO_INTERVAL: Record<string, string> = {
   btc_1d: "1d",
   btc_1W: "1w",
   btc_1M: "1M",
+  eth_5m: "5m",
+  eth_15m: "15m",
+  eth_1h: "1h",
+  eth_4h: "4h",
+  eth_1d: "1d",
+  usdt_5m: "5m",
+  usdt_15m: "15m",
+  usdt_1h: "1h",
+  usdt_4h: "4h",
+  usdt_1d: "1d",
+};
+
+/** market → Binance symbol */
+export const MARKET_TO_SYMBOL: Record<string, string> = {
+  btc_5m: "BTCUSDT",
+  btc_15m: "BTCUSDT",
+  btc_1h: "BTCUSDT",
+  btc_4h: "BTCUSDT",
+  btc_1d: "BTCUSDT",
+  btc_1W: "BTCUSDT",
+  btc_1M: "BTCUSDT",
+  eth_5m: "ETHUSDT",
+  eth_15m: "ETHUSDT",
+  eth_1h: "ETHUSDT",
+  eth_4h: "ETHUSDT",
+  eth_1d: "ETHUSDT",
+  usdt_5m: "USDTBUSD",
+  usdt_15m: "USDTBUSD",
+  usdt_1h: "USDTBUSD",
+  usdt_4h: "USDTBUSD",
+  usdt_1d: "USDTBUSD",
 };
 
 export type BtcOhlcRow = {
@@ -76,10 +107,11 @@ function parseCandle(row: unknown[]): BtcOhlcRow | null {
 export async function fetchKlines(
   interval: string,
   startTimeMs?: number,
-  limit = 500
+  limit = 500,
+  symbol?: string
 ): Promise<BtcOhlcRow[]> {
   const url = new URL(BINANCE_KLINES);
-  url.searchParams.set("symbol", SYMBOL);
+  url.searchParams.set("symbol", symbol ?? SYMBOL);
   url.searchParams.set("interval", interval);
   url.searchParams.set("limit", String(limit));
   if (startTimeMs != null) {
@@ -106,8 +138,9 @@ export async function fetchCandleByStartAt(
 ): Promise<BtcOhlcRow | null> {
   const interval = MARKET_TO_INTERVAL[market];
   if (!interval) return null;
+  const symbol = MARKET_TO_SYMBOL[market] ?? SYMBOL;
   const startMs = new Date(candleStartAt).getTime();
-  const rows = await fetchKlines(interval, startMs, 1);
+  const rows = await fetchKlines(interval, startMs, 1, symbol);
   const r = rows[0];
   return r ? { ...r, market } : null;
 }
@@ -127,8 +160,9 @@ export async function fetchPreviousCandleClose(
   // 모든 시간봉을 네이티브 캔들로 처리
   const interval = MARKET_TO_INTERVAL[market];
   if (!interval) return null;
+  const symbol = MARKET_TO_SYMBOL[market] ?? SYMBOL;
   const prevStartMs = new Date(currentCandleStartAt).getTime() - periodMs;
-  const rows = await fetchKlines(interval, prevStartMs, 1);
+  const rows = await fetchKlines(interval, prevStartMs, 1, symbol);
   const prev = rows[0];
   return prev && Number.isFinite(prev.close) ? prev.close : null;
 }
@@ -158,12 +192,17 @@ export async function fetchLatestCandles(
   const interval = MARKET_TO_INTERVAL[market];
   if (!interval) return [];
 
-  const rows = await fetchKlines(interval, undefined, limit);
+  const symbol = MARKET_TO_SYMBOL[market] ?? SYMBOL;
+  const rows = await fetchKlines(interval, undefined, limit, symbol);
   return rows.map((r) => ({ ...r, market }));
 }
 
 /** KST 00:00 정렬 시장 (5m, 15m, 1h, 4h, 1d) */
-const KST_ALIGNED_MARKETS = ["btc_5m", "btc_15m", "btc_1h", "btc_4h", "btc_1d"] as const;
+const KST_ALIGNED_MARKETS = [
+  "btc_5m", "btc_15m", "btc_1h", "btc_4h", "btc_1d",
+  "eth_5m", "eth_15m", "eth_1h", "eth_4h", "eth_1d",
+  "usdt_5m", "usdt_15m", "usdt_1h", "usdt_4h", "usdt_1d",
+] as const;
 
 const POLL_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -180,7 +219,8 @@ export async function fetchOhlcForPollDate(
   pollDate: string
 ): Promise<BtcOhlcRow[]> {
   if (!POLL_DATE_REGEX.test(pollDate)) return [];
-  const m = market === "btc" ? "btc_1d" : market;
+  const m =
+    market === "btc" ? "btc_1d" : market === "eth" ? "eth_1d" : market === "usdt" ? "usdt_1d" : market;
   if (!KST_ALIGNED_MARKETS.includes(m as (typeof KST_ALIGNED_MARKETS)[number])) {
     return [];
   }
@@ -192,9 +232,10 @@ export async function fetchOhlcForPollDate(
   const interval = MARKET_TO_INTERVAL[m];
   if (!interval) return [];
 
+  const symbol = MARKET_TO_SYMBOL[m] ?? SYMBOL;
   for (const startAt of startAts) {
     const startMs = new Date(startAt).getTime();
-    const rows = await fetchKlines(interval, startMs, 1);
+    const rows = await fetchKlines(interval, startMs, 1, symbol);
     if (rows.length === 0) continue;
     const r = rows[0];
     results.push({ ...r, market: m });
@@ -211,7 +252,8 @@ export async function fetchKlinesKstAligned(
   market: string,
   limit: number
 ): Promise<BtcOhlcRow[]> {
-  const m = market === "btc" ? "btc_1d" : market;
+  const m =
+    market === "btc" ? "btc_1d" : market === "eth" ? "eth_1d" : market === "usdt" ? "usdt_1d" : market;
   if (!KST_ALIGNED_MARKETS.includes(m as (typeof KST_ALIGNED_MARKETS)[number])) {
     return [];
   }
@@ -222,10 +264,11 @@ export async function fetchKlinesKstAligned(
   const results: BtcOhlcRow[] = [];
   const interval = MARKET_TO_INTERVAL[m];
   if (!interval) return [];
+  const symbol = MARKET_TO_SYMBOL[m] ?? SYMBOL;
 
   for (const startAt of startAts) {
     const startMs = new Date(startAt).getTime();
-    const rows = await fetchKlines(interval, startMs, 1);
+    const rows = await fetchKlines(interval, startMs, 1, symbol);
     if (rows.length === 0) continue;
     const r = rows[0];
     results.push({ ...r, market: m });
