@@ -218,6 +218,8 @@ export default function PredictMarketPage() {
   ];
   const isBtcMarketForVote = COIN_MARKETS_FOR_VOTE.includes(market);
   const isBtcMarket = market.startsWith("btc_");
+  const isEthMarket = market.startsWith("eth_");
+  const isXrpMarket = market.startsWith("xrp_");
   const voteOpen =
     isBtcMarketForVote && poll?.settlement_status !== undefined
       ? poll.settlement_status === "open"
@@ -624,8 +626,8 @@ export default function PredictMarketPage() {
               <p className="mt-1 text-lg font-bold text-foreground">
                 {priceToBeat != null
                   ? `$${priceToBeat.toLocaleString(FIXED_LOCALE, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
+                      minimumFractionDigits: priceFractionDigits,
+                      maximumFractionDigits: priceFractionDigits,
                     })}`
                   : "—"}
               </p>
@@ -678,11 +680,12 @@ export default function PredictMarketPage() {
           </div>
 
           <div className="rounded-lg border border-border bg-card overflow-hidden">
-            {isBtcMarket ? (
+            {isBtcMarket || isEthMarket || isXrpMarket ? (
               <BtcChart
                 targetPrice={priceToBeat}
                 defaultInterval="1m"
                 className="min-h-[400px]"
+                symbol={binanceSymbol}
               />
             ) : isKospiMarket ? (
               <KospiChart

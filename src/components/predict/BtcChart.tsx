@@ -64,6 +64,8 @@ type CandlestickData = {
   open: number; high: number; low: number; close: number;
 };
 
+const DEFAULT_SYMBOL = "BTCUSDT";
+
 function parseKline(candle: unknown[]): CandlestickData {
   const [openTime, open, high, low, close] = candle as [number, string, string, string, string];
   return {
@@ -75,12 +77,13 @@ function parseKline(candle: unknown[]): CandlestickData {
 
 async function fetchBtcKlines(
   interval: ChartInterval,
-  options?: { endTimeMs?: number; limit?: number }
+  options?: { endTimeMs?: number; limit?: number },
+  symbol: string = DEFAULT_SYMBOL
 ): Promise<CandlestickData[]> {
   const limit =
     options?.limit ?? (options?.endTimeMs != null ? CHART_LIMIT[interval] : INITIAL_LOAD_LIMIT);
   const url = new URL("https://api.binance.com/api/v3/klines");
-  url.searchParams.set("symbol", "BTCUSDT");
+  url.searchParams.set("symbol", symbol);
   url.searchParams.set("interval", interval);
   url.searchParams.set("limit", String(limit));
   if (options?.endTimeMs != null && Number.isFinite(options.endTimeMs)) {
@@ -95,10 +98,17 @@ async function fetchBtcKlines(
 type Props = {
   targetPrice?: number | null;
   defaultInterval?: ChartInterval;
+  /** Binance REST 심볼 (예: BTCUSDT, ETHUSDT, XRPUSDT). 기본값: BTCUSDT */
+  symbol?: string;
   className?: string;
 };
 
-export function BtcChart({ targetPrice, defaultInterval = "1m", className }: Props) {
+export function BtcChart({
+  targetPrice,
+  defaultInterval = "1m",
+  symbol = DEFAULT_SYMBOL,
+  className,
+}: Props) {
   const containerRef   = useRef<HTMLDivElement>(null);
   const chartRef       = useRef<ReturnType<typeof createChart> | null>(null);
   const seriesRef      = useRef<ReturnType<ReturnType<typeof createChart>["addSeries"]> | null>(null);
@@ -108,6 +118,7 @@ export function BtcChart({ targetPrice, defaultInterval = "1m", className }: Pro
   const unsubRangeRef  = useRef<(() => void) | null>(null);
   const wsRef          = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const symbolRef      = useRef<string>(symbol);
 
   const [chartInterval, setChartInterval] = useState<ChartInterval>(defaultInterval);
   const [loading, setLoading]             = useState(true);
@@ -115,6 +126,7 @@ export function BtcChart({ targetPrice, defaultInterval = "1m", className }: Pro
   const [wsStatus, setWsStatus]           = useState<"connecting" | "connected" | "disconnected">("connecting");
 
   intervalRef.current = chartInterval;
+  symbolRef.current = symbol;
 
   // ── 차트 인스턴스 생성 (마운트 1회) ──
   useEffect(() => {
@@ -212,7 +224,7 @@ export function BtcChart({ targetPrice, defaultInterval = "1m", className }: Pro
     setWsStatus("connecting");
 
     // ① REST API로 초기 캔들 로드
-    fetchBtcKlines(chartInterval)
+    fetchBtcKlines(chartInterval, undefined, symbolRef.current)
       .then((data) => {
         if (cancelled || !seriesRef.current || !chartRef.current || data.length === 0) return;
 
@@ -254,7 +266,7 @@ export function BtcChart({ targetPrice, defaultInterval = "1m", className }: Pro
 
           loadingMoreRef.current = true;
           const oldestMs = current[0].time * 1000 - 1;
-          fetchBtcKlines(intervalRef.current, { endTimeMs: oldestMs })
+          fetchBtcKlines(intervalRef.current, { endTimeMs: oldestMs }, symbolRef.current)
             .then((older) => {
               if (!seriesRef.current || !chartRef.current) return;
               const existingFirst = current[0].time;
@@ -279,7 +291,8 @@ export function BtcChart({ targetPrice, defaultInterval = "1m", className }: Pro
 
         // ③ WebSocket 연결 (초기 로드 완료 후)
         if (cancelled) return;
-        const wsUrl = `wss://stream.binance.com:9443/ws/btcusdt@kline_${WS_INTERVAL[chartInterval]}`;
+        const wsSymbol = (symbolRef.current || DEFAULT_SYMBOL).toLowerCase();
+        const wsUrl = `wss://stream.binance.com:9443/ws/${wsSymbol}@kline_${WS_INTERVAL[chartInterval]}`;
 
         const connectWebSocket = () => {
           if (cancelled) return;
