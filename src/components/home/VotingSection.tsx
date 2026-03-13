@@ -92,11 +92,22 @@ export function VotingSection(_props: Props) {
         cache: "no-store",
         headers: { "Cache-Control": "no-cache" },
       });
+      if (!res.ok) {
+        // 서버 에러 디버깅용 상세 로그
+        console.error("[VotingSection] /api/sentiment/polls HTTP error", {
+          status: res.status,
+          statusText: res.statusText,
+        });
+      }
       const json = await res.json();
+      if (!json?.success) {
+        console.error("[VotingSection] /api/sentiment/polls response error", json?.error);
+      }
       if (json?.success && json?.data) {
         setPolls(json.data as PollsData);
       }
-    } catch {
+    } catch (error) {
+      console.error("[VotingSection] fetchPolls thrown error", error);
       setPolls(null);
     }
   }, []);

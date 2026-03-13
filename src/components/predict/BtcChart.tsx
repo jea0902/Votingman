@@ -107,6 +107,7 @@ export function BtcChart({ targetPrice, defaultInterval = "1m", className }: Pro
   const intervalRef    = useRef<ChartInterval>(defaultInterval);
   const unsubRangeRef  = useRef<(() => void) | null>(null);
   const wsRef          = useRef<WebSocket | null>(null);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [chartInterval, setChartInterval] = useState<ChartInterval>(defaultInterval);
   const [loading, setLoading]             = useState(true);
@@ -179,6 +180,10 @@ export function BtcChart({ targetPrice, defaultInterval = "1m", className }: Pro
     return () => {
       unsubRangeRef.current?.();
       unsubRangeRef.current = null;
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
       wsRef.current?.close();
       wsRef.current = null;
       window.removeEventListener("resize", handleResize);
@@ -192,9 +197,13 @@ export function BtcChart({ targetPrice, defaultInterval = "1m", className }: Pro
   useEffect(() => {
     let cancelled = false;
 
-    // 기존 구독/WebSocket 해제
+    // 기존 구독/WebSocket/재연결 타이머 해제
     unsubRangeRef.current?.();
     unsubRangeRef.current = null;
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
     wsRef.current?.close();
     wsRef.current = null;
 
@@ -271,51 +280,87 @@ export function BtcChart({ targetPrice, defaultInterval = "1m", className }: Pro
         // ③ WebSocket 연결 (초기 로드 완료 후)
         if (cancelled) return;
         const wsUrl = `wss://stream.binance.com:9443/ws/btcusdt@kline_${WS_INTERVAL[chartInterval]}`;
-        const ws = new WebSocket(wsUrl);
-        wsRef.current = ws;
 
-        ws.onopen = () => {
-          if (!cancelled) setWsStatus("connected");
-        };
-
-        ws.onmessage = (event) => {
-          if (cancelled || !seriesRef.current) return;
+        const connectWebSocket = () => {
+          if (cancelled) return;
           try {
-            const msg = JSON.parse(event.data as string);
-            const k = msg?.k;
-            if (!k) return;
+            const ws = new WebSocket(wsUrl);
+            wsRef.current = ws;
 
-            const candle: CandlestickData = {
-              time:  Math.floor(k.t / 1000) as UTCTimestamp,
-              open:  parseFloat(k.o),
-              high:  parseFloat(k.h),
-              low:   parseFloat(k.l),
-              close: parseFloat(k.c),
+            ws.onopen = () => {
+              if (!cancelled) {
+                setWsStatus("connected");
+                console.info("[BtcChart] WebSocket connected", { url: wsUrl });
+              }
             };
 
-            // 현재 캔들 업데이트 or 새 캔들 추가
-            seriesRef.current.update(candle);
+            ws.onmessage = (event) => {
+              if (cancelled || !seriesRef.current) return;
+              try {
+                const msg = JSON.parse(event.data as string);
+                const k = msg?.k;
+                if (!k) return;
 
-            const current = dataRef.current;
-            if (current.length > 0 && current[current.length - 1].time === candle.time) {
-              // 현재 캔들 갱신
-              current[current.length - 1] = candle;
-            } else if (current.length === 0 || candle.time > current[current.length - 1].time) {
-              // 새 캔들 추가
-              current.push(candle);
+                const candle: CandlestickData = {
+                  time:  Math.floor(k.t / 1000) as UTCTimestamp,
+                  open:  parseFloat(k.o),
+                  high:  parseFloat(k.h),
+                  low:   parseFloat(k.l),
+                  close: parseFloat(k.c),
+                };
+
+                // 현재 캔들 업데이트 or 새 캔들 추가
+                seriesRef.current.update(candle);
+
+                const current = dataRef.current;
+                if (current.length > 0 && current[current.length - 1].time === candle.time) {
+                  // 현재 캔들 갱신
+                  current[current.length - 1] = candle;
+                } else if (current.length === 0 || candle.time > current[current.length - 1].time) {
+                  // 새 캔들 추가
+                  current.push(candle);
+                }
+              } catch (e) {
+                console.warn("[BtcChart] WebSocket message parse error", e);
+              }
+            };
+
+            const scheduleReconnect = (reason: string) => {
+              if (cancelled) return;
+              if (reconnectTimerRef.current) {
+                clearTimeout(reconnectTimerRef.current);
+              }
+              setWsStatus("disconnected");
+              console.warn("[BtcChart] WebSocket will attempt reconnect", { reason });
+              reconnectTimerRef.current = setTimeout(() => {
+                reconnectTimerRef.current = null;
+                setWsStatus("connecting");
+                connectWebSocket();
+              }, 5000);
+            };
+
+            ws.onerror = (event) => {
+              console.error("[BtcChart] WebSocket error", event);
+              scheduleReconnect("onerror");
+            };
+
+            ws.onclose = (event) => {
+              console.warn("[BtcChart] WebSocket closed", {
+                code: event.code,
+                reason: event.reason,
+                wasClean: event.wasClean,
+              });
+              scheduleReconnect("onclose");
+            };
+          } catch (e) {
+            console.error("[BtcChart] WebSocket connect failed", e);
+            if (!cancelled) {
+              setWsStatus("disconnected");
             }
-          } catch {
-            // 파싱 오류 무시
           }
         };
 
-        ws.onerror = () => {
-          if (!cancelled) setWsStatus("disconnected");
-        };
-
-        ws.onclose = () => {
-          if (!cancelled) setWsStatus("disconnected");
-        };
+        connectWebSocket();
       })
       .catch(() => {
         if (!cancelled) {

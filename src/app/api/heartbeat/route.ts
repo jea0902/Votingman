@@ -10,20 +10,25 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
  * - RLS: 본인 행만 UPDATE 가능
  */
 export async function POST() {
+  let step: string = "init";
   try {
+    step = "create-supabase-client";
     const supabase = await createSupabaseServerClient();
+    step = "get-user";
     const {
       data: { user },
       error: authError,
     } = await supabase.auth.getUser();
 
     if (authError || !user) {
+      step = "unauthorized";
       return NextResponse.json(
         { success: false, error: { code: "UNAUTHORIZED", message: "로그인이 필요합니다." } },
         { status: 401 }
       );
     }
 
+    step = "update-last-active";
     const { error } = await supabase
       .from("users")
       .update({ last_active_at: new Date().toISOString() })
@@ -31,18 +36,33 @@ export async function POST() {
       .is("deleted_at", null);
 
     if (error) {
-      console.error("[heartbeat] Update failed:", error);
+      console.error("[heartbeat] Update failed", { step, error });
       return NextResponse.json(
-        { success: false, error: { code: "UPDATE_FAILED", message: "갱신에 실패했습니다." } },
+        {
+          success: false,
+          error: {
+            code: "UPDATE_FAILED",
+            message: "갱신에 실패했습니다.",
+            step,
+          },
+        },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({ success: true });
+    step = "return-success";
+    return NextResponse.json({ success: true }, { status: 200 });
   } catch (err) {
-    console.error("[heartbeat] Error:", err);
+    console.error("[heartbeat] Error", { step, error: err });
     return NextResponse.json(
-      { success: false, error: { code: "INTERNAL_ERROR", message: "서버 오류가 발생했습니다." } },
+      {
+        success: false,
+        error: {
+          code: "INTERNAL_ERROR",
+          message: "서버 오류가 발생했습니다.",
+          step,
+        },
+      },
       { status: 500 }
     );
   }

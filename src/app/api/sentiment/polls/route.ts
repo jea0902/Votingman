@@ -35,13 +35,16 @@ type PollPayload = {
 };
 
 export async function GET() {
+  let step: string = "init";
   try {
+    step = "create-supabase-clients";
     const serverClient = await createSupabaseServerClient();
     const {
       data: { user },
     } = await serverClient.auth.getUser();
     const admin = createSupabaseAdmin();
 
+    step = "get-or-create-polls";
     // 1) 모든 시장 폴 조회/생성 (순차 8번 → 1번 병렬)
     const pollResults = await Promise.all(
       SENTIMENT_MARKETS.map((market) => getOrCreateTodayPollByMarket(market))
@@ -50,6 +53,7 @@ export async function GET() {
 
     // 2) my_vote 1회 + 참여자 수 8회를 한 번에 병렬
     const pollIds = polls.map((p) => p.id);
+    step = "fetch-my-votes-and-counts";
     const myVotesPromise =
       user?.id
         ? admin
@@ -113,12 +117,14 @@ export async function GET() {
         if (open == null) open = await fetchPreviousCandleClose(market, candleStartAt);
         return { market, open, close: currentOhlc?.close ?? null };
       });
+    step = "fetch-btc-ohlc";
     const ohlcResults = await Promise.all(btcOhlcPromises);
     const ohlcByMarket = new Map(
       ohlcResults.map((r) => [r.market, { open: r.open, close: r.close }])
     );
 
     // 4) 결과 조합
+    step = "compose-response";
     const pollsByMarket: Record<string, PollPayload> = {};
     for (let i = 0; i < SENTIMENT_MARKETS.length; i++) {
       const market = SENTIMENT_MARKETS[i];
@@ -161,18 +167,23 @@ export async function GET() {
       };
     }
 
-    return NextResponse.json({
-      success: true,
-      data: pollsByMarket,
-    });
+    step = "return-success";
+    return NextResponse.json(
+      {
+        success: true,
+        data: pollsByMarket,
+      },
+      { status: 200 }
+    );
   } catch (error) {
-    console.error("[sentiment/polls] GET error:", error);
+    console.error("[sentiment/polls] GET error", { step, error });
     return NextResponse.json(
       {
         success: false,
         error: {
           code: "SERVER_ERROR",
           message: "투표 정보를 불러오는데 실패했습니다.",
+          step,
         },
       },
       { status: 500 }
