@@ -114,7 +114,8 @@ export function VotingSection(_props: Props) {
 
   useEffect(() => {
     fetchPolls();
-    const interval = setInterval(fetchPolls, 5000);
+    // 전체 시장 폴 조회: 5초 → 10초로 완화
+    const interval = setInterval(fetchPolls, 10000);
     return () => clearInterval(interval);
   }, [fetchPolls]);
 

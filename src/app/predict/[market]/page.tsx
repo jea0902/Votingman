@@ -373,7 +373,8 @@ export default function PredictMarketPage() {
         poll.candle_start_at ? { candle_start_at: poll.candle_start_at } : undefined
       );
     };
-    const intervalId = setInterval(refetchCounts, 3000);
+    // 인원/코인 합계 갱신: 3초 → 5초로 완화
+    const intervalId = setInterval(refetchCounts, 5000);
     return () => clearInterval(intervalId);
   }, [poll?.poll_id, poll?.settlement_status, poll?.candle_start_at, fetchPoll]);
 
@@ -410,7 +411,8 @@ export default function PredictMarketPage() {
     };
 
     pollSettlementStatus(); // 즉시 1회 조회
-    const intervalId = setInterval(pollSettlementStatus, 3000);
+    // 정산 상태 폴링: 3초 → 10초로 완화
+    const intervalId = setInterval(pollSettlementStatus, 10000);
     return () => clearInterval(intervalId);
   }, [poll?.show_settled_complete, `${poll?.settlement_status ?? ""}-${poll?.candle_start_at ?? ""}`, market]);
 

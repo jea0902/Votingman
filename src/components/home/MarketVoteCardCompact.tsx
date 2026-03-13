@@ -7,9 +7,13 @@
  */
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { MarketIcon } from "@/components/market/MarketIcon";
-import { isVotingOpenKST, getCloseTimeKstString } from "@/lib/utils/sentiment-vote";
+import {
+  isVotingOpenKST,
+  getCloseTimeKstString,
+  getNextOpenTimeKstString,
+} from "@/lib/utils/sentiment-vote";
 import { MARKET_LABEL } from "@/lib/constants/sentiment-markets";
 import type { SentimentMarket } from "@/lib/constants/sentiment-markets";
 import type { PollData } from "./MarketVoteCard";
@@ -81,7 +85,19 @@ type Props = {
 };
 
 export function MarketVoteCardCompact({ market, poll }: Props) {
-  const voteOpen = useMemo(() => isVotingOpenKST(market), [market]);
+  const [voteOpen, setVoteOpen] = useState<boolean | null>(null);
+  const [nextOpenLabel, setNextOpenLabel] = useState<string>("");
+
+  // 시간 의존 로직은 클라이언트에서만 계산해서 hydration mismatch 방지
+  useEffect(() => {
+    const open = isVotingOpenKST(market);
+    setVoteOpen(open);
+    if (!open) {
+      setNextOpenLabel(getNextOpenTimeKstString(market));
+    } else {
+      setNextOpenLabel("");
+    }
+  }, [market]);
 
   const { longPct, shortPct, totalCoin, participantCount } = useMemo(() => {
     if (!poll) {
@@ -139,8 +155,14 @@ export function MarketVoteCardCompact({ market, poll }: Props) {
       </div>
       </Link>
 
-      <p className="mb-3 text-xs text-muted-foreground">
-        {voteOpen ? getCloseTimeKstString(market, poll?.candle_start_at) : "마감"}
+      <p className="mb-3 text-xs text-muted-foreground" suppressHydrationWarning>
+        {voteOpen === null
+          ? "\u00A0"
+          : voteOpen
+            ? getCloseTimeKstString(market, poll?.candle_start_at)
+            : nextOpenLabel
+              ? `다음 투표 ${nextOpenLabel}`
+              : "마감"}
       </p>
 
       <div className="mb-3 flex h-1.5 overflow-hidden rounded-full bg-muted sm:mb-4 sm:h-2">

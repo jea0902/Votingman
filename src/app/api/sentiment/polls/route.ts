@@ -37,12 +37,16 @@ type PollPayload = {
 export async function GET() {
   let step: string = "init";
   try {
+    const startedAt = Date.now();
+    const timings: Record<string, number> = {};
+
     step = "create-supabase-clients";
     const serverClient = await createSupabaseServerClient();
     const {
       data: { user },
     } = await serverClient.auth.getUser();
     const admin = createSupabaseAdmin();
+    timings["create-supabase-clients"] = Date.now() - startedAt;
 
     step = "get-or-create-polls";
     // 1) 모든 시장 폴 조회/생성 (순차 8번 → 1번 병렬)
@@ -50,6 +54,7 @@ export async function GET() {
       SENTIMENT_MARKETS.map((market) => getOrCreateTodayPollByMarket(market))
     );
     const polls = pollResults.map((r) => r.poll);
+    timings["get-or-create-polls"] = Date.now() - startedAt;
 
     // 2) my_vote 1회 + 참여자 수 8회를 한 번에 병렬
     const pollIds = polls.map((p) => p.id);
@@ -61,29 +66,44 @@ export async function GET() {
             .select("poll_id, choice, bet_amount")
             .eq("user_id", user.id)
             .in("poll_id", pollIds)
-        : Promise.resolve({ data: [] as { poll_id: string; choice: string; bet_amount: number }[] });
+        : Promise.resolve({
+            data: [] as { poll_id: string; choice: string; bet_amount: number }[],
+            error: null,
+          });
 
-    const countPromises = polls.map((p) =>
-      admin
-        .from("sentiment_votes")
-        .select("id", { count: "exact", head: true })
-        .eq("poll_id", p.id)
-        .gt("bet_amount", 0)
-    );
-    const payoutCountPromises = polls.map((p) =>
-      admin
-        .from("payout_history")
-        .select("id", { count: "exact", head: true })
-        .eq("poll_id", p.id)
-    );
+    const voteCountsPromise = admin
+      .from("sentiment_votes")
+      .select("poll_id", { head: false })
+      .in("poll_id", pollIds)
+      .gt("bet_amount", 0);
 
-    const [myVotesRes, ...restResults] = await Promise.all([
+    const payoutCountsPromise = admin
+      .from("payout_history")
+      .select("poll_id", { head: false })
+      .in("poll_id", pollIds);
+
+    const [myVotesRes, voteCountsRes, payoutCountsRes] = await Promise.all([
       myVotesPromise,
-      ...countPromises,
-      ...payoutCountPromises,
+      voteCountsPromise,
+      payoutCountsPromise,
     ]);
-    const countResults = restResults.slice(0, polls.length) as { count?: number }[];
-    const payoutCountResults = restResults.slice(polls.length) as { count?: number }[];
+    timings["fetch-my-votes-and-counts"] = Date.now() - startedAt;
+
+    const participantCountByPollId = new Map<string, number>();
+    if (voteCountsRes.data?.length) {
+      for (const row of voteCountsRes.data as { poll_id: string }[]) {
+        const prev = participantCountByPollId.get(row.poll_id) ?? 0;
+        participantCountByPollId.set(row.poll_id, prev + 1);
+      }
+    }
+
+    const payoutCountByPollId = new Map<string, number>();
+    if (payoutCountsRes.data?.length) {
+      for (const row of payoutCountsRes.data as { poll_id: string }[]) {
+        const prev = payoutCountByPollId.get(row.poll_id) ?? 0;
+        payoutCountByPollId.set(row.poll_id, prev + 1);
+      }
+    }
 
     const myVotesByPollId = new Map<string, { choice: "long" | "short"; bet_amount: number }>();
     if (myVotesRes.data?.length) {
@@ -119,6 +139,7 @@ export async function GET() {
       });
     step = "fetch-btc-ohlc";
     const ohlcResults = await Promise.all(btcOhlcPromises);
+    timings["fetch-btc-ohlc"] = Date.now() - startedAt;
     const ohlcByMarket = new Map(
       ohlcResults.map((r) => [r.market, { open: r.open, close: r.close }])
     );
@@ -129,8 +150,8 @@ export async function GET() {
     for (let i = 0; i < SENTIMENT_MARKETS.length; i++) {
       const market = SENTIMENT_MARKETS[i];
       const poll = polls[i] as typeof polls[0] & { settled_at?: string | null };
-      const participantCount = countResults[i]?.count ?? 0;
-      const payoutCount = payoutCountResults[i]?.count ?? 0;
+      const participantCount = participantCountByPollId.get(poll.id) ?? 0;
+      const payoutCount = payoutCountByPollId.get(poll.id) ?? 0;
       const myVote = myVotesByPollId.get(poll.id) ?? null;
       const ohlc = ohlcByMarket.get(poll.market ?? market) ?? null;
 
@@ -168,6 +189,7 @@ export async function GET() {
     }
 
     step = "return-success";
+    console.info("[sentiment/polls] timings(ms)", timings);
     return NextResponse.json(
       {
         success: true,
@@ -177,6 +199,18 @@ export async function GET() {
     );
   } catch (error) {
     console.error("[sentiment/polls] GET error", { step, error });
+    const detail =
+      error instanceof Error
+        ? error.message
+        : typeof error === "string"
+          ? error
+          : (() => {
+              try {
+                return JSON.stringify(error);
+              } catch {
+                return "Unknown error";
+              }
+            })();
     return NextResponse.json(
       {
         success: false,
@@ -184,6 +218,7 @@ export async function GET() {
           code: "SERVER_ERROR",
           message: "투표 정보를 불러오는데 실패했습니다.",
           step,
+          detail,
         },
       },
       { status: 500 }
