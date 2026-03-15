@@ -30,9 +30,9 @@ interface AggregateResetItem {
 const MARKET_FILTERS = [
   { value: "btc", label: "비트코인" },
   { value: "kospi_1d", label: "1일 후 코스피" },
-  { value: "kospi_4h", label: "4시간 후 코스피" },
+  { value: "kospi_1h", label: "1시간 후 코스피" },
   { value: "kosdaq_1d", label: "1일 후 코스닥" },
-  { value: "kosdaq_4h", label: "4시간 후 코스닥" },
+  { value: "kosdaq_1h", label: "1시간 후 코스닥" },
   { value: "samsung_1d", label: "1일 후 삼성전자" },
   { value: "samsung_1h", label: "1시간 후 삼성전자" },
   { value: "skhynix_1d", label: "1일 후 SK하이닉스" },
