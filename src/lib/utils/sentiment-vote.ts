@@ -17,6 +17,7 @@ import {
   CANDLE_PERIOD_MS,
   VOTING_CLOSE_EARLY_MS,
 } from "@/lib/btc-ohlc/candle-utils";
+import { isTradingDayKST } from "@/lib/korea-ohlc/market-hours";
 
 /** 4h/1h/15m/5m: 주기 절반(기존 마감 시각, 현재 사용하지 않음) — 밀리초 */
 const ROLLING_HALF_PERIOD_MS: Record<"btc_4h" | "btc_1h" | "btc_15m" | "btc_5m", number> = {
@@ -76,7 +77,7 @@ function getRollingPeriodMs(m: SentimentMarket): number {
 
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
-/** 1d/4h/1h는 분 생략, 15m/5m는 분 포함. UTC ms → KST 표시 */
+/** 대부분은 시 단위만, 분이 0이 아니면 분까지 포함. 15m/5m는 항상 분 포함. UTC ms → KST 표시 */
 function formatKstDateTimeForMarket(utcMs: number, market: string): string {
   const kst = new Date(utcMs + KST_OFFSET_MS);
   const y = kst.getUTCFullYear();
@@ -85,6 +86,9 @@ function formatKstDateTimeForMarket(utcMs: number, market: string): string {
   const h = kst.getUTCHours();
   const min = kst.getUTCMinutes();
   if (market === "btc_15m" || market === "btc_5m") {
+    return `${y}년 ${mo}월 ${d}일 ${h}시 ${min}분`;
+  }
+  if (min !== 0) {
     return `${y}년 ${mo}월 ${d}일 ${h}시 ${min}분`;
   }
   return `${y}년 ${mo}월 ${d}일 ${h}시`;
@@ -119,35 +123,13 @@ export function getKSTMinutesSinceMidnight(): number {
 }
 
 /**
- * 해당 시장 마감 시각(KST)까지 분 단위. 0시 = 0, 09:00 = 9*60.
- * 롤링 시장(4h/1h/15m)에서는 사용하지 않음.
- */
-function getCloseMinutes(market: SentimentMarket): number {
-  const { hour, minute } = MARKET_CLOSE_KST[market];
-  return hour * 60 + minute;
-}
-
-/**
  * 투표 허용 여부.
- * - 1일봉: KST 09:01~다음날 09:00 허용 (정산 완료 후 새 투표 시작)
- * - 주식: 당일 해당 시장 마감 시각 전이면 허용
- * - 4h/1h/15m: 현재 봉 종료까지 허용
+ * - 코인 1d/롤링(btc_4h/1h/15m/5m 등): getRollingCloseUtcMs/getCoin1dCloseUtcMs 기준 + VOTING_CLOSE_EARLY_MS 적용
+ * - 기타 시장(ndq, sp500, kospi, kosdaq 등): MARKET_CLOSE_KST 기준 시각에서 VOTING_CLOSE_EARLY_MS만큼 조기 마감
  */
 export function isVotingOpenKST(market?: string): boolean {
   const m: SentimentMarket = market && isSentimentMarket(market) ? market : "btc_1d";
-  if (isRollingMarket(m)) {
-    return Date.now() < getRollingCloseUtcMs(m);
-  }
-  
-  // btc_1d/eth_1d/usdt_1d/xrp_1d: UTC 기준 통일. 10초 조기 마감 적용
-  if (m === "btc_1d" || m === "eth_1d" || m === "usdt_1d" || m === "xrp_1d") {
-    return Date.now() < getCoin1dCloseUtcMs(m);
-  }
-  
-  // 기타 시장 (ndq, sp500, kospi, kosdaq)
-  const mins = getKSTMinutesSinceMidnight();
-  const closeAt = getCloseMinutes(m);
-  return mins < closeAt;
+  return getMillisUntilClose(m) > 0;
 }
 
 /** 마감 시각 라벨 (표기용). 4h/1h/15m/5m은 봉 종료 시점 */
@@ -176,6 +158,7 @@ export function getMillisUntilClose(
 ): number {
   const m: SentimentMarket = market && isSentimentMarket(market) ? market : "btc_1d";
   const isCoin1d = m === "btc_1d" || m === "eth_1d" || m === "usdt_1d" || m === "xrp_1d";
+  const isKoreaMarket = m.startsWith("kospi_") || m.startsWith("kosdaq_") || m.startsWith("samsung_") || m.startsWith("skhynix_") || m.startsWith("hyundai_");
   if (isRollingMarket(m) || isCoin1d) {
     let closeUtcMs: number;
     if (candleStartAt && (isCoin1d || isRollingMarket(m))) {
@@ -198,11 +181,24 @@ export function getMillisUntilClose(
   const mo = kst.getUTCMonth();
   const d = kst.getUTCDate();
   const { hour, minute } = MARKET_CLOSE_KST[m];
-  
-  // 기타 시장 (ndq, sp500, kospi, kosdaq)
-  let closeUtcMs = Date.UTC(y, mo, d, hour - 9, minute, 0, 0);
+
+  // 한국 시장: 거래일이 아니면(주말·휴장일) 항상 마감 상태. isTradingDayKST = 평일 + 휴장일 제외.
+  if (isKoreaMarket && !isTradingDayKST(new Date())) {
+    return 0;
+  }
+
+  // 기타 시장 (ndq, sp500, kospi, kosdaq 등)
+  // MARKET_CLOSE_KST 기준 시각에서 VOTING_CLOSE_EARLY_MS만큼 조기 마감
+  let closeUtcMs = Date.UTC(y, mo, d, hour - 9, minute, 0, 0) - VOTING_CLOSE_EARLY_MS;
   if (closeUtcMs <= utcMs) {
-    closeUtcMs = Date.UTC(y, mo, d + 1, hour - 9, minute, 0, 0);
+    // 코스피/코스닥 등 한국 지수 시장은 하루 단위 투표이므로,
+    // 오늘 마감 시각이 지났다면 "오늘 폴"은 마감된 것으로 보고 0 반환.
+    // (다음 영업일 폴은 새 round로 생성될 때 다시 open 처리)
+    if (isKoreaMarket) {
+      return 0;
+    }
+    // 기타 시장(ndq, sp500 등)은 다음 날 동일 시각까지 롤링 허용
+    closeUtcMs = Date.UTC(y, mo, d + 1, hour - 9, minute, 0, 0) - VOTING_CLOSE_EARLY_MS;
   }
   return Math.max(0, closeUtcMs - utcMs);
 }
@@ -219,13 +215,17 @@ export function getCloseTimeKstString(
 ): string {
   const m: SentimentMarket = market && isSentimentMarket(market) ? market : "btc_1d";
 
-  // 폴의 candle_start_at이 있으면 해당 폴 마감 시각 사용
+  // 폴의 candle_start_at이 있으면 해당 폴 마감 시각 사용 (표시는 항상 KST)
   // 표시: 봉 경계 시각(period 정각). 카운트다운은 period-1초까지 → UI 일치
   const isCoin1d = m === "btc_1d" || m === "eth_1d" || m === "usdt_1d" || m === "xrp_1d";
-  if (candleStartAt && (isCoin1d || isRollingMarket(m))) {
-    const periodMs = isCoin1d
-      ? (CANDLE_PERIOD_MS[m] ?? 24 * 60 * 60 * 1000)
-      : getRollingPeriodMs(m);
+  const isKoreaMarket = m.startsWith("kospi_") || m.startsWith("kosdaq_") || m.startsWith("samsung_") || m.startsWith("skhynix_") || m.startsWith("hyundai_");
+  if (candleStartAt && (isCoin1d || isRollingMarket(m) || isKoreaMarket)) {
+    const periodMs =
+      isCoin1d
+        ? (CANDLE_PERIOD_MS[m] ?? 24 * 60 * 60 * 1000)
+        : isKoreaMarket
+          ? (CANDLE_PERIOD_MS[m] ?? 24 * 60 * 60 * 1000)
+          : getRollingPeriodMs(m);
     const closeUtcMs =
       new Date(candleStartAt).getTime() + periodMs - VOTING_CLOSE_EARLY_MS;
     const boundaryUtcMs = closeUtcMs + VOTING_CLOSE_EARLY_MS;
@@ -252,7 +252,7 @@ export function getCloseTimeKstString(
   const d = kst.getUTCDate();
   const { hour, minute } = MARKET_CLOSE_KST[m];
 
-  // 기타 시장 (ndq, sp500, kospi, kosdaq)
+  // 기타 시장 (ndq, sp500, kospi, kosdaq) — 마감 시각은 MARKET_CLOSE_KST(KST) → UTC로 변환 후 KST로 포맷
   let closeUtcMs = Date.UTC(y, mo, d, hour - 9, minute, 0, 0);
   if (closeUtcMs <= utcMs) {
     closeUtcMs = Date.UTC(y, mo, d + 1, hour - 9, minute, 0, 0);
@@ -302,7 +302,7 @@ export function getLateVotingMultiplierLabel(market?: string): string {
 
 /**
  * 다음 투표 가능 시각을 "연/월/일/시/분부터" 형식(KST)으로 반환.
- * CLOSED 옆에 표기용.
+ * CLOSED 옆에 표기용. 모든 시각은 KST로 표시.
  */
 export function getNextOpenTimeKstString(market?: string): string {
   const m: SentimentMarket = market && isSentimentMarket(market) ? market : "btc_1d";
@@ -320,6 +320,30 @@ export function getNextOpenTimeKstString(market?: string): string {
   const y = kst.getUTCFullYear();
   const mo = kst.getUTCMonth();
   const d = kst.getUTCDate();
+  const h = kst.getUTCHours();
+  const min = kst.getUTCMinutes();
+
+  // 한국 지수: 전부 KST 기준으로 다음 투표 시각 계산
+  const isKorea1d = m === "kospi_1d" || m === "kosdaq_1d" || m === "samsung_1d" || m === "skhynix_1d" || m === "hyundai_1d";
+  const isKorea1h = m === "kospi_1h" || m === "kosdaq_1h" || m === "samsung_1h" || m === "skhynix_1h" || m === "hyundai_1h";
+  if (isKorea1d) {
+    // 1일봉: 다음 거래일 09:00 KST (09:00 KST = 00:00 UTC 해당일)
+    const nextOpenUtcMs = Date.UTC(y, mo, d + 1, 0, 0, 0, 0);
+    return `${formatKstDateTimeForMarket(nextOpenUtcMs, m)}부터`;
+  }
+  if (isKorea1h) {
+    // 1시간봉: 15:00 KST 이전이면 다음 시 정각 KST, 이후면 다음날 09:00 KST
+    const afterClose = h > 15 || (h === 15 && min >= 0);
+    if (afterClose) {
+      const nextOpenUtcMs = Date.UTC(y, mo, d + 1, 0, 0, 0, 0);
+      return `${formatKstDateTimeForMarket(nextOpenUtcMs, m)}부터`;
+    }
+    const nextHourKst = h + 1;
+    const nextOpenUtcMs = Date.UTC(y, mo, d, nextHourKst - 9, 0, 0, 0);
+    return `${formatKstDateTimeForMarket(nextOpenUtcMs, m)}부터`;
+  }
+
+  // 기타 시장(ndq, sp500 등): 기존 로직 유지 (15:00 UTC = 자정 KST)
   const nextOpenUtcMs = Date.UTC(y, mo, d, 15, 0, 0, 0);
   return `${formatKstDateTimeForMarket(nextOpenUtcMs, m)}부터`;
 }

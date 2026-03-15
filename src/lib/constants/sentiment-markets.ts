@@ -31,9 +31,15 @@ export const SENTIMENT_MARKETS = [
   "sp500_1d",
   "sp500_4h",
   "kospi_1d",
-  "kospi_4h",
+  "kospi_1h",
   "kosdaq_1d",
-  "kosdaq_4h",
+  "kosdaq_1h",
+  "samsung_1d",
+  "samsung_1h",
+  "skhynix_1d",
+  "skhynix_1h",
+  "hyundai_1d",
+  "hyundai_1h",
   "dow_jones_1d",
   "dow_jones_4h",
   "wti_1d",
@@ -68,7 +74,19 @@ export const MIN_BET_VTC = 500;
 /** API/UI 입력 "btc"를 DB용 "btc_1d"로 정규화 */
 export function normalizeToDbMarket(market: string): SentimentMarket {
   const normalized =
-    market === "btc" ? "btc_1d" : market === "eth" ? "eth_1d" : market === "usdt" ? "usdt_1d" : market === "xrp" ? "xrp_1d" : market;
+    market === "btc"
+      ? "btc_1d"
+      : market === "eth"
+        ? "eth_1d"
+        : market === "usdt"
+          ? "usdt_1d"
+          : market === "xrp"
+            ? "xrp_1d"
+            : market === "kospi_4h"
+              ? "kospi_1h"
+              : market === "kosdaq_4h"
+                ? "kosdaq_1h"
+                : market;
   return SENTIMENT_MARKETS.includes(normalized as SentimentMarket)
     ? (normalized as SentimentMarket)
     : "btc_1d";
@@ -101,10 +119,17 @@ export const MARKET_CLOSE_KST: Record<SentimentMarket, { hour: number; minute: n
   ndq_4h: { hour: 20, minute: 30 },
   sp500_1d: { hour: 3, minute: 30 },
   sp500_4h: { hour: 20, minute: 30 },
-  kospi_1d: { hour: 13, minute: 0 },
-  kospi_4h: { hour: 20, minute: 30 },
-  kosdaq_1d: { hour: 13, minute: 0 },
-  kosdaq_4h: { hour: 20, minute: 30 },
+  // 한국 지수: 1일봉은 15:30 마감, 1시간봉은 15:00 기준 (정각 이전 59분 45초까지 투표 허용)
+  kospi_1d: { hour: 15, minute: 30 },
+  kospi_1h: { hour: 15, minute: 0 },
+  kosdaq_1d: { hour: 15, minute: 30 },
+  kosdaq_1h: { hour: 15, minute: 0 },
+  samsung_1d: { hour: 15, minute: 30 },
+  samsung_1h: { hour: 15, minute: 0 },
+  skhynix_1d: { hour: 15, minute: 30 },
+  skhynix_1h: { hour: 15, minute: 0 },
+  hyundai_1d: { hour: 15, minute: 30 },
+  hyundai_1h: { hour: 15, minute: 0 },
   dow_jones_1d: { hour: 3, minute: 30 },
   dow_jones_4h: { hour: 20, minute: 30 },
   wti_1d: { hour: 9, minute: 0 },
@@ -156,9 +181,15 @@ export const MARKET_LABEL: Record<SentimentMarket, string> = {
   sp500_1d: "1일 후 SPX",
   sp500_4h: "4시간 후 SPX",
   kospi_1d: "1일 후 코스피",
-  kospi_4h: "4시간 후 코스피",
+  kospi_1h: "1시간 후 코스피",
   kosdaq_1d: "1일 후 코스닥",
-  kosdaq_4h: "4시간 후 코스닥",
+  kosdaq_1h: "1시간 후 코스닥",
+  samsung_1d: "1일 후 삼성전자",
+  samsung_1h: "1시간 후 삼성전자",
+  skhynix_1d: "1일 후 SK하이닉스",
+  skhynix_1h: "1시간 후 SK하이닉스",
+  hyundai_1d: "1일 후 현대자동차",
+  hyundai_1h: "1시간 후 현대자동차",
   dow_jones_1d: "1일 후 다우존스",
   dow_jones_4h: "4시간 후 다우존스",
   wti_1d: "1일 후 WTI",
@@ -188,7 +219,7 @@ export const MARKET_SECTIONS: { sectionLabel: string; markets: SentimentMarket[]
   { sectionLabel: "비트코인", markets: ["btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m"] },
   /* 사용예정
   { sectionLabel: "미국 주식", markets: ["ndq_1d", "ndq_4h", "sp500_1d", "sp500_4h"] },
-  { sectionLabel: "한국 주식", markets: ["kospi_1d", "kospi_4h", "kosdaq_1d", "kosdaq_4h"] },
+  { sectionLabel: "한국 주식", markets: ["kospi_1d", "kospi_1h", "kosdaq_1d", "kosdaq_1h", "samsung_1d", "samsung_1h"] },
   */
 ];
 
@@ -196,4 +227,15 @@ export function isSentimentMarket(value: string): value is SentimentMarket {
   const normalized =
     value === "btc" ? "btc_1d" : value === "eth" ? "eth_1d" : value === "usdt" ? "usdt_1d" : value === "xrp" ? "xrp_1d" : value;
   return SENTIMENT_MARKETS.includes(normalized as SentimentMarket);
+}
+
+/**
+ * 한국 주식 시장 여부 (코스피/코스닥/삼성전자 등).
+ * 이 목록에 있는 시장은 마감 후 "다음 투표" 대신 "다음"만 표시.
+ * 새 한국 주식 추가 시 여기에 접두사만 추가하면 됨.
+ */
+const KOREA_STOCK_PREFIXES = ["kospi_", "kosdaq_", "samsung_", "skhynix_", "hyundai_"] as const;
+
+export function isKoreaStockMarket(market: string): boolean {
+  return KOREA_STOCK_PREFIXES.some((p) => market.startsWith(p));
 }

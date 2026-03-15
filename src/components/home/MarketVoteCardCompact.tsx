@@ -14,7 +14,7 @@ import {
   getCloseTimeKstString,
   getNextOpenTimeKstString,
 } from "@/lib/utils/sentiment-vote";
-import { MARKET_LABEL } from "@/lib/constants/sentiment-markets";
+import { MARKET_LABEL, isKoreaStockMarket } from "@/lib/constants/sentiment-markets";
 import type { SentimentMarket } from "@/lib/constants/sentiment-markets";
 import type { PollData } from "./MarketVoteCard";
 
@@ -45,9 +45,17 @@ const CARD_TITLE_LINE1: Record<string, string> = {
   sp500_1d: "1일 후 SPX",
   sp500_4h: "4시간 후 SPX",
   kospi_1d: "1일 후 코스피",
+  kospi_1h: "1시간 후 코스피",
   kospi_4h: "4시간 후 코스피",
   kosdaq_1d: "1일 후 코스닥",
+  kosdaq_1h: "1시간 후 코스닥",
   kosdaq_4h: "4시간 후 코스닥",
+  samsung_1d: "1일 후 삼성전자",
+  samsung_1h: "1시간 후 삼성전자",
+  skhynix_1d: "1일 후 SK하이닉스",
+  skhynix_1h: "1시간 후 SK하이닉스",
+  hyundai_1d: "1일 후 현대자동차",
+  hyundai_1h: "1시간 후 현대자동차",
   dow_jones_1d: "1일 후 다우존스",
   dow_jones_4h: "4시간 후 다우존스",
   wti_1d: "1일 후 WTI",
@@ -127,8 +135,7 @@ export function MarketVoteCardCompact({ market, poll }: Props) {
       aria-labelledby={`compact-${market}`}
     >
       <Link href={detailHref} className="block mb-3">
-        <div className="flex min-w-0 items-center justify-between gap-2">
-        <div className="flex min-w-0 flex-1 items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           <div aria-hidden>
             <MarketIcon market={market} size="compact" showTimeframe />
           </div>
@@ -137,22 +144,6 @@ export function MarketVoteCardCompact({ market, poll }: Props) {
             <span className="block leading-tight">{titleLine2}</span>
           </h3>
         </div>
-        <div className="flex shrink-0 items-center gap-1.5">
-          {longPct > shortPct ? (
-            <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-              상승 {longPct}%
-            </span>
-          ) : shortPct > longPct ? (
-            <span className="rounded-full bg-rose-500/20 px-2 py-0.5 text-xs font-semibold text-rose-600 dark:text-rose-400">
-              하락 {shortPct}%
-            </span>
-          ) : (
-            <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
-              50:50
-            </span>
-          )}
-        </div>
-      </div>
       </Link>
 
       <p className="mb-3 text-xs text-muted-foreground" suppressHydrationWarning>
@@ -161,7 +152,9 @@ export function MarketVoteCardCompact({ market, poll }: Props) {
           : voteOpen
             ? getCloseTimeKstString(market, poll?.candle_start_at)
             : nextOpenLabel
-              ? `다음 투표 ${nextOpenLabel}`
+              ? (isKoreaStockMarket(market)
+                  ? `다음 ${nextOpenLabel}`
+                  : `다음 투표 ${nextOpenLabel}`)
               : "마감"}
       </p>
 
@@ -182,14 +175,14 @@ export function MarketVoteCardCompact({ market, poll }: Props) {
           className="flex min-h-[32px] flex-col items-center justify-center rounded-lg border-2 border-emerald-500/60 bg-emerald-500/10 py-1.5 text-emerald-400 transition-all hover:border-emerald-400 hover:bg-emerald-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 sm:min-h-[36px] sm:rounded-xl sm:py-2"
         >
           <span className="text-base font-bold sm:text-lg">Up</span>
-          <span className="mt-0.5 text-[10px] text-muted-foreground">상승</span>
+          <span className="mt-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400" title="베팅 비율">{longPct}%</span>
         </Link>
         <Link
           href={`${detailHref}?choice=short`}
           className="flex min-h-[32px] flex-col items-center justify-center rounded-lg border-2 border-rose-500/60 bg-rose-500/10 py-1.5 text-rose-400 transition-all hover:border-rose-400 hover:bg-rose-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 sm:min-h-[36px] sm:rounded-xl sm:py-2"
         >
           <span className="text-base font-bold sm:text-lg">Down</span>
-          <span className="mt-0.5 text-[10px] text-muted-foreground">하락</span>
+          <span className="mt-0.5 text-xs font-semibold text-rose-600 dark:text-rose-400" title="베팅 비율">{shortPct}%</span>
         </Link>
       </div>
 

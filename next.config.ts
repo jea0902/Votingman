@@ -22,6 +22,11 @@ const nextConfig: NextConfig = {
         hostname: "s3-symbol-logo.tradingview.com",
         pathname: "/**",
       },
+      {
+        protocol: "https",
+        hostname: "logo.clearbit.com",
+        pathname: "/**",
+      },
     ],
   },
 };

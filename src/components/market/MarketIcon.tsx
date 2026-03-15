@@ -54,9 +54,17 @@ const STOCK_ICON_URL: Record<string, string> = {
   sp500_1d: "https://s3-symbol-logo.tradingview.com/indices/s-and-p-500--big.svg",
   sp500_4h: "https://s3-symbol-logo.tradingview.com/indices/s-and-p-500--big.svg",
   kospi_1d: "https://s3-symbol-logo.tradingview.com/indices/korea-composite-index--big.svg",
+  kospi_1h: "https://s3-symbol-logo.tradingview.com/indices/korea-composite-index--big.svg",
   kospi_4h: "https://s3-symbol-logo.tradingview.com/indices/korea-composite-index--big.svg",
   kosdaq_1d: "https://s3-symbol-logo.tradingview.com/indices/kosdaq--big.svg",
+  kosdaq_1h: "https://s3-symbol-logo.tradingview.com/indices/kosdaq--big.svg",
   kosdaq_4h: "https://s3-symbol-logo.tradingview.com/indices/kosdaq--big.svg",
+  samsung_1d: "/images/stock_icon/samsung_icon.png",
+  samsung_1h: "/images/stock_icon/samsung_icon.png",
+  skhynix_1d: "/images/stock_icon/skhynix_icon.png",
+  skhynix_1h: "/images/stock_icon/skhynix_icon.png",
+  hyundai_1d: "/images/stock_icon/hyundai_icon.png",
+  hyundai_1h: "/images/stock_icon/hyundai_icon.png",
   dow_jones_1d: "https://s3-symbol-logo.tradingview.com/indices/dow-30--big.svg",
   dow_jones_4h: "https://s3-symbol-logo.tradingview.com/indices/dow-30--big.svg",
   wti_1d: "https://s3-symbol-logo.tradingview.com/commodities/light-crude-oil--big.svg",
@@ -92,26 +100,20 @@ type Props = {
 export function MarketIcon({ market, size = "default", showTimeframe = false }: Props) {
   const px = size === "compact" ? 36 : 40;
 
+  const circleClass =
+    "flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-border/50 bg-muted/30";
+
   if (isCoinMarket(market)) {
     const iconUrl = COIN_ICON[market];
     return (
-      <div
-        className={`flex shrink-0 items-center gap-1.5 rounded-lg bg-amber-500/20 ${size === "compact" ? "h-9 px-2" : "h-10 px-2.5 gap-2"}`}
-      >
+      <div className={circleClass} style={{ width: px, height: px }}>
         <Image
           src={iconUrl ?? "https://assets.coingecko.com/coins/images/1/small/bitcoin.png"}
           alt=""
           width={size === "compact" ? 24 : 28}
           height={size === "compact" ? 24 : 28}
-          className="shrink-0"
+          className="h-full w-full object-contain"
         />
-        {showTimeframe && (
-          <span
-            className={`font-bold text-amber-700 dark:text-amber-500 ${size === "compact" ? "text-xs" : "text-sm"}`}
-          >
-            {TIMEFRAME_LABEL[market] ?? market}
-          </span>
-        )}
       </div>
     );
   }
@@ -119,10 +121,7 @@ export function MarketIcon({ market, size = "default", showTimeframe = false }: 
   const imageUrl = STOCK_ICON_URL[market];
   if (imageUrl) {
     return (
-      <div
-        className="flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-border/50 bg-muted/30"
-        style={{ width: px, height: px }}
-      >
+      <div className={circleClass} style={{ width: px, height: px }}>
         <Image
           src={imageUrl}
           alt=""
@@ -136,7 +135,7 @@ export function MarketIcon({ market, size = "default", showTimeframe = false }: 
 
   return (
     <span
-      className="flex shrink-0 items-center justify-center rounded-lg bg-amber-500/20 text-sm font-bold text-amber-700 dark:text-amber-500"
+      className={`${circleClass} text-sm font-bold text-amber-700 dark:text-amber-500`}
       style={{ width: px, height: px }}
     >
       {market.toUpperCase()}

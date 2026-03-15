@@ -9,23 +9,25 @@
  */
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import { Users, AlertTriangle, Clock, Gift } from "lucide-react";
+import { Users, AlertTriangle, Clock, Gift, Database } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ActiveStatusTab } from "./ActiveStatusTab";
 import { UnsettledVotesTab } from "./UnsettledVotesTab";
 import { CronStatusPanel } from "./CronStatusPanel";
+import { KoreaOhlcBackfillTab } from "./KoreaOhlcBackfillTab";
 import { MonthlyRewardsTab } from "./MonthlyRewardsTab";
 
-type TabId = "active" | "unsettled" | "cron" | "rewards";
+type TabId = "active" | "unsettled" | "cron" | "rewards" | "korea_ohlc";
 
 const TABS: { id: TabId; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: "active", label: "활성 현황", icon: Users },
   { id: "unsettled", label: "미정산 투표 처리", icon: AlertTriangle },
   { id: "cron", label: "크론상태", icon: Clock },
   { id: "rewards", label: "월별 보상", icon: Gift },
+  { id: "korea_ohlc", label: "OHLC 백필", icon: Database },
 ];
 
-const VALID_TABS: TabId[] = ["active", "unsettled", "cron", "rewards"];
+const VALID_TABS: TabId[] = ["active", "unsettled", "cron", "rewards", "korea_ohlc"];
 
 export function AdminDashboard() {
   const searchParams = useSearchParams();
@@ -72,6 +74,7 @@ export function AdminDashboard() {
         {activeTab === "unsettled" && <UnsettledVotesTab />}
         {activeTab === "cron" && <CronStatusPanel />}
         {activeTab === "rewards" && <MonthlyRewardsTab />}
+        {activeTab === "korea_ohlc" && <KoreaOhlcBackfillTab />}
       </div>
     </div>
   );

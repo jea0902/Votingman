@@ -281,6 +281,9 @@ export function getCandlesForPollDate(
     case "sp500_1d":
     case "kospi_1d":
     case "kosdaq_1d":
+    case "samsung_1d":
+    case "skhynix_1d":
+    case "hyundai_1d":
     case "dow_jones_1d":
     case "wti_1d":
     case "xau_1d":
@@ -326,6 +329,18 @@ export function getCandlesForPollDate(
     case "kospi_4h": {
       for (let s = 0; s < 6; s++) {
         result.push(getBtc4hCandleStartAt(pollDate, s));
+      }
+      break;
+    }
+    case "kospi_1h":
+    case "kosdaq_1h":
+    case "samsung_1h":
+    case "skhynix_1h":
+    case "hyundai_1h": {
+      // 10:00~15:00 KST = 01:00~06:00 UTC (당일 결과용)
+      const [y, m, d] = pollDate.split("-").map(Number);
+      for (let utcHour = 1; utcHour <= 6; utcHour++) {
+        result.push(new Date(Date.UTC(y, m - 1, d, utcHour, 0, 0, 0)).toISOString());
       }
       break;
     }
@@ -562,6 +577,11 @@ export function getCurrentCandleStartAt(market: string): string {
     case "eth_1h":
     case "usdt_1h":
     case "xrp_1h":
+    case "kospi_1h":
+    case "kosdaq_1h":
+    case "samsung_1h":
+    case "skhynix_1h":
+    case "hyundai_1h":
       return getBtc1hCandleStartAt(dateStr, h);
     case "btc_15m":
     case "eth_15m":
@@ -642,8 +662,16 @@ export const CANDLE_PERIOD_MS: Record<string, number> = {
   xrp_1d: MS_1D,
   ndq_4h: MS_4H,
   sp500_4h: MS_4H,
-  kospi_4h: MS_4H,
-  kosdaq_4h: MS_4H,
+  kospi_1h: MS_1H,
+  kosdaq_1h: MS_1H,
+  samsung_1h: MS_1H,
+  skhynix_1h: MS_1H,
+  hyundai_1h: MS_1H,
+  kospi_1d: MS_1D,
+  kosdaq_1d: MS_1D,
+  samsung_1d: MS_1D,
+  skhynix_1d: MS_1D,
+  hyundai_1d: MS_1D,
   dow_jones_4h: MS_4H,
   wti_4h: MS_4H,
   xau_4h: MS_4H,

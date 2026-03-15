@@ -50,7 +50,7 @@ export function getRecentKoreaCandleStartAts(
   const result: string[] = [];
 
   for (let i = 0; i < count; i++) {
-    if (market === "kospi_1d" || market === "kosdaq_1d") {
+    if (market === "kospi_1d" || market === "kosdaq_1d" || market === "samsung_1d" || market === "skhynix_1d" || market === "hyundai_1d") {
       const utcMs = now.getTime() - (i + 1) * MS_1D;
       const utc = new Date(utcMs);
       const uy = utc.getUTCFullYear();

@@ -112,7 +112,7 @@ export async function getKoreaOhlcByMarketAndCandleStart(
     return toResult(exactData);
   }
 
-  const is1d = market === "kospi_1d" || market === "kosdaq_1d";
+  const is1d = market === "kospi_1d" || market === "kosdaq_1d" || market === "samsung_1d" || market === "skhynix_1d" || market === "hyundai_1d";
   const key = is1d ? getKorea1dCandleStartAtUtc(exactKey.slice(0, 10)) : exactKey;
   const { data, error } = await admin
     .from("korea_ohlc")
@@ -123,4 +123,56 @@ export async function getKoreaOhlcByMarketAndCandleStart(
 
   if (error || !data) return null;
   return toResult(data);
+}
+
+/**
+ * 차트용: 시장별 캔들 범위 조회
+ * - from/to가 없으면 전체 기간 중 최근 limit개
+ * - from/to가 있으면 해당 구간 내에서 최대 limit개 (오래된 것부터 정렬)
+ */
+export async function getKoreaOhlcRange(
+  market: string,
+  options: {
+    from?: string; // ISO or YYYY-MM-DD
+    to?: string; // ISO or YYYY-MM-DD
+    limit?: number;
+  } = {}
+): Promise<
+  Array<{
+    candle_start_at: string;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+  }>
+> {
+  const admin = createSupabaseAdmin();
+  const { from, to } = options;
+  const limit = Math.min(Math.max(options.limit ?? 500, 1), 2000);
+
+  let query = admin
+    .from("korea_ohlc")
+    .select("candle_start_at, open, high, low, close")
+    .eq("market", market)
+    .order("candle_start_at", { ascending: true })
+    .limit(limit);
+
+  if (from) {
+    const fromIso = from.length === 10 ? `${from}T00:00:00.000Z` : from;
+    query = query.gte("candle_start_at", fromIso);
+  }
+  if (to) {
+    const toIso = to.length === 10 ? `${to}T23:59:59.999Z` : to;
+    query = query.lte("candle_start_at", toIso);
+  }
+
+  const { data, error } = await query;
+  if (error || !data) return [];
+  return data.map((row) => ({
+    candle_start_at: row.candle_start_at as string,
+    open: Number(row.open),
+    high: Number(row.high),
+    low: Number(row.low),
+    close: Number(row.close),
+  }));
 }

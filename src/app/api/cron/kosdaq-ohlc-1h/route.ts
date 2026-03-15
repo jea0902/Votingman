@@ -19,6 +19,7 @@ import {
   isNowTradingDayKST,
   isTradingHourKST,
 } from "@/lib/korea-ohlc/market-hours";
+import { settlePoll } from "@/lib/sentiment/settlement-service";
 
 const CRON_START_DELAY_MS = 1500;
 const MARKET = "kosdaq_1h";
@@ -66,14 +67,18 @@ export async function GET(request: Request) {
 
     const { inserted, errors } = await upsertKoreaOhlcBatch(rows);
 
+    const justClosed = rows[0];
+    const settle = await settlePoll("", MARKET, justClosed.candle_start_at);
+
     return NextResponse.json({
       success: true,
       data: {
-        message: "kosdaq_1h 수집 완료",
+        message: "kosdaq_1h 수집 및 정산 완료",
         total_fetched: rows.length,
         upserted: inserted,
         errors,
-        candle_start_at: rows[0]?.candle_start_at,
+        candle_start_at: justClosed.candle_start_at,
+        settle,
       },
     });
   } catch (e) {

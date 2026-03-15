@@ -16,6 +16,7 @@ import {
 import { isSentimentMarket, MIN_BET_VTC } from "@/lib/constants/sentiment-markets";
 import { toCanonicalCandleStartAt } from "@/lib/btc-ohlc/candle-utils";
 import { getOhlcByMarketAndCandleStart } from "@/lib/btc-ohlc/repository";
+import { getKoreaOhlcByMarketAndCandleStart } from "@/lib/korea-ohlc/repository";
 import { CANDLE_PERIOD_MS, VOTING_CLOSE_EARLY_MS } from "@/lib/btc-ohlc/candle-utils";
 
 const COIN_MARKETS = [
@@ -23,6 +24,19 @@ const COIN_MARKETS = [
   "eth_1d", "eth_4h", "eth_1h", "eth_15m", "eth_5m",
   "usdt_1d", "usdt_4h", "usdt_1h", "usdt_15m", "usdt_5m",
   "xrp_1d", "xrp_4h", "xrp_1h", "xrp_15m", "xrp_5m",
+] as const;
+
+const KOREA_MARKETS = [
+  "kospi_1d",
+  "kospi_1h",
+  "kosdaq_1d",
+  "kosdaq_1h",
+  "samsung_1d",
+  "samsung_1h",
+  "skhynix_1d",
+  "skhynix_1h",
+  "hyundai_1d",
+  "hyundai_1h",
 ] as const;
 
 /** 폴의 캔들 마감 시각이 지났는지 (투표 불가). 1초 조기 마감 적용 */
@@ -93,37 +107,61 @@ export async function POST(request: NextRequest) {
 
     // btc 시장: 1) 캔들 마감 시각 경과 시 즉시 차단 2) btc_ohlc에 종가 있으면 차단
     const pollMarket = poll.market ?? market;
-    if (
-      candleStartAt &&
-      COIN_MARKETS.includes(pollMarket as (typeof COIN_MARKETS)[number])
-    ) {
-      if (isPollCandleClosed(candleStartAt, pollMarket)) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: {
-              code: "VOTING_CLOSED",
-              message: "해당 투표는 마감되었습니다. (마감 시각 경과)",
-            },
-          },
-          { status: 400 }
-        );
-      }
-      const ohlc = await getOhlcByMarketAndCandleStart(
-        pollMarket,
-        toCanonicalCandleStartAt(candleStartAt)
+    if (candleStartAt) {
+      const isCoinMarket = COIN_MARKETS.includes(
+        pollMarket as (typeof COIN_MARKETS)[number]
       );
-      if (ohlc) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: {
-              code: "VOTING_CLOSED",
-              message: "해당 투표는 마감되었습니다. (cron 수집 완료)",
+      const isKoreaMarket = KOREA_MARKETS.includes(
+        pollMarket as (typeof KOREA_MARKETS)[number]
+      );
+
+      if (isCoinMarket) {
+        if (isPollCandleClosed(candleStartAt, pollMarket)) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: {
+                code: "VOTING_CLOSED",
+                message: "해당 투표는 마감되었습니다. (마감 시각 경과)",
+              },
             },
-          },
-          { status: 400 }
+            { status: 400 }
+          );
+        }
+        const ohlc = await getOhlcByMarketAndCandleStart(
+          pollMarket,
+          toCanonicalCandleStartAt(candleStartAt)
         );
+        if (ohlc) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: {
+                code: "VOTING_CLOSED",
+                message: "해당 투표는 마감되었습니다. (cron 수집 완료)",
+              },
+            },
+            { status: 400 }
+          );
+        }
+      } else if (isKoreaMarket) {
+        // 한국 지수 시장: korea_ohlc에 해당 봉이 존재하면 Cron 수집 완료 → 투표 차단
+        const ohlc = await getKoreaOhlcByMarketAndCandleStart(
+          pollMarket,
+          candleStartAt
+        );
+        if (ohlc) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: {
+                code: "VOTING_CLOSED",
+                message: "해당 투표는 마감되었습니다. (korea_ohlc 수집 완료)",
+              },
+            },
+            { status: 400 }
+          );
+        }
       }
     } else if (!isVotingOpenKST(market)) {
       return NextResponse.json(

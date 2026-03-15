@@ -10,17 +10,32 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/lib/supabase/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { toCanonicalCandleStartAt } from "@/lib/btc-ohlc/candle-utils";
+import { toCanonicalCandleStartAt, getPreviousCandleStartAt } from "@/lib/btc-ohlc/candle-utils";
 import { getOhlcByMarketAndCandleStart } from "@/lib/btc-ohlc/repository";
+import { getKoreaOhlcByMarketAndCandleStart } from "@/lib/korea-ohlc/repository";
 import { MARKET_LABEL } from "@/lib/constants/sentiment-markets";
 import { getPollDateDisplayForKst } from "@/lib/utils/poll-date-display";
 
-/** 시가·종가·가격변동률 조회 대상 (btc_ohlc에 저장된 코인 시장) */
+/** 시가·종가·가격변동률 조회 대상 (btc_ohlc) */
 const COIN_MARKETS = [
   "btc_1d", "btc_4h", "btc_1h", "btc_15m", "btc_5m",
   "eth_1d", "eth_4h", "eth_1h", "eth_15m", "eth_5m",
   "usdt_1d", "usdt_4h", "usdt_1h", "usdt_15m", "usdt_5m",
   "xrp_1d", "xrp_4h", "xrp_1h", "xrp_15m", "xrp_5m",
+] as const;
+
+/** 한국 지수 (korea_ohlc, 직전 봉 종가=시가·현재 봉 종가=종가) */
+const KOREA_MARKETS = [
+  "kospi_1d",
+  "kospi_1h",
+  "kosdaq_1d",
+  "kosdaq_1h",
+  "samsung_1d",
+  "samsung_1h",
+  "skhynix_1d",
+  "skhynix_1h",
+  "hyundai_1d",
+  "hyundai_1h",
 ] as const;
 
 export type VoteHistoryRow = {
@@ -171,6 +186,18 @@ export async function GET(request: NextRequest) {
           open = ohlc.open;
           close = ohlc.close;
         }
+      } else if (
+        candleStartAt &&
+        KOREA_MARKETS.includes(market as (typeof KOREA_MARKETS)[number])
+      ) {
+        const base = toCanonicalCandleStartAt(candleStartAt);
+        const prevStart = getPreviousCandleStartAt(market, base);
+        const [prevOhlc, currOhlc] = await Promise.all([
+          getKoreaOhlcByMarketAndCandleStart(market, prevStart),
+          getKoreaOhlcByMarketAndCandleStart(market, base),
+        ]);
+        if (prevOhlc) open = prevOhlc.settlement_close;
+        if (currOhlc) close = currOhlc.settlement_close;
       }
 
       // payout_history 기준 승부 판정 (정산 결과와 일치)

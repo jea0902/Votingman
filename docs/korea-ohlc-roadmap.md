@@ -179,7 +179,7 @@
 | # | 과제 | 내용 | 산출물 |
 |---|------|------|--------|
 | 3.1 | **정산 서비스: korea_ohlc 분기** | settlePoll(또는 호출부)에서 market가 kospi/kosdaq이면 **korea_ohlc**에서 reference_close(open), settlement_close(close) 조회. 승/패/무효 판정 로직은 기존과 동일. | `src/lib/sentiment/settlement-service.ts` |
-| 3.2 | **정산 Cron 연동** | 기존 “마감된 폴 정산” Cron이 kospi/kosdaq 폴도 처리하도록. korea_ohlc에 해당 candle_start_at 행이 있을 때만 정산 시도. | 기존 settlement cron 또는 통합 스케줄러 |
+| 3.2 | **정산 Cron 연동** | 기존 “마감된 폴 정산” API(`/api/sentiment/settle`, settlePoll) 가 kospi/kosdaq 폴도 처리하도록. korea_ohlc에 해당 candle_start_at 행이 있을 때만 정산 시도. | `/api/sentiment/settle` 정산 Cron 설정 (아래 URL·스케줄 참고) |
 | 3.3 | **알림** | payout_history INSERT → 기존 payout_notification_trigger 그대로 사용 (시장 구분 없음). | 변경 없음 |
 
 ### Phase 4: 차트·부가
@@ -190,6 +190,57 @@
 | 4.2 | **당일 결과/전적** | kospi/kosdaq 시장의 당일 결과·전적 API가 korea_ohlc(또는 정산 결과) 기준으로 동작하도록. | `today-results`, `vote-history` 등 |
 
 ---
+
+## 4.x korea_ohlc 기반 차트 성능 설계 (DB → 차트)
+
+> 코스피/코스닥 차트를 **korea_ohlc DB 기반**으로 그릴 때, 트래픽 증가·장기 데이터에도 성능 이슈가 없도록 하기 위한 가이드.
+
+### 4.x.1 API 설계 원칙
+
+- **범위 제한 기본값**  
+  - `/api/sentiment/korea-klines?market=kospi_1h` 등 조회 API는 기본적으로 **최근 N개 캔들(예: 200~500개)**만 반환.  
+  - 더 긴 기간이 필요할 때는 `from=YYYY-MM-DD&to=YYYY-MM-DD` 또는 `limit/offset`으로 **페이지네이션**.
+- **좋은 인덱스 활용**  
+  - 이미 스키마에서 `market`, `(market, candle_start_at)` 인덱스를 두고 있으므로,  
+    - 쿼리는 항상 `WHERE market = $1 AND candle_start_at BETWEEN $2 AND $3 ORDER BY candle_start_at` 패턴으로 설계한다.
+- **캐싱 전략**  
+  - 조회가 잦은 구간(예: “최근 1일/1주”)은:
+    - Next.js `revalidate`(짧은 TTL) 또는
+    - 서버 메모리 캐시(LRU) 등을 이용해 **짧게 캐시** → 피크 타임에 DB 부하 감소.
+- **다운샘플링(옵션)**  
+  - 아주 긴 기간(수년치)을 한 번에 보여줄 필요가 있을 때는:
+    - 서버에서 미리 4h/1d 단위로 **다운샘플링된 시계열**을 제공하고,
+    - 프론트 차트는 줌 레벨에 따라 1h vs 4h/1d 데이터를 선택하도록 구성.
+
+### 4.x.2 프론트(차트) 쪽 권장 패턴
+
+- **포인트 수 제한**  
+  - 한 번에 그리는 캔들 수를 **수백 개(예: 300~500)** 정도로 제한.  
+  - 더 오래된 구간은 “이전 데이터 더 불러오기” 형태로 뒤로 페이지네이션.
+- **줌 레벨에 따른 데이터 소스 선택**  
+  - 예:  
+    - 최근 3일 이내 → 1h 캔들,  
+    - 3개월~1년 → 4h 또는 1d 캔들,  
+    - 그 이상 → 1d만.  
+  - 이렇게 하면 브라우저가 한 번에 렌더링하는 포인트 수가 줄어들어, 유저 수가 늘어나도 렌더링이 부드럽게 유지된다.
+- **네트워크량 관리**  
+  - 같은 차트 범위에서 페이지 이동/리렌더링 시,  
+    - 클라이언트/전역 상태에 최근 시계열을 캐시해서 **불필요한 API 재호출을 줄이는 것**도 고려.
+
+### 4.x.3 운영 관점
+
+- **백필 범위 전략**  
+  - 1h 캔들은 최근 6~12개월, 1d 캔들은 3~5년 정도만 백필해도 대부분의 UI/분석 니즈를 커버할 수 있다.  
+  - 더 오래된 데이터는 필요할 때 추가로 백필하는 전략으로, 테이블 크기를 제어한다.
+- **모니터링**  
+  - `/api/sentiment/korea-klines`에 대해:
+    - 평균/95% 지연(latency),
+    - 응답 크기(bytes),
+    - 분당 호출 수  
+  - 를 모니터링하고, 임계치를 넘으면:
+    - limit 기본값 조정,
+    - TTL/캐시 조정,
+    - 인덱스/쿼리 플랜 재점검을 통해 성능을 유지한다.
 
 ## 4. korea_ohlc 테이블 스키마
 
@@ -239,6 +290,21 @@
   - 스케줄: 타임존 Asia/Seoul, 10:00~15:00, 1시간 간격.  
   - **동작**: 코스피 1h와 동일. 휴장일/장 시간 외 구간이면 수집 생략.
 
+- **정산 API (모든 시장 공통)**  
+  - URL: `POST https://<배포 도메인>/api/sentiment/settle`  
+  - body 예시 (한국 1일봉 정산):  
+    ```json
+    { "poll_date": "2026-03-13", "market": "kospi_1d" }
+    ```  
+    - `poll_date`: KST 기준 YYYY-MM-DD (생략 시 기본 btc_1d 어제로 처리되므로, 한국 시장에서는 **반드시 명시** 추천)  
+    - `market`: `kospi_1d`, `kosdaq_1d`, `kospi_1h`, `kosdaq_1h` 지원 (이미 settlePoll에서 korea_ohlc 분기 처리).
+  - 스케줄 예시:  
+    - 1일봉: 타임존 Asia/Seoul, 매 영업일 **15:35**(일봉 Cron이 끝난 뒤 여유를 두고)  
+      - body: `{ "poll_date": "<오늘날짜>", "market": "kospi_1d" }` / `{ "poll_date": "<오늘날짜>", "market": "kosdaq_1d" }`  
+    - 1시간봉: 10:02, 11:02, …, 15:02 등, 각 1시간봉 Cron이 끝난 뒤 몇 분 후에  
+      - body: `{ "poll_date": "<오늘날짜>", "market": "kospi_1h" }` / `"kosdaq_1h"`  
+      - settlePoll은 `candle_start_at`가 생략되면 poll_date + market 기준으로 “해당 날짜의 현재 슬롯”을 찾아 정산하므로, 한국 1h 시장도 지원 가능.
+
 ---
 
 ## 7. 체크리스트 (진행 시 업데이트)
@@ -248,14 +314,114 @@
 - [x] 1.3 kospi-ohlc-daily Cron
 - [x] 1.4 kospi-ohlc-hourly Cron (초기 버전: 4h에서 1h 설계로 전환 예정)
 - [x] 1.5 (선택) 코스닥 Cron — lib 지원 완료(kosdaq_1d/kosdaq_1h). Cron은 kospi clone·수정으로 별도 추가
-- [ ] 2.1 한국 시장 상수
-- [ ] 2.2 Poll API korea_ohlc 연동
-- [ ] 2.3 Vote API 마감 검사
-- [ ] 2.4 getCurrentCandleStartAt 한국 시장
-- [ ] 3.1 정산 서비스 korea_ohlc 분기
-- [ ] 3.2 정산 Cron 연동
-- [ ] 4.1 차트 데이터 소스
-- [ ] 4.2 당일 결과/전적
+- [x] 2.1 한국 시장 상수 (`sentiment-markets.ts`: SENTIMENT_MARKETS, MARKET_CLOSE_KST, MARKET_LABEL 등)
+- [x] 2.2 Poll API korea_ohlc 연동 (목표가/종가 = 직전·현재 봉 settlement_close, Yahoo fallback)
+- [x] 2.3 Vote API 마감 검사 (한국 시장: korea_ohlc에 해당 봉 존재 시 투표 차단)
+- [x] 2.4 getCurrentCandleStartAt 한국 시장 (`candle-utils.ts` kospi_1h/kosdaq_1h 분기)
+- [x] 3.1 정산 서비스 korea_ohlc 분기 (`getSettlementPricesFromOhlc` → prev/curr 봉 settlement_close)
+- [x] 3.2 정산 Cron 연동 (일봉/1h Cron 라우트에서 수집 직후 `settlePoll` 호출)
+- [x] 4.1 차트 데이터 소스 (`/api/sentiment/korea-klines`, KospiChart 등 korea_ohlc 기반)
+- [x] 4.2 당일 결과/전적 (today-results·vote-history에 kospi/kosdaq 지원 추가)
+
+### 7.1 UI 가격 표시 (한국 주식 시장 공통 규칙)
+
+| 구분 | 형식 | 적용 위치 |
+|------|------|-----------|
+| **한국 지수** (코스피, 코스닥) | **포인트** (통화 기호 없음, 예: 2,750.00) | 목표가(시가)·현재가·전적 시가/종가 |
+| **한국 개별 주식** (삼성전자 등) | **원화(KRW, ₩)** (예: ₩75,000) | 동일 |
+| 코인·기타 | 달러($) | 기존과 동일 |
+
+- 구현: `src/lib/utils/price-format.ts` (`getKoreanPriceDisplayKind`, `formatMarketPrice`). 지수는 `KOREA_INDEX_PREFIXES`, 개별 주식은 `KOREA_STOCK_PREFIXES`로 구분. 새 한국 개별 주식 추가 시 해당 접두사만 추가하면 KRW로 표시됨.
+
+### 7.2 투표 LIVE/마감 – 거래일 필터 (isTradingDayKST)
+
+한국 시장 투표지는 **거래일이 아닐 때(주말·휴장일) 항상 마감된 상태**로 유지된다.
+
+| 항목 | 내용 |
+|------|------|
+| **적용 함수** | `src/lib/utils/sentiment-vote.ts` → `getMillisUntilClose` (→ `isVotingOpenKST`) |
+| **판별** | `src/lib/korea-ohlc/market-hours.ts`의 **`isTradingDayKST(date)`** (평일 + `korea-market-holidays` 휴장 제외) |
+| **로직** | 한국 시장(`isKoreaMarket`)이고 `!isTradingDayKST(new Date())`이면 `getMillisUntilClose`가 즉시 `0` 반환 → LIVE 아님 |
+| **대상** | kospi_, kosdaq_, samsung_, skhynix_, hyundai_ 접두사 시장 전부 |
+
+- Cron 수집·정산은 기존대로 `isNowTradingDayKST()` / `isTradingHourKST()` 사용. UI의 “투표 가능 여부”만 거래일 필터로 보강한 것임.
+
+### 7.3 Cron 설정 및 OHLC 백필 가이드
+
+배포 후 **한국 시장**(지수 + 개별 주식) Cron을 등록하고, **오늘까지의 과거 OHLC**를 백필할 때 참고.
+
+#### Cron URL 목록 (타임존: Asia/Seoul)
+
+**일봉 (매 영업일 15:30~15:40 KST 1회)**
+
+| 시장 | URL |
+|------|-----|
+| 코스피 | `GET https://<도메인>/api/cron/kospi-ohlc-daily` |
+| 코스닥 | `GET https://<도메인>/api/cron/kosdaq-ohlc-daily` |
+| 삼성전자 | `GET https://<도메인>/api/cron/samsung-ohlc-daily` |
+| SK하이닉스 | `GET https://<도메인>/api/cron/skhynix-ohlc-daily` |
+| 현대자동차 | `GET https://<도메인>/api/cron/hyundai-ohlc-daily` |
+
+**1시간봉 (매 영업일 10:00, 11:00, 12:00, 13:00, 14:00, 15:00 KST)**
+
+| 시장 | URL |
+|------|-----|
+| 코스피 | `GET https://<도메인>/api/cron/kospi-ohlc-1h` |
+| 코스닥 | `GET https://<도메인>/api/cron/kosdaq-ohlc-1h` |
+| 삼성전자 | `GET https://<도메인>/api/cron/samsung-ohlc-1h` |
+| SK하이닉스 | `GET https://<도메인>/api/cron/skhynix-ohlc-1h` |
+| 현대자동차 | `GET https://<도메인>/api/cron/hyundai-ohlc-1h` |
+
+- **인증**: 요청 시 `x-cron-secret: <CRON_SECRET>` 헤더 또는 `?cron_secret=<CRON_SECRET>` 쿼리.
+- **cron-job.org** 등: 각 URL별로 Job 생성 → 타임존 **Asia/Seoul** → 일봉은 "매일 15:30", 1시간봉은 "매일 10:00, 11:00, …, 15:00" 설정.
+
+#### OHLC 백필 (오늘까지 과거 데이터)
+
+**방법 1: 관리자 대시보드**
+
+1. 관리자 로그인 → **OHLC 백필** 탭.
+2. **한국 시장** 선택 후 시장 선택: 코스피 1일봉, 코스피 1시간봉, 코스닥 1일봉, … 삼성전자 1일/1시간, SK하이닉스 1일/1시간, 현대자동차 1일/1시간.
+3. **FROM** / **TO**: 예) `2020-01-01` ~ `오늘(YYYY-MM-DD)`.
+4. 1일봉은 기간 넓게(예: 2000-01-01 ~ 오늘), 1시간봉은 Yahoo 한계상 **최근 60일** 등 짧은 구간으로 나눠 실행 가능.
+5. 실행 후 응답에서 `upserted` 개수 확인.
+
+**방법 2: API 직접 호출**
+
+```http
+POST /api/admin/korea-ohlc-backfill
+Content-Type: application/json
+# 인증: 관리자 세션 쿠키 또는 x-cron-secret: <CRON_SECRET>
+
+{
+  "market": "samsung_1d",
+  "from": "2020-01-01",
+  "to": "2026-03-13"
+}
+```
+
+- `market`: `kospi_1d` | `kospi_1h` | `kosdaq_1d` | `kosdaq_1h` | `samsung_1d` | `samsung_1h` | `skhynix_1d` | `skhynix_1h` | `hyundai_1d` | `hyundai_1h`
+- **1시간봉**: Yahoo 1h는 최근 약 60일만 지원하므로 `to`를 오늘로 두고 `from`을 약 60일 전으로 제한하는 것이 안전.
+- 동일 (market, from~to) 재실행 시 upsert로 덮어쓰므로 중복 행 생성 없음.
+
+**권장 순서**
+
+1. **일봉** 먼저: 코스피/코스닥/삼성/SK하이닉스/현대 각각 `from` 과거(예: 2020-01-01), `to` 오늘.
+2. **1시간봉**: 필요 시 각 시장별로 최근 60일 구간 백필.
+3. 위 Cron URL을 cron-job.org 등에 등록해 당일부터 자동 수집·정산 유지.
+
+#### 방법 3: Python 스크립트 (대량 일봉 백필)
+
+관리자 대시보드/API보다 긴 기간을 한 번에 넣을 때는 프로젝트 루트에서 아래 스크립트를 사용한다. `.env.local`에 `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` 필요.
+
+| 스크립트 | 대상 | 실행 |
+|----------|------|------|
+| `scripts/korea-ohlc-backfill.py` | 코스피/코스닥 1일봉 | `python scripts/korea-ohlc-backfill.py` |
+| `scripts/samsung-ohlc-backfill.py` | 삼성전자(005930.KS) 1일봉 | `python scripts/samsung-ohlc-backfill.py` |
+| `scripts/skhynix-ohlc-backfill.py` | SK하이닉스(000660.KS) 1일봉 | `python scripts/skhynix-ohlc-backfill.py` |
+| `scripts/hyundai-ohlc-backfill.py` | 현대자동차(005380.KS) 1일봉 | `python scripts/hyundai-ohlc-backfill.py` |
+
+- 일봉: 2000-01-01 ~ 오늘 구간을 365일 단위로 나눠 요청 후 `korea_ohlc`에 upsert. 휴장일/주말은 스크립트 내에서 제외.
+- 1시간봉: Yahoo는 1h 구간을 오래된 날짜에 대해 422 반환하므로, 스크립트는 **오늘 기준 최근 60일**만 1h 백필. 1d·1h 둘 다 실행됨.
 
 ---
 
@@ -333,3 +499,76 @@
 - **Phase C**: 한국투자증권 API PoC (지수 1d/1h → korea_ohlc upsert).
 - **Phase D**: 안정화 후, Cron 공급자를 Yahoo → KIS로 전환 (필요 시 fallback 유지).
 - **Phase E**: 별도 모듈로 백테스트/자동매매 기능 구현.
+
+---
+
+## 11. 트러블슈팅: 야후 1d 백필 + 휴장일·주말 캔들
+
+### 11.1 현상
+
+- 초기 1d 백필을 `fetchKorea1dKlines` + 별도 파이썬 스크립트로 수행했을 때:
+  - `korea_ohlc`에 **주말/휴장일 캔들**이 일부 생성됨.
+  - 예: 트레이딩뷰(KOSPI)에는 존재하지 않는 `2025-12-31`, `2026-01-31` 일봉이 DB·차트에 표시.
+- 원인:
+  - Yahoo Chart API(`interval=1d`)는 일부 구간에서 **이전 거래일 종가를 휴장일에도 복사한 row**를 포함해 내려줌.
+  - 초기 백필 단계에서 **KST 기준 거래일 필터링이 없어서**, 이 row들을 그대로 `korea_ohlc`에 upsert.
+
+### 11.2 시도한 해결책과 한계
+
+1. **DB 레벨에서 삭제 쿼리만으로 정리 시도**
+   - KST 기준 주말/휴장일을 잡아 `delete from korea_ohlc where ...` 형태로 정리하려고 했으나:
+     - `timestamptz` + `AT TIME ZONE` 조합을 잘못 사용해 **의도와 다른 날짜가 매칭**되거나,
+     - 2000~2025년 전체 공식 휴장일(설/추석/대체공휴일 등)을 모두 커버하려면 별도 휴장일 테이블/JSON이 필요.
+   - 결론: 일부 눈에 띄는 날짜(연말·토요일 등)를 직접 삭제하는 것 외에는, **순수 SQL만으로 과거 전체를 완벽 정리하는 데 비용이 큼**.
+
+2. **백필 스크립트 수정**
+   - `src/lib/korea-ohlc/yahoo-klines.ts`:
+     - `fetchKorea1dKlines` 내에서 `isTradingDayKST`를 사용해 **KST 기준 거래일이 아닌 날은 push하지 않도록** 수정.
+   - `scripts/korea-ohlc-backfill.py`:
+     - 1d 백필 경로에서 `is_trading_day_kst_from_utc`를 사용해 **주말/휴장일 row를 생성 단계에서 스킵**하도록 수정.
+   - 효과:
+     - **앞으로 수집·백필되는 1d 데이터에는 휴장일/주말 캔들이 들어오지 않음.**
+     - 과거 히스토리에서 이미 들어간 값들은 별도 삭제 쿼리로만 정리 가능.
+
+3. **2000~2026 전체 휴장일 테이블 도입 제안**
+   - `holidays-kr` 연도별 JSON → `korea_market_holidays(holiday date primary key)` 테이블에 적재.
+   - 이후:
+     ```sql
+     with targets as (
+       select
+         id,
+         (candle_start_at at time zone 'Asia/Seoul')::date as kst_date,
+         extract(dow from (candle_start_at at time zone 'Asia/Seoul')) as kst_dow
+       from korea_ohlc
+       where market in ('kospi_1d', 'kosdaq_1d')
+         and (candle_start_at at time zone 'Asia/Seoul')::date
+               between date '2000-01-01' and date '2026-12-31'
+     ),
+     to_delete as (
+       select t.id
+       from targets t
+       left join korea_market_holidays h on t.kst_date = h.holiday
+       where t.kst_dow in (0, 6)      -- 주말
+          or h.holiday is not null    -- 공식 휴장일
+     )
+     delete from korea_ohlc
+     where id in (select id from to_delete);
+     ```
+   - 이 방식이 **가장 정석적인 “과거 전체 정리” 전략**이지만,
+     - 2000~2025년 모든 휴장일을 정확히 수집해 넣어야 하고,
+     - 운영 비용이 커서 v1에서는 “필요 시 수동 적용”으로 미뤄두기로 결정.
+
+### 11.3 최종 결정 (v1 기준)
+
+- **데이터 수집/백필**
+  - 1d: `isTradingDayKST` 필터 적용 → 앞으로는 **주말·휴장일 캔들 생성 금지**.
+  - 1h: Yahoo 1h 인트라데이 데이터는 **최근 약 2~3개월만 신뢰 가능**하므로,  
+    과거 수년치 1h 백필은 포기하고 **v1에서는 정규장 1h “앞으로 쌓이는 데이터”만 사용**.
+- **과거 히스토리 정리**
+  - 눈에 띄는 이상치(예: 2025-12-31, 2026-01-31 등)는 KST 기준 날짜로 직접 `delete` 쿼리를 실행해 정리.
+  - 2000~2025년 전체 휴장일/주말을 100% 정리하는 것은 **2차 MVP(휴장일 테이블 도입 또는 KIS API 전환)에서 수행**.
+- **차트 설계**
+  - `korea_ohlc` 기반 차트는 **“대부분 거래일만 있는 상태 + 소수의 과거 휴장일 캔들이 섞여 있을 수 있음”**을 전제로 사용.
+  - 투표·정산 로직은 모두 정규장 기준(`isTradingDayKST`, `isTradingHourKST`, `MARKET_CLOSE_KST`)을 따르므로,  
+    **휴장일 캔들이 일부 남아 있어도 정산·투표에는 영향이 없음을 명시**.
+

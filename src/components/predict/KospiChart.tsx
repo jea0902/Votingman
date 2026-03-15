@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * Lightweight Charts – 코스피(KOSPI) 차트
- * - Yahoo Finance ^KS11 → /api/sentiment/kospi-klines
- * - BTC 차트와 동일 UI/테마 (1분/15분/1시간/5분/1일봉)
+ * Lightweight Charts – 한국 지수(KOSPI/KOSDAQ) 차트
+ * - DB korea_ohlc 기반: /api/sentiment/korea-klines
+ * - BTC 차트와 동일 UI/테마
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -17,13 +17,9 @@ import {
 } from "lightweight-charts";
 import { cn } from "@/lib/utils";
 
-type ChartInterval = "1m" | "5m" | "15m" | "1h" | "1d";
+type ChartInterval = "1h" | "1d";
 
-const INTERVAL_ORDER: ChartInterval[] = ["1m", "5m", "15m", "1h", "1d"];
 const INTERVAL_LABELS: Record<ChartInterval, string> = {
-  "1m": "1분",
-  "5m": "5분",
-  "15m": "15분",
   "1h": "1시간",
   "1d": "1일",
 };
@@ -54,30 +50,40 @@ type CandlestickData = {
   low: number;
   close: number;
 };
+async function fetchKoreaKlines(market: string): Promise<CandlestickData[]> {
+  const now = new Date();
+  const from = new Date(now);
+  from.setFullYear(now.getFullYear() - 2); // 최근 2년
+  const fromYmd = from.toISOString().slice(0, 10); // YYYY-MM-DD
 
-async function fetchKospiKlines(interval: ChartInterval): Promise<CandlestickData[]> {
-  const res = await fetch(`/api/sentiment/kospi-klines?interval=${interval}`);
+  const params = new URLSearchParams({
+    market,
+    from: fromYmd,
+    limit: "500",
+  });
+  const res = await fetch(`/api/sentiment/korea-klines?${params.toString()}`);
   const json = await res.json();
-  if (!json?.success || !Array.isArray(json?.data)) return [];
-  return json.data as CandlestickData[];
+  if (!json?.success || !Array.isArray(json?.data?.candles)) return [];
+  return json.data.candles as CandlestickData[];
 }
 
 type Props = {
+  market: "kospi_1d" | "kospi_1h" | "kosdaq_1d" | "kosdaq_1h" | "samsung_1d" | "samsung_1h" | "skhynix_1d" | "skhynix_1h" | "hyundai_1d" | "hyundai_1h";
   targetPrice?: number | null;
-  defaultInterval?: ChartInterval;
   className?: string;
 };
 
 export function KospiChart({
+  market,
   targetPrice,
-  defaultInterval = "1d",
   className,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ReturnType<typeof createChart> | null>(null);
   const seriesRef = useRef<ReturnType<ReturnType<typeof createChart>["addSeries"]> | null>(null);
 
-  const [chartInterval, setChartInterval] = useState<ChartInterval>(defaultInterval);
+  const initialInterval: ChartInterval = market.endsWith("1h") ? "1h" : "1d";
+  const [chartInterval, setChartInterval] = useState<ChartInterval>(initialInterval);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -164,14 +170,19 @@ export function KospiChart({
       chartRef.current?.remove();
       chartRef.current = null;
     };
-  }, [targetPrice]);
+  }, [targetPrice, market]);
+
+  useEffect(() => {
+    // market이 바뀌면 interval도 맞춰 초기화
+    setChartInterval(market.endsWith("1h") ? "1h" : "1d");
+  }, [market]);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
 
-    fetchKospiKlines(chartInterval)
+    fetchKoreaKlines(market)
       .then((data) => {
         if (cancelled || !seriesRef.current || !chartRef.current || data.length === 0) return;
 
@@ -211,7 +222,7 @@ export function KospiChart({
     return () => {
       cancelled = true;
     };
-  }, [chartInterval, targetPrice]);
+  }, [market, chartInterval, targetPrice]);
 
   if (error) {
     return (
@@ -248,13 +259,13 @@ export function KospiChart({
         style={{ background: THEME.bgBtnBar, borderBottom: `1px solid ${THEME.borderCard}` }}
       >
         <div className="flex items-center gap-1">
-          {INTERVAL_ORDER.map((iv) => {
-            const isActive = chartInterval === iv;
+          {/* 한국 지수는 현재 마켓의 타임프레임만 제공 (1d/1h) */}
+          {([chartInterval] as ChartInterval[]).map((iv) => {
+            const isActive = true;
             return (
               <button
                 key={iv}
                 type="button"
-                onClick={() => setChartInterval(iv)}
                 style={{
                   background: isActive ? THEME.bgBtnActive : "transparent",
                   border: `1px solid ${isActive ? THEME.borderActive : "transparent"}`,
@@ -281,7 +292,9 @@ export function KospiChart({
             );
           })}
         </div>
-        <span style={{ fontSize: "11px", color: THEME.textMuted }}>코스피 (Yahoo Finance)</span>
+        <span style={{ fontSize: "11px", color: THEME.textMuted }}>
+          {market.startsWith("kospi") ? "코스피" : "코스닥"} (korea_ohlc)
+        </span>
       </div>
 
       {loading && (

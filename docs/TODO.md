@@ -179,6 +179,15 @@ ORDER BY p.settled_at DESC, ph.payout_amount DESC NULLS LAST;
 
 ---
 
+## 12. 한국 주식 OHLC 과거 데이터 전량 백필 (한국투자증권 API)
+
+- [ ] **목표**: 1h봉이 Yahoo 기준 최근 60일봉만 가능한 한계를 넘어, 한국투자증권(KIS) API로 1d·1h 과거 OHLC 전부 백필
+- [ ] **배경**: 현재 Yahoo Finance로 한국 지수/개별주(코스피, 코스닥, 삼성, SK하이닉스, 현대 등) 1d는 장기 백필 가능, 1h는 최근 60일만 가능
+- [ ] KIS API 연동 후 `korea_ohlc`에 1d·1h 과거 데이터 전량 백필 스크립트/배치 구현
+- [ ] 참고: `docs/korea-ohlc-roadmap.md` §2차 MVP, `docs/korea-vote-compo.md`
+
+---
+
 ## 참고
 
 - **뉴스 탭 속보 페이지**: 필터링 UI 참고용

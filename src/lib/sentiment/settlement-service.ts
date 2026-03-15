@@ -16,27 +16,63 @@ import {
   getBtc1dCandleStartAtUtc,
   normalizeBtc4hCandleStartAt,
   toCanonicalCandleStartAt,
+  getPreviousCandleStartAt,
 } from "@/lib/btc-ohlc/candle-utils";
 import {
   getOhlcByMarketAndCandleStart,
   upsertBtcOhlc,
 } from "@/lib/btc-ohlc/repository";
+import { getKoreaOhlcByMarketAndCandleStart } from "@/lib/korea-ohlc/repository";
 import type { SentimentPollRow } from "@/lib/supabase/db-types";
 import { fetchCandleByStartAt } from "@/lib/binance/btc-klines";
 
 const POLL_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
-/** btc_ohlc에서 종가끼리 비교 정산용 가격 조회 (reference_close vs settlement_close) */
+/** 정산용 가격 조회 (reference_close vs settlement_close) */
 export async function getSettlementPricesFromOhlc(
   market: string,
   candleStartAt: string
 ): Promise<{ reference_close: number; settlement_close: number } | null> {
-  const row = await getOhlcByMarketAndCandleStart(market, candleStartAt);
-  if (!row) return null;
-  return {
-    reference_close: row.reference_close,
-    settlement_close: row.settlement_close,
-  };
+  // 코인 시장: btc_ohlc에서 조회
+  if (COIN_MARKETS_SETTLE.includes(market as (typeof COIN_MARKETS_SETTLE)[number])) {
+    const row = await getOhlcByMarketAndCandleStart(market, candleStartAt);
+    if (!row) return null;
+    return {
+      reference_close: row.reference_close,
+      settlement_close: row.settlement_close,
+    };
+  }
+
+  // 한국 지수 시장: korea_ohlc에서 조회
+  if (
+    market === "kospi_1d" ||
+    market === "kospi_1h" ||
+    market === "kosdaq_1d" ||
+    market === "kosdaq_1h" ||
+    market === "samsung_1d" ||
+    market === "samsung_1h" ||
+    market === "skhynix_1d" ||
+    market === "skhynix_1h" ||
+    market === "hyundai_1d" ||
+    market === "hyundai_1h"
+  ) {
+    const base = toCanonicalCandleStartAt(candleStartAt);
+    const prevStart = getPreviousCandleStartAt(market, base);
+
+    const [prevRow, currRow] = await Promise.all([
+      getKoreaOhlcByMarketAndCandleStart(market, prevStart),
+      getKoreaOhlcByMarketAndCandleStart(market, base),
+    ]);
+
+    if (!prevRow || !currRow) return null;
+    return {
+      // reference_close: 직전 봉의 최종 종가, settlement_close: 현재 봉의 최종 종가
+      reference_close: prevRow.settlement_close,
+      settlement_close: currRow.settlement_close,
+    };
+  }
+
+  return null;
 }
 
 export type SettlementResult = {
@@ -89,6 +125,19 @@ const COIN_MARKETS_SETTLE = [
   "btc_1W",
   "btc_1M",
   "btc_12M",
+] as const;
+
+const KOREA_MARKETS_SETTLE = [
+  "kospi_1d",
+  "kospi_1h",
+  "kosdaq_1d",
+  "kosdaq_1h",
+  "samsung_1d",
+  "samsung_1h",
+  "skhynix_1d",
+  "skhynix_1h",
+  "hyundai_1d",
+  "hyundai_1h",
 ] as const;
 
 /** candle_start_at(UTC ISO) → poll_date YYYY-MM-DD (KST) */
@@ -220,7 +269,14 @@ export async function settlePoll(
     ? pollDate
     : candleStartAtToPollDateKst(candleStartAt);
 
-  if (!COIN_MARKETS_SETTLE.includes(market as (typeof COIN_MARKETS_SETTLE)[number])) {
+  const isCoinMarket = COIN_MARKETS_SETTLE.includes(
+    market as (typeof COIN_MARKETS_SETTLE)[number]
+  );
+  const isKoreaMarket = KOREA_MARKETS_SETTLE.includes(
+    market as (typeof KOREA_MARKETS_SETTLE)[number]
+  );
+
+  if (!isCoinMarket && !isKoreaMarket) {
     return {
       poll_id: "",
       poll_date: pollDateForResponse,
@@ -228,7 +284,7 @@ export async function settlePoll(
       status: "already_settled",
       participant_count: 0,
       winner_side: null,
-      error: "지원 market: btc/eth/usdt/xrp 1d,4h,1h,15m,5m",
+      error: "지원 market: btc/eth/usdt/xrp 1d,4h,1h,15m,5m + kospi/kosdaq 1d,1h",
     };
   }
 
@@ -392,9 +448,22 @@ export async function settlePoll(
   }
 
   if (reference_close == null || settlement_close == null) {
-    console.error("[settlement] btc_ohlc row missing (OHLC 조회 실패)", {
+    const marketForLog = pollRow.market ?? market;
+    const isKoreaMarket =
+      marketForLog === "kospi_1d" ||
+      marketForLog === "kospi_1h" ||
+      marketForLog === "kosdaq_1d" ||
+      marketForLog === "kosdaq_1h" ||
+      marketForLog === "samsung_1d" ||
+      marketForLog === "samsung_1h" ||
+      marketForLog === "skhynix_1d" ||
+      marketForLog === "skhynix_1h" ||
+      marketForLog === "hyundai_1d" ||
+      marketForLog === "hyundai_1h";
+
+    console.error("[settlement] OHLC row missing (정산용 가격 조회 실패)", {
       poll_id: pollId,
-      market: pollRow.market ?? market,
+      market: marketForLog,
       ohlc_key: ohlcKey,
       candleStartAt,
       participant_count: participantCount,
@@ -404,11 +473,13 @@ export async function settlePoll(
     return {
       poll_id: pollId,
       poll_date: pollDateForResponse,
-      market: pollRow.market ?? market,
+      market: marketForLog,
       status: "already_settled",
       participant_count: participantCount,
       winner_side: null,
-      error: "btc_ohlc에 해당 캔들이 없습니다. 크론 수집 후 다시 시도하세요.",
+      error: isKoreaMarket
+        ? "korea_ohlc에 해당 캔들이 없습니다. 크론 수집 후 다시 시도하세요."
+        : "btc_ohlc에 해당 캔들이 없습니다. 크론 수집 후 다시 시도하세요.",
     };
   }
 

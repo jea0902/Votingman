@@ -21,6 +21,8 @@ import {
   toCanonicalCandleStartAt,
 } from "@/lib/btc-ohlc/candle-utils";
 import { getOhlcByMarketAndCandleStart } from "@/lib/btc-ohlc/repository";
+import { getKoreaOhlcByMarketAndCandleStart } from "@/lib/korea-ohlc/repository";
+import { fetchKorea1dKlines, fetchKorea1hKlines } from "@/lib/korea-ohlc/yahoo-klines";
 import { fetchPreviousCandleClose } from "@/lib/binance/btc-klines";
 import { isSentimentMarket } from "@/lib/constants/sentiment-markets";
 
@@ -31,6 +33,19 @@ const COIN_MARKETS = [
   "xrp_1d", "xrp_4h", "xrp_1h", "xrp_15m", "xrp_5m",
 ] as const;
 
+const KOREA_MARKETS = [
+  "kospi_1d",
+  "kospi_1h",
+  "kosdaq_1d",
+  "kosdaq_1h",
+  "samsung_1d",
+  "samsung_1h",
+  "skhynix_1d",
+  "skhynix_1h",
+  "hyundai_1d",
+  "hyundai_1h",
+] as const;
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -39,11 +54,10 @@ export async function GET(request: NextRequest) {
     const candleStartAtParam = searchParams.get("candle_start_at");
 
     const { poll } =
-      candleStartAtParam && COIN_MARKETS.includes(market as (typeof COIN_MARKETS)[number])
-        ? await getOrCreatePollByMarketAndCandleStartAt(
-            market as (typeof COIN_MARKETS)[number],
-            candleStartAtParam
-          )
+      candleStartAtParam &&
+      (COIN_MARKETS.includes(market as (typeof COIN_MARKETS)[number]) ||
+        KOREA_MARKETS.includes(market as (typeof KOREA_MARKETS)[number]))
+        ? await getOrCreatePollByMarketAndCandleStartAt(market, candleStartAtParam)
         : await getOrCreateTodayPollByMarket(market);
 
     let price_open: number | null = null;
@@ -52,52 +66,92 @@ export async function GET(request: NextRequest) {
       "candle_start_at" in poll && typeof poll.candle_start_at === "string"
         ? poll.candle_start_at
         : null;
-    if (
-      candleStartAt &&
-      COIN_MARKETS.includes(market as (typeof COIN_MARKETS)[number])
-    ) {
-      // 목표가 = 이전 봉 종가 (새 봉의 시가). btc_1d/btc_4h는 UTC 기준으로만 조회 (Binance와 동일).
-      const base = toCanonicalCandleStartAt(candleStartAt);
-      const ohlcKey =
-        market === "btc_1d"
-          ? getBtc1dCandleStartAtUtc(base.slice(0, 10))
-          : market === "btc_4h"
-            ? normalizeBtc4hCandleStartAt(base)
-            : base;
-      const previousCandleStartAt = getPreviousCandleStartAt(market, ohlcKey);
-      // btc_4h: 차트가 Binance API를 쓰므로 목표가도 Binance에서 직접 조회해 직전 4h 봉 종가와 정확히 일치시키기
-      if (market === "btc_4h" || market === "eth_4h" || market === "usdt_4h" || market === "xrp_4h") {
-        try {
-          price_open = await fetchPreviousCandleClose(market, ohlcKey);
-        } catch (e) {
-          console.error("[sentiment/poll] fetchPreviousCandleClose(btc_4h) error:", e);
-        }
-        if (price_open == null) {
-          const prevOhlc = await getOhlcByMarketAndCandleStart(market, previousCandleStartAt);
-          if (prevOhlc) price_open = prevOhlc.close;
-        }
-      } else {
-        const prevOhlc = await getOhlcByMarketAndCandleStart(market, previousCandleStartAt);
-        if (prevOhlc) {
-          price_open = prevOhlc.close;
-        } else {
+    if (candleStartAt) {
+      const isCoinMarket = COIN_MARKETS.includes(market as (typeof COIN_MARKETS)[number]);
+      const isKoreaMarket = KOREA_MARKETS.includes(market as (typeof KOREA_MARKETS)[number]);
+
+      if (isCoinMarket) {
+        // 코인 시장: 목표가 = 이전 봉 종가 (새 봉의 시가). btc_1d/btc_4h는 UTC 기준으로만 조회 (Binance와 동일).
+        const base = toCanonicalCandleStartAt(candleStartAt);
+        const ohlcKey =
+          market === "btc_1d"
+            ? getBtc1dCandleStartAtUtc(base.slice(0, 10))
+            : market === "btc_4h"
+              ? normalizeBtc4hCandleStartAt(base)
+              : base;
+        const previousCandleStartAt = getPreviousCandleStartAt(market, ohlcKey);
+        // btc_4h: 차트가 Binance API를 쓰므로 목표가도 Binance에서 직접 조회해 직전 4h 봉 종가와 정확히 일치시키기
+        if (market === "btc_4h" || market === "eth_4h" || market === "usdt_4h" || market === "xrp_4h") {
           try {
             price_open = await fetchPreviousCandleClose(market, ohlcKey);
-            if (price_open == null) {
-              console.warn(
-                "[sentiment/poll] price_open missing: 이전 봉 종가 조회 실패",
-                { market, candle_start_at: candleStartAt, ohlcKey }
-              );
-            }
           } catch (e) {
-            console.error("[sentiment/poll] fetchPreviousCandleClose error:", e);
+            console.error("[sentiment/poll] fetchPreviousCandleClose(btc_4h) error:", e);
+          }
+          if (price_open == null) {
+            const prevOhlc = await getOhlcByMarketAndCandleStart(market, previousCandleStartAt);
+            if (prevOhlc) price_open = prevOhlc.close;
+          }
+        } else {
+          const prevOhlc = await getOhlcByMarketAndCandleStart(market, previousCandleStartAt);
+          if (prevOhlc) {
+            price_open = prevOhlc.close;
+          } else {
+            try {
+              price_open = await fetchPreviousCandleClose(market, ohlcKey);
+              if (price_open == null) {
+                console.warn(
+                  "[sentiment/poll] price_open missing: 이전 봉 종가 조회 실패",
+                  { market, candle_start_at: candleStartAt, ohlcKey }
+                );
+              }
+            } catch (e) {
+              console.error("[sentiment/poll] fetchPreviousCandleClose error:", e);
+            }
           }
         }
-      }
-      // 종가 = btc_ohlc에만 의존. cron이 수집·저장한 뒤에만 존재. Binance 직접 조회 금지.
-      const currentOhlc = await getOhlcByMarketAndCandleStart(market, ohlcKey);
-      if (currentOhlc) {
-        price_close = currentOhlc.close;
+        // 종가 = btc_ohlc에만 의존. cron이 수집·저장한 뒤에만 존재. Binance 직접 조회 금지.
+        const currentOhlc = await getOhlcByMarketAndCandleStart(market, ohlcKey);
+        if (currentOhlc) {
+          price_close = currentOhlc.close;
+        }
+      } else if (isKoreaMarket) {
+        // 한국 지수 시장 (1d/1h 동일 구조):
+        // - 목표가(시가): 직전 봉 종가 (DB → 없으면 Yahoo fallback)
+        // - 종가: 현재 봉 종가 (DB에 있을 때만)
+        const base = toCanonicalCandleStartAt(candleStartAt);
+        const prevStart = getPreviousCandleStartAt(market, base);
+
+        const [prevOhlc, currOhlc] = await Promise.all([
+          getKoreaOhlcByMarketAndCandleStart(market, prevStart),
+          getKoreaOhlcByMarketAndCandleStart(market, base),
+        ]);
+
+        if (prevOhlc) {
+          price_open = prevOhlc.settlement_close ?? prevOhlc.close;
+        } else {
+          // DB에 직전 봉 없을 때 Yahoo로 목표가(시가) 보정 (1d/1h 동일)
+          try {
+            const rows =
+              market === "kospi_1d" || market === "kosdaq_1d" || market === "samsung_1d" || market === "skhynix_1d" || market === "hyundai_1d"
+                ? await fetchKorea1dKlines(market, 2)
+                : await fetchKorea1hKlines(market, 2);
+            if (rows && rows.length >= 1) {
+              const prevRow = rows[rows.length - 2];
+              if (prevRow?.close != null && Number.isFinite(prevRow.close)) {
+                price_open = prevRow.close;
+              }
+            }
+          } catch (e) {
+            console.warn("[sentiment/poll] 한국 지수 목표가 Yahoo fallback 실패", {
+              market,
+              prevStart,
+              error: (e as Error)?.message,
+            });
+          }
+        }
+        if (currOhlc) {
+          price_close = currOhlc.settlement_close ?? currOhlc.close;
+        }
       }
     }
 

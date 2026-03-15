@@ -62,8 +62,11 @@ const ROLLING_MARKETS = [
   "xrp_5m",
   "ndq_4h",
   "sp500_4h",
-  "kospi_4h",
-  "kosdaq_4h",
+  "kospi_1h",
+  "kosdaq_1h",
+  "samsung_1h",
+  "skhynix_1h",
+  "hyundai_1h",
   "dow_jones_4h",
   "wti_4h",
   "xau_4h",
@@ -77,13 +80,16 @@ const ROLLING_MARKETS = [
   "usd30y_4h",
 ] as const;
 
-/** getCurrentCandleStartAt 사용 시장 (coin + 모든 *_4h) */
+/** getCurrentCandleStartAt 사용 시장 (coin + 모든 *_4h + 한국 1h) */
 const MARKETS_USE_CURRENT_CANDLE = [
   ...COIN_MARKETS,
   "ndq_4h",
   "sp500_4h",
-  "kospi_4h",
-  "kosdaq_4h",
+  "kospi_1h",
+  "kosdaq_1h",
+  "samsung_1h",
+  "skhynix_1h",
+  "hyundai_1h",
   "dow_jones_4h",
   "wti_4h",
   "xau_4h",

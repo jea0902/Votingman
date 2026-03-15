@@ -8,7 +8,7 @@
  * - 하단: 관련 시장 링크
  */
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { MarketIcon } from "@/components/market/MarketIcon";
@@ -22,10 +22,11 @@ import {
   MARKET_LABEL,
   ACTIVE_MARKETS,
   isSentimentMarket,
+  isKoreaStockMarket,
   normalizeToDbMarket,
   MIN_BET_VTC,
 } from "@/lib/constants/sentiment-markets";
-import { getPriceFractionDigits } from "@/lib/utils/price-format";
+import { formatMarketPrice } from "@/lib/utils/price-format";
 import { createClient } from "@/lib/supabase/client";
 import dynamic from "next/dynamic";
 
@@ -100,7 +101,7 @@ function stringifyBet(n: number): string {
 }
 
 /** 시장별 카드 제목 */
-const CARD_TITLE: Record<string, string> = {
+  const CARD_TITLE: Record<string, string> = {
   btc_1d: "[1일 후] 비트코인 상승/하락",
   btc_4h: "[4시간 후] 비트코인 상승/하락",
   btc_1h: "[1시간 후] 비트코인 상승/하락",
@@ -126,9 +127,15 @@ const CARD_TITLE: Record<string, string> = {
   sp500_1d: "[1일 후] SPX 상승/하락",
   sp500_4h: "[4시간 후] SPX 상승/하락",
   kospi_1d: "[1일 후] 코스피 상승/하락",
-  kospi_4h: "[4시간 후] 코스피 상승/하락",
+  kospi_1h: "[1시간 후] 코스피 상승/하락",
   kosdaq_1d: "[1일 후] 코스닥 상승/하락",
-  kosdaq_4h: "[4시간 후] 코스닥 상승/하락",
+  kosdaq_1h: "[1시간 후] 코스닥 상승/하락",
+  samsung_1d: "[1일 후] 삼성전자 상승/하락",
+  samsung_1h: "[1시간 후] 삼성전자 상승/하락",
+  skhynix_1d: "[1일 후] SK하이닉스 상승/하락",
+  skhynix_1h: "[1시간 후] SK하이닉스 상승/하락",
+  hyundai_1d: "[1일 후] 현대자동차 상승/하락",
+  hyundai_1h: "[1시간 후] 현대자동차 상승/하락",
   dow_jones_1d: "[1일 후] 다우존스 상승/하락",
   dow_jones_4h: "[4시간 후] 다우존스 상승/하락",
   wti_1d: "[1일 후] WTI 상승/하락",
@@ -294,8 +301,18 @@ export default function PredictMarketPage() {
   const binanceSymbol =
     market.startsWith("btc_") ? "BTCUSDT" : market.startsWith("eth_") ? "ETHUSDT" : market.startsWith("usdt_") ? "USDTBUSD" : market.startsWith("xrp_") ? "XRPUSDT" : "BTCUSDT";
 
-  /** 코스피 시장: KospiChart (Yahoo Finance) */
-  const isKospiMarket = market === "kospi_1d" || market === "kospi_4h";
+  /** 한국 지수 시장: KospiChart (korea_ohlc 기반) */
+  const isKoreaIndexMarket =
+    market === "kospi_1d" ||
+    market === "kospi_1h" ||
+    market === "kosdaq_1d" ||
+    market === "kosdaq_1h" ||
+    market === "samsung_1d" ||
+    market === "samsung_1h" ||
+    market === "skhynix_1d" ||
+    market === "skhynix_1h" ||
+    market === "hyundai_1d" ||
+    market === "hyundai_1h";
   /** TradingView 차트 지원 시장 (코인, ndq, sp500, kosdaq, 다우존스, WTI, 금, 상해, 니케이, 유로스톡스, 항셍) */
   const isTradingViewMarket =
     market.startsWith("btc_") ||
@@ -314,6 +331,34 @@ export default function PredictMarketPage() {
     market.startsWith("jpy_krw_") ||
     market.startsWith("usd10y_") ||
     market.startsWith("usd30y_");
+  // 한국 지수 시장 현재가: 분기 없이 항상 Yahoo에서 마지막 캔들 주기 조회 → 실시간처럼 표시
+  // 의존 배열 길이 6 유지 (Hot Reload 시 React "array size changed" 경고 방지)
+  const koreaRealtimeDeps = useMemo<[boolean, string, boolean, boolean, number | undefined, string | undefined]>(
+    () => [isKoreaIndexMarket, market, false, false, undefined, undefined],
+    [isKoreaIndexMarket, market]
+  );
+  useEffect(() => {
+    if (!isKoreaIndexMarket) return;
+    let cancelled = false;
+    const fetchRealtime = () => {
+      fetch(`/api/sentiment/korea-realtime?market=${market}`, { cache: "no-store" })
+        .then((res) => res.json())
+        .then((json) => {
+          if (cancelled) return;
+          const price = json?.data?.price;
+          if (typeof price === "number") setCurrentPrice(price);
+        })
+        .catch(() => {
+          if (!cancelled) setCurrentPrice(null);
+        });
+    };
+    fetchRealtime();
+    const id = setInterval(fetchRealtime, 30000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, koreaRealtimeDeps);
   useEffect(() => {
     if (!isCoinMarket) return;
     let cancelled = false;
@@ -342,9 +387,9 @@ export default function PredictMarketPage() {
     };
   }, [isCoinMarket, binanceSymbol]);
 
-  /** 당일(KST) 정산된 폴 결과 (코인 시장) */
+  /** 당일(KST) 정산된 폴 결과 (코인·한국 지수 시장) */
   useEffect(() => {
-    if (!isCoinMarket) return;
+    if (!isCoinMarket && !isKoreaIndexMarket) return;
     let cancelled = false;
     setTodayResultsLoading(true);
     fetch(`/api/sentiment/polls/today-results?market=${market}`)
@@ -361,7 +406,7 @@ export default function PredictMarketPage() {
     return () => {
       cancelled = true;
     };
-  }, [market, isCoinMarket]);
+  }, [market, isCoinMarket, isKoreaIndexMarket]);
 
   useEffect(() => {
     fetchPoll();
@@ -429,7 +474,7 @@ export default function PredictMarketPage() {
       // voteOpen true→false(마감): 현재 폴 유지(정산 대기). refetch 시 새 폴로 바뀌어 투표/VTC가 사라짐
       if (voteOpen) {
         fetchPoll();
-        if (isCoinMarket) {
+        if (isCoinMarket || isKoreaIndexMarket) {
           setTodayResultsLoading(true);
           fetch(`/api/sentiment/polls/today-results?market=${market}`)
             .then((res) => res.json())
@@ -442,7 +487,7 @@ export default function PredictMarketPage() {
         }
       }
     }
-  }, [voteOpen, fetchPoll, market, isCoinMarket]);
+  }, [voteOpen, fetchPoll, market, isCoinMarket, isKoreaIndexMarket]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -483,7 +528,6 @@ export default function PredictMarketPage() {
   );
 
   const priceToBeat = poll?.price_open ?? null;
-  const priceFractionDigits = getPriceFractionDigits(market);
   const balance = user?.voting_coin_balance ?? 0;
   const myBetAmount =
     poll?.my_vote && poll.my_vote.bet_amount > 0 ? poll.my_vote.bet_amount : 0;
@@ -571,8 +615,9 @@ export default function PredictMarketPage() {
     ["xrp_1d", "xrp_4h"],
     ["ndq_1d", "ndq_4h"],
     ["sp500_1d", "sp500_4h"],
-    ["kospi_1d", "kospi_4h"],
-    ["kosdaq_1d", "kosdaq_4h"],
+    ["kospi_1d", "kospi_1h"],
+    ["kosdaq_1d", "kosdaq_1h"],
+    ["samsung_1d", "samsung_1h", "skhynix_1d", "skhynix_1h", "hyundai_1d", "hyundai_1h"],
     ["dow_jones_1d", "dow_jones_4h"],
     ["wti_1d", "wti_4h"],
     ["xau_1d", "xau_4h"],
@@ -624,12 +669,7 @@ export default function PredictMarketPage() {
                 목표가 (시가)
               </p>
               <p className="mt-1 text-lg font-bold text-foreground">
-                {priceToBeat != null
-                  ? `$${priceToBeat.toLocaleString(FIXED_LOCALE, {
-                      minimumFractionDigits: priceFractionDigits,
-                      maximumFractionDigits: priceFractionDigits,
-                    })}`
-                  : "—"}
+                {formatMarketPrice(priceToBeat, market)}
               </p>
             </div>
             <div className="rounded-lg border border-border bg-card p-4">
@@ -638,11 +678,8 @@ export default function PredictMarketPage() {
               </p>
               <p className="mt-1 text-lg font-bold text-amber-700 dark:text-amber-500">
                 {currentPrice != null
-                  ? `$${currentPrice.toLocaleString(FIXED_LOCALE, {
-                      minimumFractionDigits: priceFractionDigits,
-                      maximumFractionDigits: priceFractionDigits,
-                    })}`
-                  : isCoinMarket
+                  ? formatMarketPrice(currentPrice, market)
+                  : isCoinMarket || isKoreaIndexMarket
                     ? "불러오는 중…"
                     : "—"}
               </p>
@@ -660,7 +697,7 @@ export default function PredictMarketPage() {
               ) : (
                 <>
                   <p className="text-xs font-medium uppercase text-muted-foreground">
-                    다음 투표
+                    {isKoreaStockMarket(market) ? "다음" : "다음 투표"}
                   </p>
                   <div className="mt-1">
                     <Link
@@ -687,10 +724,10 @@ export default function PredictMarketPage() {
                 className="min-h-[400px]"
                 symbol={binanceSymbol}
               />
-            ) : isKospiMarket ? (
+            ) : isKoreaIndexMarket ? (
               <KospiChart
+                market={market as "kospi_1d" | "kospi_1h" | "kosdaq_1d" | "kosdaq_1h" | "samsung_1d" | "samsung_1h" | "skhynix_1d" | "skhynix_1h" | "hyundai_1d" | "hyundai_1h"}
                 targetPrice={priceToBeat}
-                defaultInterval="1d"
                 className="min-h-[400px]"
               />
             ) : isTradingViewMarket ? (
@@ -704,7 +741,7 @@ export default function PredictMarketPage() {
             )}
           </div>
 
-          {isCoinMarket && (
+          {(isCoinMarket || isKoreaIndexMarket) && (
             <div
               ref={todayResultsContainerRef}
               className="rounded-lg border border-border bg-card p-4"
@@ -832,10 +869,18 @@ export default function PredictMarketPage() {
                     : "border-emerald-500/60 bg-emerald-500/10 hover:border-emerald-400 hover:bg-emerald-500/20"
                 }`}
               >
-                <span className="text-2xl font-bold">Up</span>
-                <span className="text-xs text-muted-foreground">
-                  롱 {longPct}%
-                </span>
+                {(!voteOpen || hasPollClosed) ? (
+                  <span className="text-xs font-medium text-muted-foreground">
+                    이 투표는 마감되었습니다.
+                  </span>
+                ) : (
+                  <>
+                    <span className="text-2xl font-bold">Up</span>
+                    <span className="text-xs text-muted-foreground">
+                      롱 {longPct}%
+                    </span>
+                  </>
+                )}
               </button>
               <button
                 type="button"
@@ -852,10 +897,18 @@ export default function PredictMarketPage() {
                     : "border-rose-500/60 bg-rose-500/10 hover:border-rose-400 hover:bg-rose-500/20"
                 }`}
               >
-                <span className="text-2xl font-bold">Down</span>
-                <span className="text-xs text-muted-foreground">
-                  숏 {100 - longPct}%
-                </span>
+                {(!voteOpen || hasPollClosed) ? (
+                  <span className="text-xs font-medium text-muted-foreground">
+                    이 투표는 마감되었습니다.
+                  </span>
+                ) : (
+                  <>
+                    <span className="text-2xl font-bold">Down</span>
+                    <span className="text-xs text-muted-foreground">
+                      숏 {100 - longPct}%
+                    </span>
+                  </>
+                )}
               </button>
             </div>
 

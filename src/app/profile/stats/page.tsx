@@ -11,6 +11,7 @@
 
 import { useState, useEffect } from "react";
 import { UserInfoCard, type StatsOverride } from "@/components/home";
+import { formatMarketPrice } from "@/lib/utils/price-format";
 
 type VoteHistoryRow = {
   poll_date: string;
@@ -204,11 +205,11 @@ export default function ProfileStatsPage() {
                         <dd className="text-right text-muted-foreground">{formatDateTime(r.settled_at)}</dd>
                         <dt className="text-muted-foreground">시가</dt>
                         <dd className="text-right tabular-nums">
-                          {r.price_open != null ? r.price_open.toLocaleString(undefined, { minimumFractionDigits: 2 }) : "—"}
+                          {formatMarketPrice(r.price_open, r.market)}
                         </dd>
                         <dt className="text-muted-foreground">종가</dt>
                         <dd className="text-right tabular-nums">
-                          {r.price_close != null ? r.price_close.toLocaleString(undefined, { minimumFractionDigits: 2 }) : "—"}
+                          {formatMarketPrice(r.price_close, r.market)}
                         </dd>
                         <dt className="text-muted-foreground">가격변동률</dt>
                         <dd className="text-right tabular-nums">{r.change_pct != null ? `${r.change_pct.toFixed(2)}%` : "—"}</dd>
@@ -265,10 +266,10 @@ export default function ProfileStatsPage() {
                             </td>
                             <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{r.bet_amount.toLocaleString()}</td>
                             <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
-                              {r.price_open != null ? r.price_open.toLocaleString(undefined, { minimumFractionDigits: 2 }) : "—"}
+                              {formatMarketPrice(r.price_open, r.market)}
                             </td>
                             <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
-                              {r.price_close != null ? r.price_close.toLocaleString(undefined, { minimumFractionDigits: 2 }) : "—"}
+                              {formatMarketPrice(r.price_close, r.market)}
                             </td>
                             <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
                               {r.change_pct != null ? `${r.change_pct.toFixed(2)}%` : "—"}
