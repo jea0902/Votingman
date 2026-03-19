@@ -79,7 +79,7 @@
 
 ## 7. 투표 페이지 필터링 UI (시장별 가로 박스)
 
-- [ ] **목표**: 뉴스 탭 속보 페이지 스타일 참고
+- [ ] **목표**: 투표 페이지 필터링 UI 개선
 - [ ] 설계: 시장별 필터링 UI
 - [ ] 각 시장: 시장 이름 + 해당 시장 투표지들 가로 1행 배치 (웹)
 - [ ] 예: 비트코인 시장 → 5개 투표지(1일/4h/1h/15m/5m) 가로 스크롤
@@ -189,8 +189,6 @@ ORDER BY p.settled_at DESC, ph.payout_amount DESC NULLS LAST;
 ---
 
 ## 참고
-
-- **뉴스 탭 속보 페이지**: 필터링 UI 참고용
 - **reset-all-users-for-sens.sql**: 계정 초기화용 (이미 준비됨)
 - **btc-ohlc-backfill API**: `/api/cron/btc-ohlc-backfill` - 과거 OHLC 백필용
 - **cron-health API**: `/api/monitor/cron-health` - cron 수집 상태 모니터링

@@ -67,14 +67,18 @@ export default function RootLayout({
           aria-hidden
         />
 
-        <div className="flex min-h-screen flex-col">
+        <div className="min-h-screen">
           <HeartbeatProvider />
           <PageViewTracker />
           <Navbar />
-          <main className="flex-1">
-            {children}
-          </main>
-          <Footer />
+          <div className="min-w-0 md:pl-72 pt-[92px] md:pt-20">
+          <div className="flex min-w-0 flex-1 flex-col">
+            <main className="flex-1">
+              {children}
+            </main>
+            <Footer />
+          </div>
+          </div>
         </div>
       </body>
     </html>

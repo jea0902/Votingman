@@ -207,7 +207,7 @@ export default function ProfilePage() {
         window.dispatchEvent(new Event("user-balance-updated"));
         window.dispatchEvent(new Event("user-profile-updated"));
         alert("닉네임이 수정되었습니다.");
-        router.push("/landing");
+        router.push("/vision");
       } else {
         setError(json?.error?.message ?? "수정에 실패했습니다.");
       }

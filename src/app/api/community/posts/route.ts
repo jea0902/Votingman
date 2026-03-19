@@ -251,7 +251,7 @@ export async function GET(request: NextRequest) {
     // 쿼리 빌더 시작
     let query = supabase
       .from('board_posts')
-      .select('post_id, board_type, category, title, author_name, view_count, like_count, comment_count, is_pinned, is_admin_post, created_at', { count: 'exact' })
+      .select('post_id, board_type, category, title, content, author_name, view_count, like_count, comment_count, is_pinned, is_admin_post, created_at', { count: 'exact' })
       .is('deleted_at', null); // 소프트 삭제 제외
 
     // 필터링

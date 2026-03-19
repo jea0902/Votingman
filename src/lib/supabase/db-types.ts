@@ -196,6 +196,7 @@ export type PostListItem = {
   board_type: 'free' | 'perspective';
   category: 'free' | 'suggestion' | null;
   title: string;
+  content?: string;
   author_name: string;
   view_count: number;
   like_count: number;

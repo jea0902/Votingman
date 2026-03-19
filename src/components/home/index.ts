@@ -19,3 +19,4 @@ export { MarketVoteCard } from "./MarketVoteCard";
 export { MarketVoteCardCompact } from "./MarketVoteCardCompact";
 export { WonyottiPosition } from "./WonyottiPosition";
 export { BitmexRankersBoard } from "./BitmexRankersBoard";
+export { TickerStrip } from "./TickerStrip";
