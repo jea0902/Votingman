@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { FUNDING_DISPLAY_THRESHOLD } from "@/lib/arbitrage/funding-display";
 
 /**
  * 펀딩비 아비트라지 데이터 API
@@ -9,8 +10,10 @@ import { NextResponse } from "next/server";
  * 로직:
  *   1. 5개 거래소 선물 펀딩비 fetch + 4개 거래소 현물 마켓 목록 fetch (병렬)
  *   2. 바이낸스 거래량 기준 상위 200개 종목으로 제한
- *   3. 종목별로 "숏 거래소(펀딩비 최고) + 현물 거래소(상장된 곳)" 최적 조합 계산
- *   4. 양펀비 높은 순 정렬
+ *   3. 종목별로 선물 측 최적 거래소 + 현물 상장 거래소 조합 계산
+ *      - 양펀딩 ≥ 0.1%: 선물 숏 + 현물 매수 (펀딩 최고 거래소)
+ *      - 음펀딩 ≤ -0.1%: 선물 롱 + 현물 매도(숏) — 펀딩이 가장 낮은(가장 음수) 거래소
+ *   4. 일 APR(수취 기준) 높은 순 정렬
  */
 
 // ────────────────────────────────────────────────
@@ -44,15 +47,18 @@ export interface FundingRateRow {
     // 현물 상장 여부 (4개 CEX만)
     spotAvailable: SpotAvailability;
 
-    // 최적 조합
-    bestShortExchange: ExchangeName;    // 펀딩비 가장 높은 숏 거래소
-    bestShortRate: number;              // 해당 펀딩비
+    // 최적 조합 (양펀: 숏 선물 / 음펀: 롱 선물)
+    futuresPosition: "short" | "long";
+    bestFuturesExchange: ExchangeName;
+    bestFuturesRate: number;
     spotExchanges: SpotExchangeName[];  // 현물 상장된 거래소 목록
 
     // 수익 지표
-    dailyApr: number;                   // 일 환산 APR (%)
+    dailyApr: number;                   // 일 환산 APR (%) — 펀딩 수취 규모(항상 ≥ 0 표시)
     intervalHours: number;              // 정산 주기
 }
+
+export { FUNDING_DISPLAY_THRESHOLD } from "@/lib/arbitrage/funding-display";
 
 // ────────────────────────────────────────────────
 // 바이낸스
@@ -440,39 +446,100 @@ export async function GET() {
                 mexc: mexcData ? { rate: mexcData.rate, intervalHours: mexcData.intervalHours, nextFundingTime: mexcData.nextFundingTime } : null,
             };
 
-            // 숏 거래소 후보 중 양펀비 최고인 거래소 선택
-            // gateio/mexc는 선물 전용 — 현물은 메이저 4개 거래소에 상장된 경우에만 숏 후보 포함
+            // gateio/mexc/hl: 선물 전용 — 아래 루프에서 현물 없으면 제외하는 조건은
+            // 이미 spotExchanges.length >= 1 일 때만 행을 만들므로 사실상 항상 통과
             const FUTURES_ONLY: ExchangeName[] = ["hyperliquid", "gateio", "mexc"];
             const shortCandidates: { exchange: ExchangeName; rate: number; intervalHours: number }[] = [];
+            const longCandidates: { exchange: ExchangeName; rate: number; intervalHours: number }[] = [];
+
             for (const [ex, data] of Object.entries(funding) as [ExchangeName, ExchangeFundingData | null][]) {
-                if (!data || data.rate === null || data.rate <= 0) continue;
-                // 선물 전용 거래소는 현물이 메이저 4개 중 하나라도 있어야 숏 후보 포함
+                if (!data || data.rate === null) continue;
                 if (FUTURES_ONLY.includes(ex as ExchangeName) && spotExchanges.length === 0) continue;
-                shortCandidates.push({ exchange: ex, rate: data.rate, intervalHours: data.intervalHours ?? 8 });
+
+                if (data.rate >= FUNDING_DISPLAY_THRESHOLD) {
+                    shortCandidates.push({
+                        exchange: ex,
+                        rate: data.rate,
+                        intervalHours: data.intervalHours ?? 8,
+                    });
+                }
+                if (data.rate <= -FUNDING_DISPLAY_THRESHOLD) {
+                    longCandidates.push({
+                        exchange: ex,
+                        rate: data.rate,
+                        intervalHours: data.intervalHours ?? 8,
+                    });
+                }
             }
 
-            if (shortCandidates.length === 0) continue;
+            if (shortCandidates.length === 0 && longCandidates.length === 0) continue;
 
-            // 펀딩비 가장 높은 숏 거래소
-            shortCandidates.sort((a, b) => b.rate - a.rate);
-            const best = shortCandidates[0];
+            let futuresPosition: "short" | "long";
+            let bestExchange: ExchangeName;
+            let bestRate: number;
+            let intervalHours: number;
 
-            const dailyApr = calcDailyApr(best.rate, best.intervalHours);
+            if (shortCandidates.length > 0 && longCandidates.length > 0) {
+                shortCandidates.sort((a, b) => b.rate - a.rate);
+                longCandidates.sort((a, b) => a.rate - b.rate);
+                const s = shortCandidates[0];
+                const l = longCandidates[0];
+                const aprShort = calcDailyApr(s.rate, s.intervalHours);
+                const aprLong = calcDailyApr(-l.rate, l.intervalHours);
+                if (aprShort >= aprLong) {
+                    futuresPosition = "short";
+                    bestExchange = s.exchange;
+                    bestRate = s.rate;
+                    intervalHours = s.intervalHours;
+                } else {
+                    futuresPosition = "long";
+                    bestExchange = l.exchange;
+                    bestRate = l.rate;
+                    intervalHours = l.intervalHours;
+                }
+            } else if (shortCandidates.length > 0) {
+                shortCandidates.sort((a, b) => b.rate - a.rate);
+                const s = shortCandidates[0];
+                futuresPosition = "short";
+                bestExchange = s.exchange;
+                bestRate = s.rate;
+                intervalHours = s.intervalHours;
+            } else {
+                longCandidates.sort((a, b) => a.rate - b.rate);
+                const l = longCandidates[0]!;
+                futuresPosition = "long";
+                bestExchange = l.exchange;
+                bestRate = l.rate;
+                intervalHours = l.intervalHours;
+            }
+
+            const dailyApr =
+                futuresPosition === "short"
+                    ? calcDailyApr(bestRate, intervalHours)
+                    : calcDailyApr(-bestRate, intervalHours);
 
             rows.push({
                 symbol,
                 funding,
                 spotAvailable,
-                bestShortExchange: best.exchange,
-                bestShortRate: best.rate,
+                futuresPosition,
+                bestFuturesExchange: bestExchange,
+                bestFuturesRate: bestRate,
                 spotExchanges,
                 dailyApr,
-                intervalHours: best.intervalHours,
+                intervalHours,
             });
         }
 
-        // 5. 양펀비 높은 순 정렬
-        rows.sort((a, b) => b.bestShortRate - a.bestShortRate);
+        // 5. 정렬 우선순위
+        //    1) 양수 펀딩(숏 전략) 우선
+        //    2) 같은 전략 내에서는 펀딩 수취 APR 높은 순
+        rows.sort((a, b) => {
+            if (a.futuresPosition !== b.futuresPosition) {
+                return a.futuresPosition === "short" ? -1 : 1;
+            }
+            return b.dailyApr - a.dailyApr;
+        });
 
         return NextResponse.json({
             updatedAt: Date.now(),

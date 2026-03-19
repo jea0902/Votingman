@@ -69,7 +69,7 @@ function getFuturesUrl(exchange: ExchangeName, symbol: string): string {
         case "okx": return `https://www.okx.com/ko-kr/trade-swap/${sl}-usdt-swap`;
         case "bitget": return `https://www.bitget.com/futures/usdt/${s}USDT`;
         case "hyperliquid": return `https://app.hyperliquid.xyz/trade/${s}`;
-        case "gateio": return `https://www.gate.io/ko/futures_trade/USDT/${s}_USDT`;
+        case "gateio": return `https://www.gate.io/futures/usdt/${s}_USDT`;
         case "mexc": return `https://futures.mexc.com/exchange/${s}_USDT`;
     }
 }
@@ -100,7 +100,7 @@ const STRATEGY_STEPS = [
         title: "진입 조건 확인",
         color: "#60a5fa",
         items: [
-            "펀딩비가 충분히 높은지 확인 (최소 0.05% 이상 권장 — 수수료 감안)",
+            "펀딩비가 충분히 높은지 확인 (최소 0.1% 이상 권장 — 수수료 감안)",
             "숏 거래소에서 해당 종목 선물 거래 가능한지 확인",
             "현물 거래소에서 해당 종목 현물 매수 가능한지 확인",
             "두 거래소 모두 충분한 유동성(오더북 두께) 확인",
@@ -177,7 +177,7 @@ function StrategyGuide() {
                         필독
                     </span>
                 </span>
-                <span style={{ fontSize: "11px", color: THEME.textMuted }}>
+                <span style={{ fontSize: "11px", color: "#ffffff", fontWeight: 700, textShadow: "0 0 8px rgba(255,255,255,0.25)" }}>
                     {open ? "▲ 접기" : "▼ 펼치기"}
                 </span>
             </button>
@@ -316,6 +316,7 @@ function FeeCalculator() {
 
     const amountNum = parseFloat(amount.replace(/,/g, "")) || 0;
     const rateNum = parseFloat(fundingRate) / 100 || 0;
+    const absRateNum = Math.abs(rateNum);
     const intervalNum = parseFloat(intervalHours) || 8;
     const timesPerDay = 24 / intervalNum;
 
@@ -339,7 +340,7 @@ function FeeCalculator() {
                         거래소별 비교
                     </span>
                 </span>
-                <span style={{ fontSize: "11px", color: THEME.textMuted }}>
+                <span style={{ fontSize: "11px", color: "#ffffff", fontWeight: 700, textShadow: "0 0 8px rgba(255,255,255,0.25)" }}>
                     {open ? "▲ 접기" : "▼ 펼치기"}
                 </span>
             </button>
@@ -400,8 +401,11 @@ function FeeCalculator() {
                                         color: THEME.textPrimary,
                                         fontSize: "12px",
                                     }}
-                                    placeholder="0.1"
+                                    placeholder="0.1 또는 -0.1"
                                 />
+                                <p style={{ marginTop: 4, fontSize: "9px", color: THEME.textMuted }}>
+                                    양수: 숏 선물 + 현물 매수 / 음수: 롱 선물 + 현물 숏 기준 수취 계산
+                                </p>
                             </div>
                             {/* 정산 주기 */}
                             <div>
@@ -466,16 +470,21 @@ function FeeCalculator() {
                             const futuresFee = amountNum * futuresFeePct;
                             const totalFee = amountNum * totalFeePct;
 
-                            // 펀딩비 수익 (1회)
-                            const fundingIncome = amountNum * rateNum;
+                            // 펀딩비 수익은 방향(양/음)과 무관하게 수취 기준 절대값으로 계산
+                            const fundingIncomePerSettlement = amountNum * absRateNum;
                             // 일 펀딩비 수익
-                            const dailyFunding = fundingIncome * timesPerDay;
+                            const dailyFunding = fundingIncomePerSettlement * timesPerDay;
                             // 수수료 회수 기간 (일) - 수수료는 진입 시 딱 1번만 발생
                             const breakEvenDays = totalFee / dailyFunding;
-                            // 일 순수익 = 일 펀딩비 수익 그대로 (수수료는 1회성으로 별도 표시)
-                            const dailyNet = dailyFunding;
+                            // 일 순수익(첫날 기준): 일 펀딩비 수익 - 왕복 수수료(1회성)
+                            const dailyNet = dailyFunding - totalFee;
 
                             const isProfit = dailyNet > 0;
+                            const settlementNets = [1, 2, 3, 4].map((n) => ({
+                                n,
+                                net: fundingIncomePerSettlement * n - totalFee,
+                            }));
+                            const fundingStrategyLabel = rateNum >= 0 ? "양수 펀딩(숏 전략)" : "음수 펀딩(롱 전략)";
 
                             return (
                                 <div
@@ -568,12 +577,24 @@ function FeeCalculator() {
                                                 +{dailyFunding.toFixed(2)} USDT
                                             </span>
                                         </div>
+                                        <div className="flex items-center justify-between">
+                                            <span style={{ fontSize: "10px", color: THEME.textMuted }}>펀딩비 수익 (정산 1회)</span>
+                                            <span style={{ fontSize: "11px", fontWeight: 700, color: "#10b981" }}>
+                                                +{fundingIncomePerSettlement.toFixed(2)} USDT
+                                            </span>
+                                        </div>
                                     </div>
 
                                     <div style={{ height: "1px", background: THEME.border, margin: "8px 0" }} />
 
                                     {/* 핵심 결과 */}
                                     <div className="space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <span style={{ fontSize: "10px", color: THEME.textMuted }}>계산 전략</span>
+                                            <span style={{ fontSize: "10px", fontWeight: 700, color: rateNum >= 0 ? "#34d399" : "#f87171" }}>
+                                                {fundingStrategyLabel}
+                                            </span>
+                                        </div>
                                         {/* 수수료 회수 기간 */}
                                         <div className="flex items-center justify-between">
                                             <span style={{ fontSize: "10px", color: THEME.textMuted }}>수수료 회수</span>
@@ -581,15 +602,39 @@ function FeeCalculator() {
                                                 {isFinite(breakEvenDays) ? `${breakEvenDays.toFixed(1)}일` : "-"}
                                             </span>
                                         </div>
-                                        {/* 일 순수익 */}
+                                        {/* 일 순수익 (첫날 기준) */}
                                         <div
                                             className="flex items-center justify-between rounded-lg px-3 py-2"
                                             style={{ background: isProfit ? "rgba(16,185,129,0.08)" : "rgba(248,113,113,0.08)" }}
                                         >
-                                            <span style={{ fontSize: "11px", fontWeight: 600, color: THEME.textSub }}>일 순수익</span>
+                                            <span style={{ fontSize: "11px", fontWeight: 600, color: THEME.textSub }}>일 순수익(첫날)</span>
                                             <span style={{ fontSize: "14px", fontWeight: 800, color: isProfit ? "#10b981" : "#f87171" }}>
                                                 {isProfit ? "+" : ""}{dailyNet.toFixed(2)} USDT
                                             </span>
+                                        </div>
+                                        <div
+                                            className="rounded-lg px-3 py-2"
+                                            style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${THEME.border}` }}
+                                        >
+                                            <p style={{ fontSize: "10px", fontWeight: 600, color: THEME.textSub, marginBottom: 6 }}>
+                                                정산 회차별 누적 순수익
+                                            </p>
+                                            <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                                                {settlementNets.map((item) => (
+                                                    <div key={item.n} className="flex items-center justify-between">
+                                                        <span style={{ fontSize: "10px", color: THEME.textMuted }}>{item.n}회차</span>
+                                                        <span
+                                                            style={{
+                                                                fontSize: "10px",
+                                                                fontWeight: 700,
+                                                                color: item.net >= 0 ? "#10b981" : "#f87171",
+                                                            }}
+                                                        >
+                                                            {item.net >= 0 ? "+" : ""}{item.net.toFixed(2)} USDT
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
                                     </div>
 
@@ -612,6 +657,120 @@ function FeeCalculator() {
                             슬리피지 미포함 / 메이커 주문 시 실제 수수료 더 낮아짐 /
                             바이낸스 할인율은 공식 미공개 추정치(현물 20%, 선물 10%) 기준
                         </p>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ────────────────────────────────────────────────
+// AI 에이전트 봇 가이드라인
+// ────────────────────────────────────────────────
+
+function AIAgentGuideline() {
+    const [open, setOpen] = useState(false);
+
+    return (
+        <div style={{ borderBottom: `1px solid ${THEME.border}` }}>
+            <button
+                type="button"
+                onClick={() => setOpen((v) => !v)}
+                className="flex w-full items-center justify-between px-5 py-3 transition-colors hover:bg-white/[0.02]"
+            >
+                <span className="flex items-center gap-2">
+                    <span style={{ fontSize: "12px", color: "#93c5fd" }}>🤖</span>
+                    <span style={{ fontSize: "12px", fontWeight: 700, color: THEME.textPrimary }}>
+                        AI 에이전트 봇 가이드라인
+                    </span>
+                </span>
+                <span style={{ fontSize: "11px", color: "#ffffff", fontWeight: 700, textShadow: "0 0 8px rgba(255,255,255,0.25)" }}>
+                    {open ? "▲ 접기" : "▼ 펼치기"}
+                </span>
+            </button>
+
+            {open && (
+                <div className="px-5 pb-6">
+                    <div
+                        className="rounded-xl p-4"
+                        style={{ background: "rgba(147,197,253,0.06)", border: "1px solid rgba(147,197,253,0.2)" }}
+                    >
+                        <p style={{ fontSize: "12px", color: "#dbeafe", fontWeight: 700, marginBottom: 10 }}>
+                            무손실 펀딩비 아비트라지 실행 수칙
+                        </p>
+
+                        <div className="space-y-4">
+                            <div>
+                                <p style={{ fontSize: "11px", fontWeight: 700, color: "#93c5fd" }}>
+                                    1) 필터: 배보다 배꼽이 크면 무조건 패스
+                                </p>
+                                <p style={{ fontSize: "10px", color: THEME.textSub, marginTop: 4, lineHeight: 1.7 }}>
+                                    단순 펀딩비 수치에 진입하지 말고, 실질 수익률(Net Yield)이 0.5% 이상일 때만 진입.
+                                </p>
+                                <div className="mt-2 rounded-lg px-3 py-2" style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${THEME.border}` }}>
+                                    <p style={{ fontSize: "10px", color: "#e5e7eb", fontFamily: "monospace" }}>
+                                        Net Yield = F_rate - (C_fee x 2) - I_borrow - S_slip
+                                    </p>
+                                    <p style={{ fontSize: "9px", color: THEME.textMuted, marginTop: 4, lineHeight: 1.6 }}>
+                                        F_rate: 예상 펀딩비 수익 / C_fee: 진입+종료 시장가 수수료 / I_borrow: 현물 마진 대출 이자 / S_slip: 슬리피지
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div>
+                                <p style={{ fontSize: "11px", fontWeight: 700, color: "#93c5fd" }}>
+                                    2) 가격 괴리(Basis) 감시: 역프리미엄은 독
+                                </p>
+                                <p style={{ fontSize: "10px", color: THEME.textSub, marginTop: 4, lineHeight: 1.7 }}>
+                                    거래소 간 가격 차이가 펀딩비 수익의 50%를 초과하면 진입 금지. 펀딩비 2.5%인데 괴리가 1.5%면, 정산 후 수렴 과정에서 시세 차손이 더 커질 수 있음.
+                                </p>
+                                <p style={{ fontSize: "10px", color: "#fbbf24", marginTop: 6, fontWeight: 700 }}>
+                                    수칙: Basis &lt; (F_rate x 0.5) 일 때만 진입
+                                </p>
+                            </div>
+
+                            <div>
+                                <p style={{ fontSize: "11px", fontWeight: 700, color: "#93c5fd" }}>
+                                    3) 아토믹 체결(Atomic Execution): 한 쪽만 잡히면 위험
+                                </p>
+                                <p style={{ fontSize: "10px", color: THEME.textSub, marginTop: 4, lineHeight: 1.7 }}>
+                                    양방향 포지션은 사실상 동시에 체결. 한쪽 주문 실패/API 에러/부분 체결 시 반대 주문 즉시 취소 또는 시장가 보정으로 0.1초 내 델타 중립 완성.
+                                </p>
+                                <p style={{ fontSize: "10px", color: "#fbbf24", marginTop: 6, fontWeight: 700 }}>
+                                    수칙: All-or-None(전부 체결 아니면 전부 취소) 기본
+                                </p>
+                            </div>
+
+                            <div>
+                                <p style={{ fontSize: "11px", fontWeight: 700, color: "#93c5fd" }}>
+                                    4) 호가창 깊이(Depth) 분석: 내 주문이 가격을 밀면 실패
+                                </p>
+                                <p style={{ fontSize: "10px", color: THEME.textSub, marginTop: 4, lineHeight: 1.7 }}>
+                                    내 주문으로 Top 5 호가가 0.1% 이상 밀리면 진입 실패. 주문 수량은 L2 오더북 상위 5개 물량의 10% 이내로 제한하고, 대량 주문은 초단위 분할 진입.
+                                </p>
+                            </div>
+
+                            <div>
+                                <p style={{ fontSize: "11px", fontWeight: 700, color: "#93c5fd" }}>
+                                    5) 탈출 전략(Exit): 정산 직후 폭발 변동성 회피
+                                </p>
+                                <p style={{ fontSize: "10px", color: THEME.textSub, marginTop: 4, lineHeight: 1.7 }}>
+                                    정산 직후 익절 물량으로 급변동 가능. 정산 0.5초 전 선제 청산 또는 정산 직후 1초 내 최저 지연 노드로 종료.
+                                </p>
+                                <p style={{ fontSize: "10px", color: "#fbbf24", marginTop: 6, fontWeight: 700 }}>
+                                    수칙: 펀딩만 수취하고 변동성 구간 전에 이탈
+                                </p>
+                            </div>
+
+                            <div>
+                                <p style={{ fontSize: "11px", fontWeight: 700, color: "#93c5fd" }}>
+                                    6) 시스템 헬스 체크: 지갑 닫히면 무조건 중단
+                                </p>
+                                <p style={{ fontSize: "10px", color: THEME.textSub, marginTop: 4, lineHeight: 1.7 }}>
+                                    특정 거래소에서 코인 입출금이 중단(Wallet Suspended)되면 진입 금지. API 응답 지연이 100ms 초과 시 모든 신규 매매 즉시 중단.
+                                </p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
@@ -654,35 +813,6 @@ function getHlNextFundingMs(): number {
     const next = new Date(now);
     next.setHours(now.getHours() + 1, 0, 0, 0);
     return next.getTime() - now.getTime();
-}
-
-// ────────────────────────────────────────────────
-// 코인 로고
-// ────────────────────────────────────────────────
-
-function CoinLogo({ symbol }: { symbol: string }) {
-    const [errored, setErrored] = useState(false);
-    if (errored) {
-        return (
-            <span
-                className="flex h-5 w-5 items-center justify-center rounded-full text-[8px] font-bold"
-                style={{ background: "rgba(255,255,255,0.1)", color: THEME.textSub }}
-            >
-                {symbol.slice(0, 2)}
-            </span>
-        );
-    }
-    return (
-        <img
-            src={`https://coinicons-api.vercel.app/api/icon/${symbol.toLowerCase()}`}
-            alt={symbol}
-            width={20}
-            height={20}
-            className="rounded-full"
-            onError={() => setErrored(true)}
-            style={{ objectFit: "contain" }}
-        />
-    );
 }
 
 // ────────────────────────────────────────────────
@@ -788,7 +918,7 @@ function FundingCell({ row, exchange }: { row: FundingRateRow; exchange: Exchang
         );
     }
 
-    const isBest = row.bestShortExchange === exchange;
+    const isBest = row.bestFuturesExchange === exchange;
     return (
         <span className="flex flex-col gap-0.5">
             <span
@@ -912,6 +1042,9 @@ export function FundingRateTable({ className }: { className?: string }) {
             {/* 수수료 계산기 (접기/펼치기) */}
             <FeeCalculator />
 
+            {/* AI 에이전트 봇 가이드라인 (접기/펼치기) */}
+            <AIAgentGuideline />
+
             {/* 로딩 */}
             {loading && (
                 <div className="flex h-60 flex-col items-center justify-center gap-3">
@@ -935,7 +1068,12 @@ export function FundingRateTable({ className }: { className?: string }) {
                                 <th className="px-3 py-2.5 text-right" style={{ color: THEME.textMuted, fontWeight: 500, whiteSpace: "nowrap" }}>정산 주기</th>
                                 <th className="px-3 py-2.5 text-right" style={{ color: THEME.textMuted, fontWeight: 500, whiteSpace: "nowrap" }}>다음 정산</th>
                                 {/* 숏 거래소 → 현물 거래소 순서 */}
-                                <th className="px-3 py-2.5 text-center" style={{ color: THEME.textMuted, fontWeight: 500, whiteSpace: "nowrap" }}>숏 거래소</th>
+                                <th className="px-3 py-2.5 text-center" style={{ color: THEME.textMuted, fontWeight: 500, whiteSpace: "nowrap" }}>
+                                    <span className="flex flex-col items-center gap-0.5">
+                                        <span>선물 거래소</span>
+                                        <span style={{ fontSize: "9px", fontWeight: 400, color: THEME.textMuted }}>숏·롱</span>
+                                    </span>
+                                </th>
                                 <th className="px-3 py-2.5 text-center" style={{ color: THEME.textMuted, fontWeight: 500, whiteSpace: "nowrap" }}>현물 거래소</th>
                                 {/* 거래소별 펀딩비 상세 */}
                                 {EXCHANGES.map((ex) => (
@@ -959,7 +1097,7 @@ export function FundingRateTable({ className }: { className?: string }) {
                         </thead>
                         <tbody>
                             {rows.map((row, i) => {
-                                const bestData = row.funding[row.bestShortExchange];
+                                const bestData = row.funding[row.bestFuturesExchange];
                                 return (
                                     <tr
                                         key={row.symbol}
@@ -974,7 +1112,6 @@ export function FundingRateTable({ className }: { className?: string }) {
                                         {/* 종목 */}
                                         <td className="px-5 py-3">
                                             <span className="flex items-center gap-2">
-                                                <CoinLogo symbol={row.symbol} />
                                                 <span>
                                                     <span style={{ fontWeight: 700, color: THEME.textPrimary }}>{row.symbol}</span>
                                                     <span style={{ color: THEME.textMuted, fontSize: "10px" }}>/USDT</span>
@@ -984,14 +1121,14 @@ export function FundingRateTable({ className }: { className?: string }) {
 
                                         {/* 펀딩비 */}
                                         <td className="px-3 py-3 text-right tabular-nums">
-                                            <span style={{ fontWeight: 700, fontSize: "13px", color: getRateColor(row.bestShortRate) }}>
-                                                {formatRate(row.bestShortRate)}
+                                            <span style={{ fontWeight: 700, fontSize: "13px", color: getRateColor(row.bestFuturesRate) }}>
+                                                {formatRate(row.bestFuturesRate)}
                                             </span>
                                         </td>
 
                                         {/* 일 APR */}
                                         <td className="px-3 py-3 text-right tabular-nums">
-                                            <span style={{ fontWeight: 600, color: getRateColor(row.bestShortRate) }}>
+                                            <span style={{ fontWeight: 600, color: getRateColor(row.bestFuturesRate) }}>
                                                 {formatApr(row.dailyApr)}
                                             </span>
                                         </td>
@@ -1011,16 +1148,30 @@ export function FundingRateTable({ className }: { className?: string }) {
                                             <CountdownCell
                                                 nextFundingTime={bestData?.nextFundingTime ?? null}
                                                 intervalHours={row.intervalHours}
-                                                exchange={row.bestShortExchange}
+                                                exchange={row.bestFuturesExchange}
                                             />
                                         </td>
 
-                                        {/* 숏 거래소 (왼쪽) */}
+                                        {/* 선물 거래소 + 숏/롱 */}
                                         <td className="px-3 py-3 text-center">
-                                            <ExchangeBadge
-                                                exchange={row.bestShortExchange}
-                                                href={getFuturesUrl(row.bestShortExchange, row.symbol)}
-                                            />
+                                            <div className="flex flex-col items-center gap-1">
+                                                <span
+                                                    className="rounded px-1.5 py-0.5 text-[9px] font-bold"
+                                                    style={{
+                                                        background:
+                                                            row.futuresPosition === "short"
+                                                                ? "rgba(16,185,129,0.15)"
+                                                                : "rgba(248,113,113,0.12)",
+                                                        color: row.futuresPosition === "short" ? "#34d399" : "#f87171",
+                                                    }}
+                                                >
+                                                    {row.futuresPosition === "short" ? "숏" : "롱"}
+                                                </span>
+                                                <ExchangeBadge
+                                                    exchange={row.bestFuturesExchange}
+                                                    href={getFuturesUrl(row.bestFuturesExchange, row.symbol)}
+                                                />
+                                            </div>
                                         </td>
 
                                         {/* 현물 거래소 (오른쪽) */}
